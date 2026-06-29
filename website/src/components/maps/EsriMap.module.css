@@ -1,0 +1,37 @@
+.mapWrapper {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  background: #dde5ea;
+}
+
+.embedded {
+  height: 100%;
+  min-height: 0;
+}
+
+.mapDiv {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mapDiv:focus,
+.mapDiv:focus-visible {
+  outline: none;
+}
+
+.mapDiv :global(.esri-view),
+.mapDiv :global(.esri-view-surface),
+.mapDiv :global(.esri-view-surface--inset-outline) {
+  outline: none;
+}
+
+.mapDiv :global(.esri-view-surface--inset-outline:focus::after) {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}

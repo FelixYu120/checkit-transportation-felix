@@ -1,0 +1,91 @@
+.sidebar {
+  padding: 18px 16px;
+  height: 100%;
+  color: #334155;
+  background: transparent;
+  min-height: 0; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: transform 0.3s ease-in-out; /* Smooth transition */
+}
+
+/* --- MOBILE DRAWER LOGIC --- */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;   /* Removes from document flow so map isn't cut off */
+    top: 80px;        /* Adjust to your header height */
+    left: 0;
+    width: 85vw;      /* Occupies most of the screen width */
+    height: calc(100vh - 80px);
+    z-index: 1001;    /* Sits above the map layer */
+    box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+  }
+
+  .sidebar.retracted {
+    transform: translateX(-100%); /* Hides sidebar completely */
+  }
+
+  .searchInput {
+    font-size: 16px; /* Prevents iOS auto-zoom */
+  }
+}
+
+/* --- TOGGLE BUTTON STYLES --- */
+.mobileToggle {
+  display: none; /* Hidden on desktop */
+}
+
+@media (max-width: 768px) {
+  .mobileToggle {
+    display: flex;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2000; /* Stays above everything */
+    background-color: #5a706b;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 50px;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+}
+
+/* --- REST OF EXISTING STYLES --- */
+.searchContainer {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #d9e2e8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+}
+
+.searchIcon { color: #7b8794; margin-right: 8px; }
+.searchInput { border: none; background: transparent; outline: none; width: 100%; font-size: 14px; }
+.navGroup { margin-bottom: 10px; }
+.navHeader { display: flex; align-items: center; font-weight: 700; font-size: 17px; padding: 8px 0 4px; gap: 6px; color: #1f2937; }
+.expandButton { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; background: transparent; color: inherit; cursor: pointer; border-radius: 6px; }
+.expandButton:hover { background-color: rgba(160, 209, 197, 0.18); }
+.collegeLink { color: #1f2937; text-decoration: none; border-radius: 8px; padding: 3px 6px; transition: all 0.2s ease; }
+.collegeLink:hover { background-color: rgba(160, 209, 197, 0.18); color: #4c6d69; }
+.collegeLink.activeCollege { background-color: #e8f4f1; color: #4e6c66; }
+.buildingGroup { margin-left: 14px; margin-top: 0; margin-bottom: 8px; }
+.buildingHeaderWrapper { display: flex; align-items: center; gap: 4px; padding: 3px 0; }
+.buildingExpandButton { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; background: transparent; color: #1f2937; cursor: pointer; border-radius: 6px; flex: 0 0 auto; }
+.buildingExpandButton:hover { background-color: rgba(160, 209, 197, 0.18); }
+.buildingLink { text-decoration: none; color: #1f2937; font-weight: 700; line-height: 1.25; }
+.buildingLink.active { color: #1f2937; font-weight: 700; }
+.floorList { margin-left: 20px; display: flex; flex-direction: column; margin-top: 4px; margin-bottom: 14px; border-left: 1px solid #e7edf2; padding-left: 10px; }
+.floorGroup { display: flex; flex-direction: column; }
+.floorLink { padding: 8px 10px; color: #70808f; text-decoration: none; font-size: 13px; border-radius: 8px; transition: all 0.2s ease; }
+.floorLink.activeFloor { background-color: #e8f4f1; color: #4e6c66; font-weight: 600; }
+.roomList { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 8px 12px; padding-left: 10px; border-left: 1px solid #e7edf2; }
+.roomLink { padding: 7px 9px; color: #52606d; text-decoration: none; font-size: 12px; line-height: 1.25; border-radius: 7px; transition: all 0.2s ease; }
+.roomLink:hover { background-color: rgba(160, 209, 197, 0.14); color: #2f4f4c; }
+.roomLink.activeRoom { background-color: #e8f4f1; color: #2f4f4c; font-weight: 700; }

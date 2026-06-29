@@ -1,0 +1,77 @@
+.appLayout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;  
+    width: 100vw;       
+    overflow: hidden;
+}
+
+.topContainer {
+    padding: 1.5rem 1rem; /* Use relative units for spacing */
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+/* Use Clamp for fluid typography: min-size, ideal-size, max-size */
+.mainHeading {
+    font-size: clamp(2rem, 8vw, 60px); 
+    font-weight: 700;
+    font-family: "Arial", sans-serif;
+    color: #333;
+    margin: 0;
+}
+
+.subHeading {
+    font-size: clamp(1.2rem, 4vw, 35px);
+    font-weight: 400;
+    color: #555;
+    margin: 0.5rem 0 0 0;
+}
+
+.mainContent {
+    flex-grow: 1;
+    display: flex;
+    /* Default to Column for Mobile (Sidebar on top, Map on bottom) */
+    flex-direction: column; 
+    overflow: hidden;
+    position: relative;
+}
+
+.centeredPageShell {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+}
+
+/* --- RESPONSIVE BREAKPOINTS --- */
+
+/* For Tablets and Desktop (iPad and up) */
+@media (min-width: 768px) {
+    .mainContent {
+        flex-direction: row; /* Switch back to side-by-side */
+    }
+    
+    .topContainer {
+        padding-bottom: 40px;
+    }
+
+    .mapSection {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1; /* Lower than dashboard */
+    }
+}
+
+/* Specific adjustment for very small phones */
+@media (max-width: 480px) {
+    .topContainer {
+        padding: 1rem 0.5rem;
+    }
+}

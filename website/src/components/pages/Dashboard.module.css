@@ -1,0 +1,378 @@
+/* =========================================
+   1. MAIN LAYOUT & LEGEND (Reduced)
+   ========================================= */
+.dashboardContainer, 
+.dashboardContainer * {
+    box-sizing: border-box; /* Crucial: width includes padding */
+}
+
+.dashboardContainer {
+    width: 100%;
+    overflow-x: hidden; /* Hard stop for horizontal scrolling */
+    background-color: #f5f5f7;
+    padding: 15px; 
+}
+
+.topBar {
+    display: flex;        
+    flex-direction: column; /* Stacked for sidebar width */
+    align-items: stretch;   /* Fill the width */
+    gap: 15px;                 
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.statusLegend {
+    background-color: #a8d5c8;
+    padding: 8px 15px; /* Reduced padding */
+    border-radius: 50px;
+    display: flex;
+    justify-content: space-between; /* Space items out evenly */
+    align-items: center;
+    gap: 10px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    color: #1a3c34;
+    font-weight: 600;
+    font-size: 0.75rem; /* Shrunk font */
+    white-space: nowrap;
+}
+
+/* Legend */
+.legendItem { display: flex; align-items: center; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.12);}
+.greenDot { background-color: #90ee90; }
+.redDot { background-color: #ff6b6b; }
+.yellowDot { background-color: #ffd700; }
+.orangeDot { background-color: #ffa500; }
+
+/* =========================================
+   2. SEARCH BAR (Fits Sidebar)
+   ========================================= */
+.searchWrapper {
+    width: 100%; /* Removed min-width 30vh */
+    display: flex;
+}
+
+.searchInput {
+    width: 100%; 
+    padding: 10px 18px; /* Reduced padding */
+    min-width: 0; /* REMOVED 40vh - this was causing the scroll */
+    font-size: 0.9rem; 
+    border: 1px solid #ddd; 
+    border-radius: 50px;
+    outline: none; 
+    transition: all 0.2s ease;
+    background: white;
+}
+
+/* =========================================
+   3. COLLEGE CARD (Shrunk)
+   ========================================= */
+.collegeCard {
+    background: white;
+    border-radius: 18px; /* Slightly smaller radius */
+    padding: 15px; /* Reduced from 30px */
+    width: 100%; /* Changed from 95% to fill container */
+    max-width: 100%; 
+    margin: 0 0 20px 0; /* Removed auto margins */
+    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+}
+
+.collegeTitle {
+    font-size: 1.2rem; /* Reduced from 1.8rem */
+    font-weight: 800;
+    color: #111;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+/* =========================================
+   4. BUILDING BUTTONS (Reduced)
+   ========================================= */
+.buildingCard {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.buildingHeader {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    cursor: pointer; 
+    user-select: none;
+}
+
+.buildingInfo { 
+    display: flex; 
+    flex-direction: column; /* This puts the name on top of the stats */
+    gap: 4px; 
+}
+
+.buildingName { font-size: 1rem; font-weight: 700; color: #000; }
+.buildingSub { font-size: 0.85rem; color: #666; font-weight: 500; }
+
+.arrow { font-size: 14px; color: #555; transition: transform 0.3s; }
+.down { transform: rotate(180deg); }
+
+/* =========================================
+   5. FLOORS & ROOMS (Status on Same Line)
+   ========================================= */
+.floorList {
+    margin-top: 15px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px;
+    border-top: 1px solid #f0f0f0; 
+    padding-top: 15px;
+}
+
+.floorCard {
+    background: #fdfdfd;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 14px;
+}
+
+.floorTitle {
+    font-size: 0.96rem;
+    font-weight: 500;
+    color: #666;
+    letter-spacing: 0.01em;
+}
+
+.roomRow {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.roomRow + .roomRow {
+    padding-top: 16px;
+    border-top: 1px solid #f3f3f3;
+}
+
+.roomInfo {
+    width: 100%;
+}
+
+.roomTitleRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    width: 100%;
+}
+
+.roomName { 
+    font-size: 1rem; 
+    font-weight: 600; 
+    color: #222; 
+    margin: 0;
+    line-height: 1.35;
+    min-width: 0;
+}
+
+.roomDetails {
+    margin: 2px 0 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #7a7a7a;
+    line-height: 1.4;
+}
+
+.statusContainer {
+    display: flex;
+    align-items: center;
+    align-self: start;
+    gap: 3px;
+    flex-shrink: 0; /* Prevents the status from squishing */
+}
+
+.statusPercent {
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    color: #2f2f2f;
+}
+
+.statusDot { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.75); }
+
+@media (max-width: 900px) {
+    .dashboardContainer {
+        padding: 12px;
+    }
+
+    .statusLegend {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        white-space: normal;
+        row-gap: 8px;
+    }
+
+    .collegeCard {
+        padding: 14px;
+    }
+
+    .buildingCard {
+        padding: 14px;
+    }
+
+    .floorCard {
+        padding: 13px 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboardContainer {
+        padding: 10px;
+    }
+
+    .topBar {
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .statusLegend {
+        padding: 10px 12px;
+        border-radius: 24px;
+        gap: 8px 14px;
+        font-size: 0.82rem;
+    }
+
+    .legendItem {
+        gap: 6px;
+    }
+
+    .searchInput {
+        padding: 10px 16px;
+        font-size: 1rem;
+    }
+
+    .collegeCard {
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .collegeTitle {
+        font-size: 1.1rem;
+        margin-bottom: 12px;
+    }
+
+    .buildingCard {
+        padding: 14px 12px;
+        border-radius: 14px;
+    }
+
+    .buildingHeader {
+        gap: 10px;
+    }
+
+    .buildingName {
+        font-size: 0.95rem;
+        line-height: 1.3;
+    }
+
+    .buildingSub {
+        font-size: 0.82rem;
+    }
+
+    .floorList {
+        margin-top: 12px;
+        padding-top: 12px;
+    }
+
+    .floorCard {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .floorTitle {
+        font-size: 0.9rem;
+    }
+
+    .roomRow + .roomRow {
+        padding-top: 14px;
+    }
+
+    .roomTitleRow {
+        gap: 6px;
+    }
+
+    .roomName {
+        font-size: 0.96rem;
+        line-height: 1.4;
+    }
+
+    .roomDetails {
+        font-size: 0.84rem;
+    }
+
+    .statusContainer {
+        gap: 2px;
+    }
+
+    .statusPercent {
+        font-size: 0.9rem;
+    }
+
+    .statusDot {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboardContainer {
+        padding: 8px;
+    }
+
+    .statusLegend {
+        padding: 10px;
+        gap: 8px 12px;
+        font-size: 0.78rem;
+    }
+
+    .collegeCard {
+        padding: 10px;
+    }
+
+    .buildingCard {
+        padding: 12px 10px;
+    }
+
+    .buildingName {
+        font-size: 0.92rem;
+    }
+
+    .arrow {
+        font-size: 12px;
+    }
+
+    .floorCard {
+        padding: 11px 10px;
+        border-radius: 10px;
+    }
+
+    .roomTitleRow {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .roomName {
+        font-size: 0.93rem;
+    }
+
+    .roomDetails {
+        font-size: 0.82rem;
+    }
+
+    .statusPercent {
+        font-size: 0.86rem;
+    }
+}

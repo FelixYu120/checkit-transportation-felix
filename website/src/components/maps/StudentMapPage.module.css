@@ -1,0 +1,134 @@
+.mainWrapper {
+    display: flex;
+    height: 100%;
+    width: 100vw;
+    overflow: hidden;
+    position: relative;
+    margin-top: 0; 
+}
+
+.sidebarSection {
+    width: 400px;
+    min-width: 400px;
+    height: 100%;
+    background: #f8fafc;
+    border-right: 1px solid #e2e8f0;
+    transition: margin-left 0.3s ease-in-out;
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column; /* Stacks header and dashboard vertically */
+}
+
+.sidebarClosed {
+    margin-left: -400px;
+}
+
+.sidebarContent {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Fills sidebarSection */
+    width: 100%;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow: hidden; /* Prevents container from growing past 100% */
+}
+
+.dashboardScroll {
+    flex: 1; /* Takes up all remaining space under the clock */
+    overflow-y: auto !important; /* This enables your scrollbar */
+    overflow-x: hidden;
+    min-height: 0; /* Critical for flex scrolling to work */
+    margin-top: 10px;
+}
+
+.mapSection {
+    flex: 1;
+    height: 100%;
+    position: relative;
+}
+
+.toggleButton {
+    position: absolute;
+    right: -25px; 
+    top: 50%;
+    transform: translateY(-50%);
+    width: 25px;
+    height: 50px;
+    background: #9fd2cd;
+    border: 1px solid #8cbdb8;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    z-index: 100;
+
+    color: white;
+}
+.availabilityHeader {
+    /* Using your brand light teal */
+    background: #e8f8f7; 
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #9fd2cd; /* Slightly darker border for depth */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.availabilityHeader p { 
+    margin: 0; 
+    font-size: 11px; 
+    color: #59716a; 
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.availabilityHeader strong { 
+    font-size: 15px; 
+    color: #59716a; 
+    display: block;
+    margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+    .sidebarSection {
+        /* This stops the "blank side" by floating over the map */
+        position: absolute; 
+        left: 0;
+        top: 0;
+        width: 85vw; /* Almost full screen like Admin */
+        min-width: 85vw;
+        z-index: 999;
+        /* Use transform for the close/open to match Admin side */
+        margin-left: 0; 
+        transition: transform 0.3s ease-in-out;
+    }
+
+    /* When closed on mobile, slide it completely off-screen */
+    .sidebarClosed {
+        transform: translateX(-100%);
+        margin-left: 0; /* Reset the desktop margin logic */
+    }
+
+    .mapSection {
+        /* Map stays 100% width, no blank space */
+        width: 100vw;
+        height: 100%;
+    }
+
+    .toggleButton {
+        /* Make the button bigger for thumbs */
+        right: -40px; 
+        width: 40px;
+        height: 80px;
+        font-size: 20px;
+    }
+}
+
+/* Keep your landscape fix */
+@media (max-height: 500px) and (orientation: landscape) {
+    .sidebarSection {
+        width: 280px;      
+        min-width: 280px;
+    }
+}

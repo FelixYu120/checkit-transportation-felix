@@ -1,0 +1,369 @@
+/* --- 1. FULL SCREEN DARK BACKGROUND --- */
+.authcontainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+    box-sizing: border-box;
+    z-index: 9999;
+}
+
+/* --- 2. THE TEAL CARD --- */
+.card {
+    background-color: #a0d1c5;
+    width: 100%;
+    max-width: 520px;
+    padding: 30px 40px 30px;
+    border-radius: 6px;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+}
+
+/* --- 3. LOGO --- */
+.brandBlock {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 30px;
+}
+
+.logoLink {
+    display: inline-flex;
+    border-radius: 10px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.logoLink:hover {
+    transform: translateY(-1px);
+    opacity: 0.92;
+}
+
+.logoLink:focus-visible {
+    outline: 3px solid rgba(255,255,255,0.7);
+    outline-offset: 4px;
+}
+
+.icon {
+    width: 132px;
+    height: auto;
+}
+
+/* --- 4. TEXT & TITLES --- */
+.title, .logintitle {
+    color: #FFFFFF;
+    font-size: 31px;
+    font-weight: 800;
+    margin: 0;
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 1.2px;
+    line-height: 1.05;
+}
+
+.headerBlock {
+    margin-top: 0;
+    margin-bottom: 24px;
+}
+
+.helperText {
+    color: #667085;
+    margin: 10px auto 0;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.45;
+    max-width: 360px;
+}
+
+.supportText {
+    color: rgba(255,255,255,0.84);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 14px auto 0;
+    max-width: 320px;
+}
+
+.subtitle, .verifytext {
+    color: #FFFFFF;
+    margin-top: 14px;
+    margin-bottom: 0;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.5;
+    opacity: 0.92;
+}
+
+.general {
+    color: #e0f2f1;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: left;
+    margin-bottom: 8px;
+    margin-top: 15px;
+    display: block;
+}
+
+/* --- 5. INPUTS --- */
+.formlayout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 16px;
+}
+
+.fieldGroup {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    text-align: left;
+}
+
+.fieldLabel {
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.loginemail {
+    width: 100%;
+    padding: 13px 15px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    font-size: 14px;
+    box-sizing: border-box;
+    background-color: rgba(255,255,255,0.96);
+    color: #333;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.loginemail::placeholder {
+    color: #8c8c8c;
+}
+
+.loginemail:focus {
+    border-color: rgba(90,112,107,0.55);
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.25);
+    transform: translateY(-1px);
+}
+
+/* --- 6. BUTTONS --- */
+.navrow {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    width: 100%;
+    margin-top: 14px;
+    padding-bottom: 4px;
+}
+
+.backbutton {
+    padding: 13px 28px;
+    background-color: white;
+    color: #333;
+    border: none;
+    font-weight: 800;
+    font-size: 14px;
+    border-radius: 10px;
+    min-width: 118px;
+    cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.continuebutton {
+    padding: 13px 28px;
+    background-color: #5a706b;
+    color: white;
+    border: none;
+    font-weight: 800;
+    font-size: 14px;
+    border-radius: 10px;
+    min-width: 118px;
+    cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 0 10px 20px rgba(64,80,76,0.22);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.backbutton:hover, .continuebutton:hover {
+    transform: translateY(-1px);
+    opacity: 0.95;
+}
+
+.backbutton:focus-visible, .continuebutton:focus-visible, .linkbutton:focus-visible, .otpInput:focus-visible {
+    outline: 3px solid rgba(255,255,255,0.68);
+    outline-offset: 3px;
+}
+
+/* --- 7. FOOTER LINKS --- */
+.loginrow {
+    text-align: center;
+    margin-top: 12px;
+    color: #4c625d;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.linkbutton {
+    background: none;
+    border: none;
+    color: #415b55;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 4px 6px;
+}
+
+.linkbutton:hover {
+    text-decoration: underline;
+}
+
+.footerActions {
+    margin-top: 30px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    padding-top: 15px;
+    text-align: center;
+}
+
+.footerActions .linkbutton {
+    color: rgba(255,255,255,0.52);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+/* --- 8. OTP INPUTS --- */
+.otpContainer {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  flex-wrap: wrap;
+}
+
+.otpInput {
+  width: 40px;
+  height: 50px;
+  text-align: center;
+  font-size: 1.2rem;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: rgba(255,255,255,0.96);
+  color: black;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.otpInput:focus {
+  border-color: rgba(90,112,107,0.55);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 400px) {
+  .otpInput {
+    width: 32px;
+    height: 40px;
+    font-size: 1rem;
+    gap: 4px;
+  }
+}
+
+/* --- 9. MESSAGES --- */
+.errorMessage {
+    color: white;
+    background-color: #e57373;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin: -4px auto 18px;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 1.4;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.successMessage {
+    color: white;
+    background-color: #81c784;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin: -4px auto 18px;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 1.4;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.noticeMessage {
+    color: #334155;
+    background-color: rgba(255,255,255,0.68);
+    border: 1px solid rgba(255,255,255,0.8);
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.fadein {
+    animation: fadeIn 0.4s ease-out;
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    .card {
+        padding: 26px 22px 24px;
+    }
+
+    .brandBlock {
+        margin-bottom: 28px;
+    }
+
+    .icon {
+        width: 112px;
+    }
+
+    .headerBlock {
+        margin-bottom: 24px;
+    }
+
+    .title, .logintitle {
+        font-size: 28px;
+    }
+
+    .navrow {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .backbutton, .continuebutton {
+        width: 100%;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

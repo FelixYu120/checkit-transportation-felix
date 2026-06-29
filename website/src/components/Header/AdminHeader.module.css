@@ -1,0 +1,105 @@
+.headerBar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000; /* Increased to stay above map elements */
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    background: #9FD2CD;
+    box-sizing: border-box;
+    padding: 0 30px; /* Use fixed padding for a stable layout */
+    height: 80px;    /* Slightly taller to match the "bigger logo" request */
+    gap: 28px;
+}
+
+.checkitLogo {
+    height: 55px;   /* Making the logo bigger as requested */
+    width: auto;    /* Crucial: prevents the logo from stretching or taking up 95% space */
+    display: block;
+}
+
+.primaryTabs {
+    display: flex;
+    align-self: stretch;
+    margin-right: auto;
+}
+
+.tabLink {
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.22);
+    transition: background-color 0.2s ease;
+}
+
+.tabLink:hover,
+.activeTab {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.rightSection {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.profile {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.profileIcon {
+    width: 54px;
+    height: 54px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+/* --- RESPONSIVE OVERRIDES --- */
+
+@media (max-width: 768px) {
+    .headerBar {
+        height: 70px;
+        padding: 0 15px;
+        gap: 12px;
+    }
+    
+    .checkitLogo {
+        height: 45px; /* Scales down so it doesn't crowd the screen */
+    }
+
+    .tabLink {
+        padding: 0 12px;
+        font-size: 13px;
+    }
+
+    .profileIcon {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* Landscape mode fix for iPhone */
+@media (max-height: 500px) and (orientation: landscape) {
+    .headerBar {
+        height: 55px; 
+    }
+    .checkitLogo {
+        height: 38px;
+    }
+
+    .tabLink {
+        padding: 0 10px;
+        font-size: 12px;
+    }
+}

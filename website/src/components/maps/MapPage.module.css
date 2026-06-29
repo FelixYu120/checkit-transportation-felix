@@ -1,0 +1,19 @@
+.mapWrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden; /* Prevents the page from scrolling */
+}
+
+.mapDiv {
+    width: 100%;
+    height: 100%;
+    outline: none;
+}
+
+/* Ensure the Esri UI components stay inside the box */
+:global(.esri-ui-bottom-right) {
+    bottom: 20px !important;
+    right: 20px !important;
+}
+
