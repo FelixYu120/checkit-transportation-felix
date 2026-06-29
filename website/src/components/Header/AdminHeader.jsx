@@ -3,8 +3,6 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import React from 'react';
 import { DEFAULT_ADMIN_ROUTE } from '../admin/routing/AdminRouteUtils';
 
-import ProfileDropdown from './ProfileDropdown'; 
-
 function AdminHeader() {
     const location = useLocation();
     const isAnalyticsActive = location.pathname.startsWith('/dashboard');
@@ -35,9 +33,7 @@ function AdminHeader() {
                 </NavLink>
             </nav>
 
-            <div className={styles.rightSection}>
-                <ProfileDropdown />
-            </div>
+            <div className={styles.rightSection} />
 
         </header>
     );
