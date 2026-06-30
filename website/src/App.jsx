@@ -23,12 +23,30 @@ import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.
 import styles from "./App.module.css";
 import supabase from "./components/helper/SupabaseClients.jsx";
 
+const getSupabaseAuthRedirectPath = () => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const searchParams = new URLSearchParams(window.location.search);
+    const authType = hashParams.get('type') || searchParams.get('type');
+
+    if (authType === 'invite' || authType === 'recovery') {
+        return '/set-password';
+    }
+
+    return null;
+};
+
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
 
     useEffect(() => {
         if (!supabase) {
+            return undefined;
+        }
+
+        const authRedirectPath = getSupabaseAuthRedirectPath();
+        if (authRedirectPath && window.location.pathname !== authRedirectPath) {
+            window.location.replace(`${authRedirectPath}${window.location.search}${window.location.hash}`);
             return undefined;
         }
 
