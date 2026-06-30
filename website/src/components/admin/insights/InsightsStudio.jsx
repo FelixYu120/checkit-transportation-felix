@@ -27,6 +27,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import styles from './InsightsStudio.module.css';
 
+
 import { Rnd } from 'react-rnd';
 import AggregateChart from '../visualizations/AggregateChart';
 import ComparisonAggregateChart from '../visualizations/ComparisonAggregateChart';
