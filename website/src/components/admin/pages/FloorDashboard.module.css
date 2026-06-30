@@ -99,9 +99,9 @@
 .activeTimeframe,
 .activeTimeframe:hover,
 .activeTimeframe:focus-visible {
-  background: #2563eb;
+  background: #2f716f;
   color: #ffffff;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 6px 14px rgba(47, 113, 111, 0.22);
 }
 
 .overviewHero,
@@ -263,7 +263,7 @@
 .heroMetricGrid svg,
 .snapshotCard svg,
 .insightCard svg {
-  color: #2563eb;
+  color: #2f716f;
 }
 
 .heroMetricGrid strong {
@@ -441,8 +441,8 @@
 }
 
 .sectionTitleLink:hover {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.08);
+  color: #2f716f;
+  background: rgba(160, 209, 197, 0.18);
 }
 
 .sectionHeader span {
@@ -474,7 +474,7 @@
   content: "";
   position: absolute;
   inset: 28% 8%;
-  border-top: 3px solid rgba(37, 99, 235, 0.22);
+  border-top: 3px solid rgba(47, 113, 111, 0.24);
   transform: rotate(-8deg);
 }
 
@@ -496,15 +496,15 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: rgba(37, 99, 235, 0.18);
-  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: rgba(160, 209, 197, 0.3);
+  border: 1px solid rgba(47, 113, 111, 0.28);
 }
 
 .networkMarker span {
   width: 42%;
   height: 42%;
   border-radius: 999px;
-  background: #2563eb;
+  background: #2f716f;
 }
 
 .networkMarker.clear span { background: #059669; }
@@ -612,11 +612,11 @@
 }
 
 .directionBar span:first-child {
-  background: #2563eb;
+  background: #2f716f;
 }
 
 .directionBar span:last-child {
-  background: #f59e0b;
+  background: #a0d1c5;
 }
 
 .updatedText {

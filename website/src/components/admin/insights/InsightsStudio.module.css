@@ -803,8 +803,8 @@
 .snapGuideHorizontal {
   position: absolute;
   display: block;
-  background: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+  background: #2f716f;
+  box-shadow: 0 0 0 1px rgba(47, 113, 111, 0.18);
 }
 
 .snapGuideVertical {

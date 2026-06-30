@@ -214,17 +214,17 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {mode === 'volume' ? (
-              <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2f716f" radius={[4, 4, 0, 0]} />
             ) : (
               <>
-                <Bar yAxisId="volume" dataKey="approach" stackId="traffic" name="Approach volume" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="volume" dataKey="away" stackId="traffic" name="Away volume" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="approach" stackId="traffic" name="Approach volume" fill="#2f716f" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="away" stackId="traffic" name="Away volume" fill="#a0d1c5" radius={[4, 4, 0, 0]} />
               </>
             )}
             {mode !== 'direction' && (
               <>
-                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#0f766e" strokeWidth={2.4} dot={false} />
-                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#4c6d69" strokeWidth={2.4} dot={false} />
+                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke="#88afa6" strokeWidth={2} dot={false} />
               </>
             )}
           </ChartComponent>
