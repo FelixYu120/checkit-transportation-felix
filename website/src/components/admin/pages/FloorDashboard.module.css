@@ -18,6 +18,15 @@
   min-width: 0;
 }
 
+.chartSection {
+  min-width: 0;
+  border: 1px solid #dce5ea;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+
 
 .roomGrid {
   display: grid;

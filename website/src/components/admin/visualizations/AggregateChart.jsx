@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useId, useMemo } from 'react';
 import supabase from "../../helper/SupabaseClients";
-import { applyAnalyticsFilters, applyDateQueryBounds, getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 import {
     ResponsiveContainer,
     AreaChart,
@@ -75,9 +76,9 @@ const matchesDayPreset = (date, filters) => {
     return true;
 };
 
-const getDefaultStartTime = (type) => {
+const getDefaultStartTime = (type, anchorDate = new Date()) => {
     const lookbackHours = type === 'weekly' ? 8 * 24 : 24;
-    return new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+    return new Date(new Date(anchorDate).getTime() - lookbackHours * 60 * 60 * 1000);
 };
 
 const getHourlyLabel = (date, filters) => {
@@ -175,7 +176,7 @@ const getHourlyRange = (rawData, filters, type) => {
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const { start: filterStart, end: filterEnd } = getDateBounds(filters);
     const fallbackEnd = rawData.length ? new Date(rawData[rawData.length - 1].observed_at) : new Date();
-    const fallbackStart = getDefaultStartTime(type);
+    const fallbackStart = getDefaultStartTime(type, fallbackEnd);
     const start = hasDateFilters
         ? new Date(filterStart)
         : fallbackStart;
@@ -354,18 +355,9 @@ const getHighlightIndex = (data, plotType, highlightMode) => {
     }, 0);
 };
 
-const getPeopleAxisMax = (chartData, plotType) => {
+const getPeopleAxisMax = (chartData) => {
     const maxPeople = Math.max(0, ...chartData.map((point) => Number(point.total_people) || 0));
-    if (plotType !== 'combo') return getNiceCeiling(maxPeople);
-
-    const inferredFullScale = chartData.reduce((maxScale, point) => {
-        const people = Number(point.total_people) || 0;
-        const occupancy = Number(point.occupancy) || 0;
-        if (people <= 0 || occupancy <= 0) return maxScale;
-        return Math.max(maxScale, people / (occupancy / 100));
-    }, maxPeople);
-
-    return getNiceCeiling(inferredFullScale);
+    return getNiceCeiling(maxPeople);
 };
 
 const AggregateChart = ({
@@ -414,7 +406,8 @@ const AggregateChart = ({
     const isChartLoading = !snapshotData?.length && isLoading;
     const highlightIndex = getHighlightIndex(chartData, plotType, highlightMode);
     const highlightedPoint = highlightIndex >= 0 ? chartData[highlightIndex] : null;
-    const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData, plotType), [chartData, plotType]);
+    const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData), [chartData]);
+    const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(10, ...chartData.map((point) => Number(point.occupancy) || 0))), [chartData]);
     const effectiveLegendItems = { occupancy: true, people: true, threshold: true, ...(legendItems || {}) };
     const shouldShowLegend = showLegend ?? plotType === 'combo';
 
@@ -427,14 +420,9 @@ const AggregateChart = ({
 
         const fetchViewData = async () => {
             setIsLoading(true);
-            let tableName, columnId;
-            
-            if (level === 'floor') { tableName = 'floor_history'; columnId = 'floor_number'; }
-            else if (level === 'building') { tableName = 'building_history'; columnId = 'building_id'; }
-            else if (level === 'area') { tableName = 'area_history'; columnId = 'area_id'; }
-            else if (level === 'room') { tableName = 'room_history'; columnId = 'room_id'; }
+            const sensorId = level === 'floor' || level === 'room' ? id : undefined;
 
-            if (!tableName || !id) {
+            if (!id) {
                 if (isMounted) {
                     setLiveChartData([]);
                     setIsLoading(false);
@@ -442,24 +430,12 @@ const AggregateChart = ({
                 return;
             }
 
-            // Pull a larger row limit window for weekly calculations
-            const limit = effectiveFilters.startDate || effectiveFilters.endDate ? 10000 : (type === 'weekly' ? 5000 : 288);
-
-            const query = supabase
-                .from(tableName)
-                .select(level === 'room' ? 'observed_at, people_count, density' : 'observed_at, total_people, total_capacity') 
-                .eq(columnId, id)
-                .order('observed_at', { ascending: false })
-                .limit(limit);
-
-            const boundedQuery = effectiveFilters.startDate || effectiveFilters.endDate || hasActiveTimeFilter(effectiveFilters)
-                ? applyDateQueryBounds(query, effectiveFilters)
-                : query.gte('observed_at', getDefaultStartTime(type).toISOString());
-
-            const { data, error } = await boundedQuery;
-
-            if (data) {
-                let rawData = applyAnalyticsFilters(data.reverse(), effectiveFilters);
+            try {
+                const rawData = await fetchTrafficSummaryRows(supabase, {
+                    sensorId,
+                    filters: effectiveFilters,
+                    type,
+                });
                 let processedData = [];
 
                 if (type === 'weekly') {
@@ -510,7 +486,7 @@ const AggregateChart = ({
                     setLiveChartData(processedData);
                     onSnapshotData?.(processedData);
                 }
-            } else if (error) {
+            } catch (error) {
                 console.error(`Error fetching ${level} chart data:`, error);
             }
             if (isMounted) setIsLoading(false);
@@ -543,7 +519,7 @@ const AggregateChart = ({
                 {point.hasData === false ? (
                     <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
                 ) : 'occupancy' in point && (
-                    <div style={{ color: occupancyColor, fontSize: '12px', fontWeight: 600 }}>Traffic Utilization: {point.occupancy ?? 0}%</div>
+                    <div style={{ color: occupancyColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.occupancy ?? 0} mph</div>
                 )}
                 {point.hasData !== false && 'total_people' in point && (
                     <div style={{ color: peopleColor, fontSize: '12px', marginTop: '4px' }}>Vehicles: {point.total_people ?? 0}</div>
@@ -571,13 +547,13 @@ const AggregateChart = ({
 
     const renderOccupancyYAxis = (props = {}) => (
         <YAxis
-            domain={[0, 100]}
+            domain={[0, speedAxisMax]}
             axisLine={false}
             tickLine={false}
             tick={{ fontSize: 12, fill: '#888' }}
             allowDecimals={false}
-            tickFormatter={(value) => `${value}%`}
-            label={props.yAxisId ? { value: 'Utilization %', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 } : undefined}
+            tickFormatter={(value) => `${value} mph`}
+            label={props.yAxisId ? { value: 'Avg speed', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 } : undefined}
             {...props}
         />
     );
@@ -617,7 +593,7 @@ const AggregateChart = ({
         if (effectiveLegendItems.occupancy && plotType !== 'people_bar') {
             entries.push({
                 key: 'occupancy',
-                label: plotType === 'combo' ? 'Traffic utilization % (left axis)' : 'Traffic utilization %',
+                label: plotType === 'combo' ? 'Avg speed mph (left axis)' : 'Avg speed mph',
                 color: occupancyColor,
                 type: 'line',
             });
@@ -676,7 +652,7 @@ const AggregateChart = ({
                     <Line
                         type="monotone"
                         dataKey="occupancy"
-                        name="Traffic utilization"
+                        name="Average speed"
                         stroke={occupancyColor}
                         strokeWidth={2.5}
                         dot={({ index, cx, cy }) => (
@@ -697,7 +673,7 @@ const AggregateChart = ({
                     {renderOccupancyYAxis()}
                     {renderThresholdLine()}
                     <Tooltip content={renderTooltip} />
-                    <Bar dataKey="occupancy" name="Traffic utilization" fill={occupancyColor} radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="occupancy" name="Average speed" fill={occupancyColor} radius={[6, 6, 0, 0]}>
                         {chartData.map((entry, index) => (
                             <Cell key={`${entry.time || entry.dateLabel}-${index}`} fill={index === highlightIndex ? highlightColor : occupancyColor} />
                         ))}
@@ -741,7 +717,7 @@ const AggregateChart = ({
                         yAxisId="occupancy"
                         type="monotone"
                         dataKey="occupancy"
-                        name="Traffic utilization % (left axis)"
+                        name="Average speed mph (left axis)"
                         stroke={occupancyColor}
                         strokeWidth={2.5}
                         dot={({ index, cx, cy }) => (
@@ -770,7 +746,7 @@ const AggregateChart = ({
                 <Area
                     type="monotone"
                     dataKey="occupancy"
-                    name="Traffic utilization"
+                    name="Average speed"
                     stroke={occupancyColor}
                     strokeWidth={2}
                     fillOpacity={1}
@@ -806,7 +782,7 @@ const AggregateChart = ({
             )}
             {highlightedPoint && (
                 <div style={{ alignSelf: 'flex-start', margin: '0 0 8px', padding: '5px 9px', borderRadius: '999px', background: '#fffbeb', color: '#92400e', border: `1px solid ${highlightColor}`, fontSize: '11px', fontWeight: 700, lineHeight: 1.2 }}>
-                    {highlightLabel}: {plotType === 'people_bar' ? highlightedPoint.total_people : highlightedPoint.occupancy}{plotType === 'people_bar' ? ' vehicles' : '%'} at {highlightedPoint.dateLabel || highlightedPoint.time}
+                    {highlightLabel}: {plotType === 'people_bar' ? highlightedPoint.total_people : highlightedPoint.occupancy}{plotType === 'people_bar' ? ' vehicles' : ' mph'} at {highlightedPoint.dateLabel || highlightedPoint.time}
                 </div>
             )}
             {renderLegend()}

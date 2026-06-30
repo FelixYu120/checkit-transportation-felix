@@ -1,32 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import supabase from "../../helper/SupabaseClients";
-import { applyAnalyticsFilters, applyDateQueryBounds } from '../controls/AnalyticsFilterUtils';
-
-const getTargetTableConfig = (level) => {
-    if (level === 'building') return { tableName: 'building_history', columnId: 'building_id' };
-    if (level === 'area') return { tableName: 'area_history', columnId: 'area_id' };
-    if (level === 'room') return { tableName: 'room_history', columnId: 'room_id' };
-    return {};
-};
+import { applyAnalyticsFilters } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 
 const getMetricSummary = async ({ target, filters, timeframe }) => {
-    const { tableName, columnId } = getTargetTableConfig(target.level);
-    if (!tableName || !columnId || !target.id) {
+    if (!target.id) {
         return { current: 0, average: 0, peak: 0, change: 0 };
     }
 
-    const limit = filters?.startDate || filters?.endDate ? 10000 : timeframe === 'daily' ? 288 : 2016;
-    const query = supabase
-        .from(tableName)
-        .select(target.level === 'room' ? 'observed_at, people_count, density' : 'observed_at, total_people, total_capacity')
-        .eq(columnId, target.id)
-        .order('observed_at', { ascending: false })
-        .limit(limit);
-
-    const { data, error } = await applyDateQueryBounds(query, filters);
-    if (error) throw error;
-
-    const filteredData = applyAnalyticsFilters(data || [], filters);
+    const sensorId = target.level === 'floor' || target.level === 'room' ? target.id : undefined;
+    const data = await fetchTrafficSummaryRows(supabase, {
+        sensorId,
+        filters,
+        type: timeframe,
+    });
+    const filteredData = applyAnalyticsFilters([...(data || [])].reverse(), filters);
     if (filteredData.length === 0) return { current: 0, average: 0, peak: 0, change: 0 };
 
     const counts = filteredData.map((row) => row.people_count ?? row.total_people ?? 0);

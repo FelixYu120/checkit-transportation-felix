@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import supabase from "../../helper/SupabaseClients";
-import { applyAnalyticsFilters, applyDateQueryBounds } from '../controls/AnalyticsFilterUtils';
+import { applyAnalyticsFilters } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 
 const getLocalDateKey = (date) => {
     const year = date.getFullYear();
@@ -72,15 +73,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
 
         const fetchMetrics = async () => {
             setLoading(true);
-            let tableName, columnId;
-
-            // Match your Supabase views
-            if (level === 'floor') { tableName = 'floor_history'; columnId = 'floor_number'; }
-            else if (level === 'building') { tableName = 'building_history'; columnId = 'building_id'; }
-            else if (level === 'area') { tableName = 'area_history'; columnId = 'area_id'; }
-            else if (level === 'room') { tableName = 'room_history'; columnId = 'room_id'; }
-
-            if (!tableName || !id) {
+            if (!id) {
                 if (isMounted) {
                     setLiveMetrics({ current: 0, peak: 0, busiestDay: '-', busiestTime: '-' });
                     setLoading(false);
@@ -88,26 +81,17 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
                 return;
             }
 
-            const limit = effectiveFilters.startDate || effectiveFilters.endDate ? 10000 : 2016;
-
-            // Fetch the last 7 days (2016 data points assuming 5 min intervals)
-            const query = supabase
-                .from(tableName)
-                .select(level === 'room' ? 'observed_at, people_count, density' : 'observed_at, total_people, total_capacity')
-                .eq(columnId, id)
-                .order('observed_at', { ascending: false })
-                .limit(limit);
-
-            const { data } = await applyDateQueryBounds(query, effectiveFilters);
-            const filteredData = applyAnalyticsFilters(data || [], effectiveFilters);
+            const sensorId = level === 'floor' || level === 'room' ? id : undefined;
+            const data = await fetchTrafficSummaryRows(supabase, {
+                sensorId,
+                filters: effectiveFilters,
+                type: 'weekly',
+            });
+            const filteredData = applyAnalyticsFilters([...(data || [])].reverse(), effectiveFilters);
 
             if (filteredData && filteredData.length > 0) {
-                const getCount = (row) => level === 'room' ? row.people_count : row.total_people;
-                const getOccupancy = (row) => {
-                    if (level === 'room') return row.density ?? 0;
-                    const capacity = row.total_capacity ?? 0;
-                    return capacity > 0 ? ((row.total_people ?? 0) / capacity) * 100 : 0;
-                };
+                const getCount = (row) => row.people_count ?? row.total_people ?? 0;
+                const getAverageSpeed = (row) => row.avg_speed ?? row.density ?? 0;
                 const current = getCount(filteredData[0]); // Most recent data point
                 let peak = 0;
                 
@@ -139,7 +123,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
 
                 const timeSourceRows = effectiveFilters.startDate || effectiveFilters.endDate
                     ? data || []
-                    : (data || []).slice(0, 288);
+                    : (data || []).slice(-144);
                 const filteredTimeRows = applyAnalyticsFilters(timeSourceRows, effectiveFilters);
                 const visibleChartHourCounts = {};
 
@@ -152,7 +136,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
                         visibleChartHourCounts[hour] = { total: 0, count: 0 };
                     }
 
-                    visibleChartHourCounts[hour].total += getOccupancy(row);
+                    visibleChartHourCounts[hour].total += getAverageSpeed(row);
                     visibleChartHourCounts[hour].count += 1;
                 });
 

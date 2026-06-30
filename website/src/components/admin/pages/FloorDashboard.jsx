@@ -9,6 +9,7 @@ import {
     getFloorNumberFromRouteSegment,
 } from '../routing/AdminRouteUtils';
 import { fetchSensorById, normalizeInstituteId } from '../data/SensorDirectoryData';
+import OccupancyChart from '../visualizations/OccupancyChart';
 
 const FloorDashboard = () => {
     const { collegeId, floorId } = useParams();
@@ -81,6 +82,20 @@ const FloorDashboard = () => {
                         <span className={styles.metaLabel}>Longitude</span>
                         <strong>{sensor.longitude ?? 'Not set'}</strong>
                     </div>
+                </div>
+            )}
+
+            {sensor && (
+                <div className={styles.analyticsStack}>
+                    <section className={styles.chartSection}>
+                        <OccupancyChart roomId={sensor.sensor_id} type="daily" />
+                    </section>
+                    <section className={styles.chartSection}>
+                        <OccupancyChart roomId={sensor.sensor_id} type="weekly" />
+                    </section>
+                    <section className={styles.chartSection}>
+                        <OccupancyChart roomId={sensor.sensor_id} type="monthly" />
+                    </section>
                 </div>
             )}
         </div>

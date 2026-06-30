@@ -9,7 +9,8 @@ import {
     Tooltip
 } from 'recharts';
 import supabase from "../../helper/SupabaseClients";
-import { applyAnalyticsFilters, applyDateQueryBounds, getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows, getLatestTrafficSummaryDate } from '../data/TrafficSummaryData';
 
 const getLocalDateKey = (date) => {
     const year = date.getFullYear();
@@ -49,6 +50,12 @@ const normalizeDensity = (density, people = 0) => {
     return people > 0 ? 100 : 0;
 };
 
+const getNiceCeiling = (value) => {
+    if (!Number.isFinite(value) || value <= 0) return 10;
+    const magnitude = 10 ** Math.floor(Math.log10(value));
+    return Math.ceil(value / magnitude) * magnitude;
+};
+
 const matchesDayPreset = (date, filters) => {
     const day = date.getDay();
     if (filters?.dayPreset === 'weekdays') return day !== 0 && day !== 6;
@@ -56,14 +63,8 @@ const matchesDayPreset = (date, filters) => {
     return true;
 };
 
-const getDefaultStartTime = (type) => {
-    const lookbackDays = type === 'monthly' ? 31 : type === 'weekly' ? 8 : 1;
-    const lookbackHours = lookbackDays * 24;
-    return new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
-};
-
-const createHourlyTimeline = () => {
-    const now = new Date();
+const createHourlyTimeline = (anchorDate = new Date()) => {
+    const now = new Date(anchorDate);
 
     return Array.from({ length: 24 }, (_, index) => {
         const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
@@ -159,7 +160,7 @@ const mapRoomGroups = (timeline) => timeline.map((group) => ({
     peopleCount: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
 }));
 
-const buildDailyRoomData = (rawData, filters) => {
+const buildDailyRoomData = (rawData, filters, anchorDate = new Date()) => {
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const hasTimeFilters = hasActiveTimeFilter(filters);
     const hasSingleDate = isSingleDateFilter(filters);
@@ -169,7 +170,7 @@ const buildDailyRoomData = (rawData, filters) => {
             : createDateTimeline(filters)
         : hasTimeFilters
             ? createSelectedHourTimeline(filters)
-            : createHourlyTimeline();
+            : createHourlyTimeline(anchorDate);
     const groupsByKey = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
         return acc;
@@ -259,6 +260,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
     const hasDateFilters = effectiveFilters.startDate || effectiveFilters.endDate;
     const isDateAxis = type === 'weekly' || type === 'monthly' || (hasDateFilters && !isSingleDateFilter(effectiveFilters));
     const shouldCondenseDateTicks = isDateAxis && (type === 'monthly' || chartData.length > 14);
+    const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(10, ...chartData.map((point) => Number(point.density) || 0))), [chartData]);
     const formatDateAxisTick = (value) => {
         if (!shouldCondenseDateTicks) return value;
 
@@ -280,25 +282,14 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
             try {
                 if (showLoading) setLoading(true);
                 
-                // Pull a larger row window when explicit date filters are applied.
-                const hasTimeFilters = hasActiveTimeFilter(effectiveFilters);
-                const limit = hasDateFilters || type === 'weekly' || type === 'monthly' ? 50000 : 10000;
-                
-                let query = supabase
-                    .from('room_history')
-                    .select('observed_at, people_count, density')
-                    .eq('room_id', roomId)
-                    .order('observed_at', { ascending: true })
-                    .limit(limit);
+                const rawData = await fetchTrafficSummaryRows(supabase, {
+                    sensorId: roomId,
+                    filters: effectiveFilters,
+                    type,
+                });
 
-                query = hasDateFilters || hasTimeFilters
-                    ? applyDateQueryBounds(query, effectiveFilters)
-                    : query.gte('observed_at', getDefaultStartTime(type).toISOString());
-
-                const { data, error } = await query;
-                    
-                if (data) {
-                    const rawData = applyAnalyticsFilters(data, effectiveFilters);
+                if (rawData) {
+                    const latestSummaryDate = getLatestTrafficSummaryDate(rawData);
                     let processedData = [];
 
                     if (hasDateFilters) {
@@ -308,12 +299,10 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                     } else if (type === 'monthly') {
                         processedData = buildMonthlyRoomData(rawData, effectiveFilters);
                     } else {
-                        processedData = buildDailyRoomData(rawData, effectiveFilters);
+                        processedData = buildDailyRoomData(rawData, effectiveFilters, latestSummaryDate);
                     }
                     
                     setChartData(processedData);
-                } else if (error) {
-                    console.error("❌ Database Fetch Error:", error);
                 }
             } catch (err) {
                 console.error("❌ Chart Fetch Error:", err);
@@ -331,7 +320,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
         <div style={{ width: '100%', minHeight: 'clamp(340px, 38vw, 480px)', backgroundColor: '#ffffff', padding: 'clamp(16px, 1.8vw, 24px)', borderRadius: '12px', boxSizing: 'border-box', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <h4 style={{ margin: 0, color: '#374151', fontSize: 'clamp(14px, 1.1vw, 18px)', fontWeight: '600' }}>
-                    {type === 'monthly' ? 'Monthly Average Traffic' : type === 'weekly' ? 'Weekly Average Traffic' : '24h Corridor Traffic Trend'}
+                    {type === 'monthly' ? 'Monthly Average Corridor Speed' : type === 'weekly' ? 'Weekly Average Corridor Speed' : '24h Corridor Speed Trend'}
                 </h4>
             </div>
             
@@ -364,13 +353,12 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                             />
                             
                             <YAxis 
-                                domain={[0, 100]} 
+                                domain={[0, speedAxisMax]} 
                                 stroke="#9ca3af" 
                                 fontSize={10} 
                                 axisLine={false} 
                                 tickLine={false} 
-                                ticks={[0, 50, 100]} 
-                                tickFormatter={(val) => `${val}%`}
+                                tickFormatter={(val) => `${val} mph`}
                             />
                             
                             <Tooltip 
@@ -390,7 +378,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                                                 <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
                                             ) : (
                                                 <>
-                                                    <div style={{ color: lineColor, fontSize: '12px', fontWeight: 600 }}>Traffic Utilization: {point.density ?? 0}%</div>
+                                                    <div style={{ color: lineColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.density ?? 0} mph</div>
                                                     <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Vehicles: {point.peopleCount ?? 0}</div>
                                                 </>
                                             )}

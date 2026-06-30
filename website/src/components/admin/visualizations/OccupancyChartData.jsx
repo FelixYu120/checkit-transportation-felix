@@ -1,28 +1,14 @@
-import { applyAnalyticsFilters, applyDateQueryBounds } from '../controls/AnalyticsFilterUtils';
-
-const WEEKLY_LOOKBACK_MS = 8 * 24 * 60 * 60 * 1000;
-const DAILY_LOOKBACK_MS = 48 * 60 * 60 * 1000;
-
-const getLookbackMs = (type) =>
-  type === "weekly" ? WEEKLY_LOOKBACK_MS : DAILY_LOOKBACK_MS;
+import { applyAnalyticsFilters } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows, getLatestTrafficSummaryDate } from '../data/TrafficSummaryData';
 
 export const fetchOccupancyHistory = async (supabase, { roomId, type, filters }) => {
-  const now = new Date();
-  const startTime = new Date(now.getTime() - getLookbackMs(type));
+  const data = await fetchTrafficSummaryRows(supabase, {
+    sensorId: roomId,
+    filters,
+    type,
+  });
+  const now = getLatestTrafficSummaryDate(data) || new Date();
 
-  const query = supabase
-    .from("room_history")
-    .select("density, people_count, observed_at")
-    .eq("room_id", roomId)
-    .order("observed_at", { ascending: true });
-
-  const boundedQuery = filters?.startDate || filters?.endDate
-    ? applyDateQueryBounds(query, filters)
-    : query.gte("observed_at", startTime.toISOString());
-
-  const { data, error } = await boundedQuery;
-
-  if (error) throw error;
   return buildOccupancyChartData(applyAnalyticsFilters(data || [], filters), { now, type, filters });
 };
 

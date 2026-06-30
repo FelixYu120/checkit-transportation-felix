@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 import supabase from "../../helper/SupabaseClients";
-import { applyAnalyticsFilters, applyDateQueryBounds, getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
+import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 import {
     ResponsiveContainer,
     AreaChart,
@@ -49,13 +50,6 @@ const getLocalHourKey = (date) => `${getLocalDateKey(date)}-${date.getHours()}`;
 
 const getHourOfDayKey = (date) => String(date.getHours()).padStart(2, '0');
 
-const getTargetTableConfig = (level) => {
-    if (level === 'building') return { tableName: 'building_history', columnId: 'building_id' };
-    if (level === 'area') return { tableName: 'area_history', columnId: 'area_id' };
-    if (level === 'room') return { tableName: 'room_history', columnId: 'room_id' };
-    return {};
-};
-
 const getWeeklyAnchorDate = (rawData, filters) => {
     if (filters?.endDate) return new Date(`${filters.endDate}T00:00:00`);
     if (filters?.startDate && rawData.length) return new Date(rawData[rawData.length - 1].observed_at);
@@ -69,9 +63,9 @@ const matchesDayPreset = (date, filters) => {
     return true;
 };
 
-const getDefaultStartTime = (type) => {
+const getDefaultStartTime = (type, anchorDate = new Date()) => {
     const lookbackHours = type === 'weekly' ? 8 * 24 : 24;
-    return new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+    return new Date(new Date(anchorDate).getTime() - lookbackHours * 60 * 60 * 1000);
 };
 
 const getHourlyLabel = (date, filters) => {
@@ -165,7 +159,7 @@ const getHourlyRange = (rawData, filters, type) => {
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const { start: filterStart, end: filterEnd } = getDateBounds(filters);
     const fallbackEnd = rawData.length ? new Date(rawData[rawData.length - 1].observed_at) : new Date();
-    const fallbackStart = getDefaultStartTime(type);
+    const fallbackStart = getDefaultStartTime(type, fallbackEnd);
     const start = hasDateFilters
         ? new Date(filterStart)
         : fallbackStart;
@@ -373,47 +367,24 @@ const buildSingleDateHourlyData = (rawData, filters) => {
     }));
 };
 
-const getPeopleAxisMax = (chartData, targetSeries, plotType) => {
+const getPeopleAxisMax = (chartData, targetSeries) => {
     const peopleValues = chartData.flatMap((point) => (
         targetSeries.map((series) => Number(point[series.peopleKey]) || 0)
     ));
     const maxPeople = Math.max(0, ...peopleValues);
-    if (plotType !== 'combo') return getNiceCeiling(maxPeople);
-
-    const inferredFullScale = chartData.reduce((maxScale, point) => {
-        targetSeries.forEach((series) => {
-            const people = Number(point[series.peopleKey]) || 0;
-            const occupancy = Number(point[series.occupancyKey]) || 0;
-            if (people > 0 && occupancy > 0) {
-                maxScale = Math.max(maxScale, people / (occupancy / 100));
-            }
-        });
-        return maxScale;
-    }, maxPeople);
-
-    return getNiceCeiling(inferredFullScale);
+    return getNiceCeiling(maxPeople);
 };
 
 const fetchTargetData = async ({ target, type, filters }) => {
-    const { tableName, columnId } = getTargetTableConfig(target.level);
-    if (!tableName || !columnId || !target.id) return [];
+    if (!target.id) return [];
 
-    const limit = filters?.startDate || filters?.endDate ? 10000 : (type === 'weekly' ? 5000 : 288);
-    const query = supabase
-        .from(tableName)
-        .select(target.level === 'room' ? 'observed_at, people_count, density' : 'observed_at, total_people, total_capacity')
-        .eq(columnId, target.id)
-        .order('observed_at', { ascending: false })
-        .limit(limit);
+    const sensorId = target.level === 'floor' || target.level === 'room' ? target.id : undefined;
+    const rawData = await fetchTrafficSummaryRows(supabase, {
+        sensorId,
+        filters,
+        type,
+    });
 
-    const boundedQuery = filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)
-        ? applyDateQueryBounds(query, filters)
-        : query.gte('observed_at', getDefaultStartTime(type).toISOString());
-
-    const { data, error } = await boundedQuery;
-    if (error) throw error;
-
-    const rawData = applyAnalyticsFilters((data || []).reverse(), filters);
     if (type === 'weekly') return buildWeeklyData(rawData, filters);
 
     const hasDateFilters = filters?.startDate || filters?.endDate;
@@ -516,7 +487,10 @@ const ComparisonAggregateChart = ({
         peopleColor: peopleSeriesColors[index] || PEOPLE_COLORS[index % PEOPLE_COLORS.length],
         dash: index > 0 && index % 2 === 1 ? '7 4' : undefined,
     })), [activeTargets, peopleSeriesColors, seriesColors]);
-    const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData, targetSeries, plotType), [chartData, plotType, targetSeries]);
+    const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData, targetSeries), [chartData, targetSeries]);
+    const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(10, ...chartData.flatMap((point) => (
+        targetSeries.map((series) => Number(point[series.occupancyKey]) || 0)
+    )))), [chartData, targetSeries]);
     const effectiveLegendItems = { occupancy: true, people: true, threshold: true, ...(legendItems || {}) };
 
     useEffect(() => {
@@ -583,7 +557,7 @@ const ComparisonAggregateChart = ({
                     const hasData = point[`${series.key}HasData`] !== false;
                     return (
                         <div key={series.key} style={{ color: hasData ? series.occupancyColor : '#6b7280', fontSize: '12px', fontWeight: 600, marginTop: '4px' }}>
-                            {series.label} utilization: {hasData ? `${point[series.occupancyKey] ?? 0}%` : 'No samples'}
+                            {series.label} avg speed: {hasData ? `${point[series.occupancyKey] ?? 0} mph` : 'No samples'}
                         </div>
                     );
                 })}
@@ -618,13 +592,13 @@ const ComparisonAggregateChart = ({
     );
     const renderOccupancyYAxis = (props = {}) => (
         <YAxis
-            domain={[0, 100]}
+            domain={[0, speedAxisMax]}
             axisLine={false}
             tickLine={false}
             tick={{ fontSize: 12, fill: '#888' }}
             allowDecimals={false}
-            tickFormatter={(value) => `${value}%`}
-            label={props.yAxisId ? { value: 'Utilization %', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 } : undefined}
+            tickFormatter={(value) => `${value} mph`}
+            label={props.yAxisId ? { value: 'Avg speed', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 } : undefined}
             {...props}
         />
     );
@@ -655,7 +629,7 @@ const ComparisonAggregateChart = ({
             targetSeries.forEach((series) => {
                 entries.push({
                     key: `${series.key}-occupancy`,
-                    label: plotType === 'combo' ? `${series.label} utilization % (left axis)` : `${series.label} utilization %`,
+                    label: plotType === 'combo' ? `${series.label} avg speed mph (left axis)` : `${series.label} avg speed mph`,
                     color: series.occupancyColor,
                     type: 'line',
                     dash: Boolean(series.dash),
@@ -750,7 +724,7 @@ const ComparisonAggregateChart = ({
                         <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} vehicle count (right axis)`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
                     ))}
                     {targetSeries.map((series) => (
-                        <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} utilization % (left axis)`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />
+                        <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} avg speed mph (left axis)`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />
                     ))}
                 </ComposedChart>
             );
