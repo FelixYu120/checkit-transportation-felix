@@ -4,6 +4,7 @@ import { Search, ChevronDown, ChevronRight, Menu, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import styles from "./Sidebar.module.css";
 import {
+    getAdminAreaPath,
     getAdminCollegePath,
     getAdminFloorPath,
 } from "../routing/AdminRouteUtils";
@@ -117,7 +118,14 @@ const Sidebar = () => {
                                                         >
                                                             {isAreaOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                                         </button>
-                                                        <span className={styles.buildingLink}>{area.name}</span>
+                                                        <NavLink
+                                                            end
+                                                            to={getAdminAreaPath(college.id, area.id)}
+                                                            onClick={handleSelection}
+                                                            className={({ isActive }) => `${styles.buildingLink} ${isActive ? styles.activeBuilding : ""}`}
+                                                        >
+                                                            {area.name}
+                                                        </NavLink>
                                                     </div>
 
                                                     {isAreaOpen && (
@@ -130,9 +138,6 @@ const Sidebar = () => {
                                                                         className={({ isActive }) => `${styles.floorLink} ${isActive ? styles.activeFloor : ""}`}
                                                                     >
                                                                         <span>{corridor.name}</span>
-                                                                        <span className={`${styles.statusPill} ${styles[corridor.status] || ""}`}>
-                                                                            {corridor.status}
-                                                                        </span>
                                                                     </NavLink>
                                                                 </div>
                                                             ))}

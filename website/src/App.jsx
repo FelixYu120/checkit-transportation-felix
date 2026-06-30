@@ -10,7 +10,7 @@ import Contact from "./components/pages/Contact.jsx";
 
 // --- Admin Dashboard Components (Protected Area) ---
 import AdminLayout from './components/admin/layout/AdminLayout.jsx';
-import { CollegeOverview } from './components/admin/pages/AdminRoutePages.jsx';
+import { AreaOverview, CollegeOverview } from './components/admin/pages/AdminRoutePages.jsx';
 import FloorDashboard from './components/admin/pages/FloorDashboard.jsx'; 
 import InsightsStudio, { InsightBuilderPage } from './components/admin/insights/InsightsStudio.jsx';
 import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.jsx';
@@ -39,7 +39,7 @@ function App() {
                             <Route path="corridors/:floorId" element={<FloorDashboard />} />
                             <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
                             <Route path="area/:buildingId">
-                                <Route index element={<Navigate to=".." replace />} />
+                                <Route index element={<AreaOverview />} />
                                 <Route path="corridors/:floorId" element={<FloorDashboard />} />
                                 <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
                             </Route>

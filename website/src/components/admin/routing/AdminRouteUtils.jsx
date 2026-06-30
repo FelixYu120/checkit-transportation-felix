@@ -47,6 +47,9 @@ export const getAdminCollegePath = (collegeId) =>
 export const getAdminBuildingPath = (collegeId) =>
   getAdminCollegePath(collegeId);
 
+export const getAdminAreaPath = (collegeId, areaId) =>
+  `${getAdminCollegePath(collegeId)}/area/${areaId}`;
+
 export const getAdminFloorPath = (collegeId, buildingOrFloorId, maybeFloorId) => {
   const floorId = maybeFloorId ?? buildingOrFloorId;
   return `${getAdminCollegePath(collegeId)}/${getFloorRouteSegment(floorId)}`;

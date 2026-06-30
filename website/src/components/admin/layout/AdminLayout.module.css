@@ -2,10 +2,10 @@
 
 /* For room navigation at top left of dashboard*/
 .breadcrumb {
-  font-size: clamp(18px, 1.4vw, 28px);
+  font-size: clamp(18px, 1.25vw, 24px);
   font-weight: 700;
   color: #1a1a1a;
-  margin: 0 0 32px 0; /* important: reset top margin */
+  margin: 0 0 clamp(18px, 2vw, 28px) 0; /* important: reset top margin */
   display: flex;
   align-items: center;
   flex-wrap: wrap;

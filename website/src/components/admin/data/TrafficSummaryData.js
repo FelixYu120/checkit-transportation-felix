@@ -106,10 +106,23 @@ const applyTimeBucketBounds = (query, filters) => {
   return nextQuery;
 };
 
-const getDefaultSummaryStartTime = (type) => {
-  const lookbackHours = type === "monthly" ? 31 * 24 : type === "weekly" ? 8 * 24 : 24;
-  return new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
-};
+const normalizeTrafficSummaryRow = (row) => ({
+  ...row,
+  observed_at: toIsoTimestamp(row.time_bucket),
+  volume: toNumber(row.volume),
+  avg_speed: toNumber(row.avg_speed),
+  v85_speed: toNumber(row.v85_speed),
+  max_speed: toNumber(row.max_speed),
+});
+
+const getFallbackSummaryRows = (sensorId) => (
+  sensorId
+    ? FALLBACK_TEN_MINUTE_SUMMARIES.filter((row) => row.sensor_id === sensorId)
+    : FALLBACK_TEN_MINUTE_SUMMARIES
+);
+
+const applyFallbackDirectionRows = (sensorId, filters) =>
+  applyAnalyticsFilters(getFallbackSummaryRows(sensorId).map(normalizeTrafficSummaryRow), filters);
 
 export const getLatestTrafficSummaryDate = (rows = []) => {
   if (!rows.length) return null;
@@ -126,9 +139,7 @@ export const fetchTrafficSummaryRows = async (supabase, {
   limit,
 } = {}) => {
   if (USE_LOCAL_SUMMARIES) {
-    const localRows = sensorId
-      ? FALLBACK_TEN_MINUTE_SUMMARIES.filter((row) => row.sensor_id === sensorId)
-      : FALLBACK_TEN_MINUTE_SUMMARIES;
+    const localRows = getFallbackSummaryRows(sensorId);
 
     return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
   }
@@ -143,20 +154,61 @@ export const fetchTrafficSummaryRows = async (supabase, {
 
     if (sensorId) query = query.eq("sensor_id", sensorId);
 
-    query = filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)
-      ? applyTimeBucketBounds(query, filters)
-      : query.gte("time_bucket", getDefaultSummaryStartTime(type).toISOString());
+    if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
+      query = applyTimeBucketBounds(query, filters);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    return applyAnalyticsFilters(combineDirectionRows(data || []), filters);
+    if (!data?.length) {
+      return applyAnalyticsFilters(combineDirectionRows(getFallbackSummaryRows(sensorId)), filters);
+    }
+
+    return applyAnalyticsFilters(combineDirectionRows(data), filters);
   } catch (error) {
     console.warn("Using local 10-minute summary fallback:", error);
-    const localRows = sensorId
-      ? FALLBACK_TEN_MINUTE_SUMMARIES.filter((row) => row.sensor_id === sensorId)
-      : FALLBACK_TEN_MINUTE_SUMMARIES;
+    const localRows = getFallbackSummaryRows(sensorId);
 
     return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
+  }
+};
+
+export const fetchTrafficDirectionRows = async (supabase, {
+  sensorId,
+  filters,
+  type = "daily",
+  limit,
+} = {}) => {
+  if (USE_LOCAL_SUMMARIES || !supabase) {
+    return applyFallbackDirectionRows(sensorId, filters);
+  }
+
+  try {
+    const rowLimit = limit || (filters?.startDate || filters?.endDate ? 50000 : type === "weekly" || type === "monthly" ? 10000 : 1000);
+    let query = supabase
+      .from("ten_minute_summaries")
+      .select("sensor_id, time_bucket, direction, volume, avg_speed, v85_speed, max_speed, created_at")
+      .order("time_bucket", { ascending: false })
+      .limit(rowLimit);
+
+    if (sensorId) query = query.eq("sensor_id", sensorId);
+
+    if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
+      query = applyTimeBucketBounds(query, filters);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (!data?.length) {
+      console.warn("Using local directional traffic fallback: Supabase returned no rows");
+      return applyFallbackDirectionRows(sensorId, filters);
+    }
+
+    return applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), filters);
+  } catch (error) {
+    console.warn("Using local directional traffic fallback:", error);
+    return applyFallbackDirectionRows(sensorId, filters);
   }
 };
