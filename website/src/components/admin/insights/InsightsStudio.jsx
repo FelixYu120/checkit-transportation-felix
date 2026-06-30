@@ -2872,6 +2872,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 const InsightsStudio = () => {
   const [reports, setReports] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [savedReportsError, setSavedReportsError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [templatePickerMode, setTemplatePickerMode] = useState(null);
   const confirmResolveRef = useRef(null);
@@ -2923,6 +2924,12 @@ const InsightsStudio = () => {
   useEffect(() => {
     const fetchSavedReports = async () => {
       try {
+        if (!supabase) {
+          setSavedReportsError('Supabase is not configured for this environment.');
+          setReports([]);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('saved_reports') 
           .select('*')
@@ -2930,13 +2937,16 @@ const InsightsStudio = () => {
 
         if (error) {
           console.warn('Supabase cache warning:', error.message);
+          setSavedReportsError(error.message);
           setReports([]); 
           return;
         }
         
+        setSavedReportsError('');
         setReports(sortReportsByLastSaved(data || []));
       } catch (err) {
         console.error('Failed to retrieve archived reports:', err.message);
+        setSavedReportsError(err.message);
         setReports([]); 
       } finally {
         setIsLoading(false);
@@ -3050,6 +3060,12 @@ const InsightsStudio = () => {
           
           {isLoading ? (
             <div style={{ minHeight: '96px' }} aria-hidden="true" />
+          ) : savedReportsError ? (
+            <div style={{ marginTop: '24px', padding: '32px', background: '#fff7ed', borderRadius: '12px', border: '1px solid #fed7aa', color: '#9a3412', textAlign: 'center' }}>
+              <FileText size={32} style={{ color: '#fb923c', marginBottom: '12px' }} />
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Saved reports could not connect.</p>
+              <p style={{ margin: '6px 0 0', fontSize: '13px', opacity: 0.9 }}>{savedReportsError}</p>
+            </div>
           ) : reports.length === 0 ? (
             <div style={{ marginTop: '24px', padding: '48px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', textAlign: 'center' }}>
               <FileText size={32} style={{ color: '#bcb4b7', marginBottom: '12px' }} />

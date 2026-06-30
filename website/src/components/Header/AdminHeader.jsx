@@ -2,6 +2,7 @@ import styles from './AdminHeader.module.css'
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import React from 'react';
 import { DEFAULT_ADMIN_ROUTE } from '../admin/routing/AdminRouteUtils';
+import ProfileDropdown from './ProfileDropdown';
 
 function AdminHeader() {
     const location = useLocation();
@@ -33,7 +34,9 @@ function AdminHeader() {
                 </NavLink>
             </nav>
 
-            <div className={styles.rightSection} />
+            <div className={styles.rightSection}>
+                <ProfileDropdown />
+            </div>
 
         </header>
     );
