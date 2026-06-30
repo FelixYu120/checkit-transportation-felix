@@ -107,6 +107,12 @@ const buildChartData = (rows, granularity) => {
     }));
 };
 
+const getChartTitle = (mode) => {
+  if (mode === 'direction') return 'Direction Split';
+  if (mode === 'volume') return 'Volume and Speed Trend';
+  return 'Traffic Trend';
+};
+
 const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +161,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
       <div className="traffic-chart-shell">
         <div className="traffic-chart-header">
           <div>
-            <h3>{title || (mode === 'direction' ? 'Direction Split' : 'Volume and Speed Trend')}</h3>
+            <h3>{title || getChartTitle(mode)}</h3>
           </div>
         </div>
         <div className="traffic-chart-empty">
@@ -171,7 +177,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
     <div className="traffic-chart-shell">
       <div className="traffic-chart-header">
         <div>
-          <h3>{title || (mode === 'direction' ? 'Direction Split' : 'Volume and Speed Trend')}</h3>
+          <h3>{title || getChartTitle(mode)}</h3>
         </div>
       </div>
       <div className="traffic-chart-canvas">
@@ -207,8 +213,14 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="volume" dataKey="approach" stackId="traffic" name="Approach volume" fill="#2563eb" radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="volume" dataKey="away" stackId="traffic" name="Away volume" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            {mode === 'volume' ? (
+              <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2563eb" radius={[4, 4, 0, 0]} />
+            ) : (
+              <>
+                <Bar yAxisId="volume" dataKey="approach" stackId="traffic" name="Approach volume" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="away" stackId="traffic" name="Away volume" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              </>
+            )}
             {mode !== 'direction' && (
               <>
                 <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#0f766e" strokeWidth={2.4} dot={false} />

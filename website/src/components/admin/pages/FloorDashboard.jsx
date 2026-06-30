@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, Gauge, Timer, Waves } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Clock, Gauge, Timer, Waves } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -80,6 +80,20 @@ const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
 }));
 
 const SENSOR_STATUS_OPTIONS = ['active', 'down', 'offline'];
+const TRAFFIC_TIMEFRAMES = [
+    { value: 'daily', label: '24 hr' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+];
+const TRAFFIC_VIEW_PRESETS = [
+    { value: 'combined', label: 'Traffic' },
+    { value: 'volume', label: 'Volume + Speed' },
+    { value: 'direction', label: 'Directions' },
+];
+
+const getChartTitleLabel = (preset) => (
+    preset?.value === 'combined' ? 'Overview' : preset?.label || 'Overview'
+);
 
 const FloorDashboard = () => {
     const { collegeId, floorId } = useParams();
@@ -90,6 +104,12 @@ const FloorDashboard = () => {
     const [trafficRows, setTrafficRows] = useState([]);
     const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
+    const [trendViews, setTrendViews] = useState({
+        daily: 'combined',
+        weekly: 'combined',
+        monthly: 'combined',
+    });
+    const [activeInsight, setActiveInsight] = useState(null);
 
     useEffect(() => {
         const fetchSensor = async () => {
@@ -128,10 +148,66 @@ const FloorDashboard = () => {
     const areaName = sensor?.area_name || 'Unassigned Area';
     const areaPath = getAdminAreaPath(normalizedCollegeId, slugifyAdminPathSegment(areaName));
     const summary = summarizeTraffic(trafficRows);
-    const directionTotal = summary.approach + summary.away;
-    const approachShare = directionTotal ? Math.round((summary.approach / directionTotal) * 100) : 0;
-    const awayShare = directionTotal ? 100 - approachShare : 0;
     const exportRows = getTrafficExportRows(trafficRows, sensor);
+    const summaryCards = [
+        {
+            key: 'volume',
+            icon: <Waves size={20} />,
+            label: 'Volume',
+            value: summary.volume,
+            description: 'Traffic movements recorded at this corridor for the latest reading.',
+        },
+        {
+            key: 'average-speed',
+            icon: <Gauge size={20} />,
+            label: 'Average Speed',
+            value: `${summary.avgSpeed} mph`,
+            description: 'Average vehicle speed recorded at this corridor for the selected range.',
+        },
+        {
+            key: 'approach',
+            icon: <ArrowUp size={20} />,
+            label: 'Approach',
+            value: summary.approach,
+            description: 'Traffic movements traveling toward the monitored approach direction.',
+        },
+        {
+            key: 'away',
+            icon: <ArrowDown size={20} />,
+            label: 'Away',
+            value: summary.away,
+            description: 'Traffic movements traveling away from the monitored approach direction.',
+        },
+    ];
+    const insightCards = [
+        {
+            key: 'peak',
+            icon: <Timer size={18} />,
+            label: 'Peak bucket',
+            value: summary.peakRow ? formatDateTime(summary.peakRow.observed_at) : 'No data',
+            description: 'Time period with the highest traffic volume for the selected range.',
+        },
+        {
+            key: 'safety',
+            icon: <AlertTriangle size={18} />,
+            label: 'Safety signal',
+            value: `${summary.maxSpeed} mph max`,
+            description: 'Maximum vehicle speed recorded for the selected range.',
+        },
+        {
+            key: 'updated',
+            icon: <Clock size={18} />,
+            label: 'Last updated',
+            value: formatDateTime(summary.latestTime),
+            description: "Most recent timestamp available for this corridor's traffic data.",
+        },
+    ];
+    const updateTrendView = (timeframe, view) => {
+        setTrendViews((current) => ({
+            ...current,
+            [timeframe]: view,
+        }));
+    };
 
     return (
         <div className={styles.container}>
@@ -177,90 +253,102 @@ const FloorDashboard = () => {
                     </section>
 
                     <section className={styles.snapshotGrid}>
-                        <div className={styles.snapshotCard}>
-                            <Waves size={20} />
-                            <span>Latest Volume</span>
-                            <strong>{summary.volume}</strong>
-                            <p>{summary.rangeVolume} total movements in this range</p>
-                        </div>
-                        <div className={styles.snapshotCard}>
-                            <Gauge size={20} />
-                            <span>Average Speed</span>
-                            <strong>{summary.avgSpeed} mph</strong>
-                            <p>85th percentile {summary.v85Speed} mph</p>
-                        </div>
-                        <div className={styles.snapshotCard}>
-                            <ArrowUp size={20} />
-                            <span>Approach</span>
-                            <strong>{summary.approach}</strong>
-                            <p>{approachShare}% of latest movement</p>
-                        </div>
-                        <div className={styles.snapshotCard}>
-                            <ArrowDown size={20} />
-                            <span>Away</span>
-                            <strong>{summary.away}</strong>
-                            <p>{awayShare}% of latest movement</p>
-                        </div>
+                        {summaryCards.map((card) => (
+                            <button
+                                key={card.key}
+                                type="button"
+                                className={styles.snapshotCard}
+                                onClick={() => setActiveInsight(card)}
+                                aria-label={`${card.label} details`}
+                            >
+                                {card.icon}
+                                <span>{card.label}</span>
+                                <strong>{card.value}</strong>
+                            </button>
+                        ))}
                     </section>
 
                     <section className={styles.insightGrid}>
-                        <div className={styles.insightCard}>
-                            <Timer size={18} />
-                            <span>Peak bucket</span>
-                            <strong>{summary.peakRow ? formatDateTime(summary.peakRow.observed_at) : 'No data'}</strong>
-                            <p>{summary.peakRow ? `${summary.peakRow.volume} movements heading ${summary.peakRow.direction}.` : 'No peak detected for this range.'}</p>
-                        </div>
-                        <div className={styles.insightCard}>
-                            <AlertTriangle size={18} />
-                            <span>Safety signal</span>
-                            <strong>{summary.maxSpeed} mph max</strong>
-                            <p>{summary.maxSpeed >= 25 ? 'Review this speed spike.' : 'No high-speed anomaly in latest bucket.'}</p>
-                        </div>
-                        <div className={styles.insightCard}>
-                            <Gauge size={18} />
-                            <span>Location</span>
-                            <strong>{sensor.latitude ?? 'Not set'}, {sensor.longitude ?? 'Not set'}</strong>
-                            <p>Map panel uses sensor directory coordinates.</p>
-                        </div>
+                        {insightCards.map((card) => (
+                            <button
+                                key={card.key}
+                                type="button"
+                                className={styles.insightCard}
+                                onClick={() => setActiveInsight(card)}
+                                aria-label={`${card.label} details`}
+                            >
+                                {card.icon}
+                                <span>{card.label}</span>
+                                <strong>{card.value}</strong>
+                            </button>
+                        ))}
                     </section>
                 </>
             )}
 
+            {activeInsight && (
+                <div
+                    className={styles.insightModalOverlay}
+                    role="presentation"
+                    onMouseDown={() => setActiveInsight(null)}
+                >
+                    <div
+                        className={styles.insightModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="corridor-insight-title"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
+                        <h2 id="corridor-insight-title">{activeInsight.label}</h2>
+                        <p>{activeInsight.description}</p>
+                        <strong>Value: {activeInsight.value}</strong>
+                        <button
+                            type="button"
+                            className={styles.insightModalClose}
+                            onClick={() => setActiveInsight(null)}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {sensor && (
                 <div className={styles.analyticsStack}>
-                    <section className={styles.chartSection}>
-                        <TrafficTrendChart
-                            sensorId={sensor.sensor_id}
-                            filters={filters}
-                            type="daily"
-                            title="24h Volume and Speed"
-                        />
-                    </section>
-                    <section className={styles.chartSection}>
-                        <TrafficTrendChart
-                            sensorId={sensor.sensor_id}
-                            filters={filters}
-                            type="weekly"
-                            title="Weekly Volume and Speed"
-                        />
-                    </section>
-                    <section className={styles.chartSection}>
-                        <TrafficTrendChart
-                            sensorId={sensor.sensor_id}
-                            filters={filters}
-                            type="monthly"
-                            title="Monthly Volume and Speed"
-                        />
-                    </section>
-                    <section className={styles.chartSection}>
-                        <TrafficTrendChart
-                            sensorId={sensor.sensor_id}
-                            filters={filters}
-                            type="daily"
-                            mode="direction"
-                            title="24h Direction Split"
-                        />
-                    </section>
+                    {TRAFFIC_TIMEFRAMES.map((timeframe) => {
+                        const activeView = trendViews[timeframe.value] || 'combined';
+                        const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView);
+
+                        return (
+                            <section className={styles.chartSection} key={timeframe.value}>
+                                <div className={styles.trendToolbar}>
+                                    <div className={styles.trendCopy}>
+                                        <span>{timeframe.label} chart</span>
+                                        <strong>{activePreset?.label || 'Traffic'}</strong>
+                                    </div>
+                                    <div className={styles.timeframeSegment} aria-label={`${timeframe.label} traffic chart view`}>
+                                        {TRAFFIC_VIEW_PRESETS.map((preset) => (
+                                            <button
+                                                key={preset.value}
+                                                type="button"
+                                                className={`${styles.timeframeButton} ${activeView === preset.value ? styles.activeTimeframe : ''}`}
+                                                onClick={() => updateTrendView(timeframe.value, preset.value)}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <TrafficTrendChart
+                                    sensorId={sensor.sensor_id}
+                                    filters={filters}
+                                    type={timeframe.value}
+                                    mode={activeView}
+                                    title={`${timeframe.label} ${getChartTitleLabel(activePreset)}`}
+                                />
+                            </section>
+                        );
+                    })}
                 </div>
             )}
         </div>

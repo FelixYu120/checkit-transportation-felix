@@ -12,8 +12,6 @@ import {
 } from '../routing/AdminRouteUtils';
 import { fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
-import AnalyticsFilters from '../controls/AnalyticsFilters';
-import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 
 const groupSensorsByArea = (sensors = []) =>
     sensors.reduce((areas, sensor) => {
@@ -120,6 +118,15 @@ const getOverviewMetrics = (trafficSummaries = []) => {
     };
 };
 
+const getLatestObservedAt = (trafficSummaries = []) => (
+    trafficSummaries.reduce((latest, sensor) => {
+        if (!sensor.lastSeen) return latest;
+        const sensorTime = new Date(sensor.lastSeen).getTime();
+        const latestTime = latest ? new Date(latest).getTime() : 0;
+        return Number.isFinite(sensorTime) && sensorTime > latestTime ? sensor.lastSeen : latest;
+    }, null)
+);
+
 const TrafficSensorCards = ({ collegeId, sensors, trafficSummaries }) => (
     <div className={styles.trafficCardGrid}>
         {sensors.map((sensor) => {
@@ -164,7 +171,6 @@ export const CollegeOverview = () => {
     const [instituteName, setInstituteName] = useState(normalizedCollegeId || '');
     const [sensors, setSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
-    const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -174,7 +180,6 @@ export const CollegeOverview = () => {
 
                 const { institutes, sensors: sensorData } = await fetchSensorDirectory(supabase, normalizedCollegeId);
                 const trafficData = await fetchTrafficDirectionRows(supabase, {
-                    filters,
                     type: 'daily',
                     limit: 5000,
                 });
@@ -192,7 +197,7 @@ export const CollegeOverview = () => {
         };
 
         if (normalizedCollegeId) fetchInstitute();
-    }, [collegeId, normalizedCollegeId, filters]);
+    }, [collegeId, normalizedCollegeId]);
 
     if (loading) return <div className={styles.loading}>Loading institute corridors...</div>;
 
@@ -202,10 +207,10 @@ export const CollegeOverview = () => {
         totalVolume,
         totalApproach,
         totalAway,
-        activeSensors,
         busiestSensor,
         slowestSensor,
     } = getOverviewMetrics(trafficSummaries);
+    const latestObservedAt = getLatestObservedAt(trafficSummaries);
 
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
@@ -222,13 +227,11 @@ export const CollegeOverview = () => {
                             <p>Live 10-minute movement summaries across campus sensors.</p>
                         </div>
                         <div className={styles.heroMetricGrid}>
-                            <div><Activity size={18} /><strong>{totalVolume}</strong><span>latest volume</span></div>
+                            <div><Activity size={18} /><strong>{totalVolume}</strong><span>volume</span></div>
                             <div><ArrowDownUp size={18} /><strong>{totalApproach}/{totalAway}</strong><span>approach / away</span></div>
-                            <div><Timer size={18} /><strong>{activeSensors}/{trafficSummaries.length}</strong><span>sensors reporting</span></div>
+                            <div><Timer size={18} /><strong>{formatUpdatedAt(latestObservedAt)}</strong><span>last updated</span></div>
                         </div>
                     </section>
-
-                    <AnalyticsFilters filters={filters} onChange={setFilters} />
 
                     <section className={styles.insightGrid}>
                         <div className={styles.insightCard}>
@@ -259,7 +262,6 @@ export const CollegeOverview = () => {
                                         {areaName}
                                     </Link>
                                 </h2>
-                                <span>{areaSensors.length} sensors</span>
                             </div>
                             <TrafficSensorCards
                                 collegeId={normalizedCollegeId}
@@ -281,7 +283,6 @@ export const AreaOverview = () => {
     const [areaName, setAreaName] = useState('');
     const [areaSensors, setAreaSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
-    const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -291,7 +292,6 @@ export const AreaOverview = () => {
                 const { institutes, sensors: sensorData } = await fetchSensorDirectory(supabase, normalizedCollegeId);
                 const [matchedAreaName, matchedSensors] = getAreaById(sensorData || [], buildingId) || [];
                 const trafficData = await fetchTrafficDirectionRows(supabase, {
-                    filters,
                     type: 'daily',
                     limit: 5000,
                 });
@@ -311,7 +311,7 @@ export const AreaOverview = () => {
         };
 
         if (normalizedCollegeId && buildingId) fetchArea();
-    }, [buildingId, normalizedCollegeId, filters]);
+    }, [buildingId, normalizedCollegeId]);
 
     if (loading) return <div className={styles.loading}>Loading area...</div>;
 
@@ -320,10 +320,10 @@ export const AreaOverview = () => {
         totalVolume,
         totalApproach,
         totalAway,
-        activeSensors,
         busiestSensor,
         slowestSensor,
     } = getOverviewMetrics(trafficSummaries);
+    const latestObservedAt = getLatestObservedAt(trafficSummaries);
 
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
@@ -345,13 +345,11 @@ export const AreaOverview = () => {
                             <p>{instituteName} movement summaries for this area.</p>
                         </div>
                         <div className={styles.heroMetricGrid}>
-                            <div><Activity size={18} /><strong>{totalVolume}</strong><span>latest volume</span></div>
+                            <div><Activity size={18} /><strong>{totalVolume}</strong><span>volume</span></div>
                             <div><ArrowDownUp size={18} /><strong>{totalApproach}/{totalAway}</strong><span>approach / away</span></div>
-                            <div><Timer size={18} /><strong>{activeSensors}/{trafficSummaries.length}</strong><span>sensors reporting</span></div>
+                            <div><Timer size={18} /><strong>{formatUpdatedAt(latestObservedAt)}</strong><span>last updated</span></div>
                         </div>
                     </section>
-
-                    <AnalyticsFilters filters={filters} onChange={setFilters} />
 
                     <section className={styles.insightGrid}>
                         <div className={styles.insightCard}>
@@ -370,14 +368,13 @@ export const AreaOverview = () => {
                             <MapPinned size={18} />
                             <span>Area coverage</span>
                             <strong>{areaSensors.length} sensors</strong>
-                            <p>Filtered from the {instituteName} transportation directory.</p>
+                            <p>From the {instituteName} transportation directory.</p>
                         </div>
                     </section>
 
                     <section className={styles.corridorSection}>
                         <div className={styles.sectionHeader}>
-                            <h2>{areaName} Sensors</h2>
-                            <span>{areaSensors.length} sensors</span>
+                            <h2>{areaName} Corridors</h2>
                         </div>
                         <TrafficSensorCards
                             collegeId={normalizedCollegeId}
