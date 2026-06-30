@@ -293,7 +293,7 @@
 }
 
 .snapshotGrid {
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(124px, 1fr));
 }
 
 .insightGrid {
@@ -304,8 +304,8 @@
 .insightCard {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 16px;
+  gap: 6px;
+  padding: 14px;
   min-width: 0;
   overflow: hidden;
 }
@@ -331,7 +331,7 @@
 
 .snapshotCard strong {
   color: #172033;
-  font-size: clamp(19px, 1.8vw, 26px);
+  font-size: clamp(18px, 1.55vw, 24px);
   font-weight: 900;
   line-height: 1;
 }
@@ -514,15 +514,15 @@
 .networkMarker.unknown span { background: #64748b; }
 
 .trafficCardGrid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
 }
 
 .trafficSensorCard {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid #dce5ea;
   border-radius: 16px;
   background:
@@ -551,7 +551,7 @@
 .cardMetricRow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .cardMetricRow div {
@@ -562,13 +562,13 @@
 
 .cardMetricRow strong {
   color: #111827;
-  font-size: 1.28rem;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
 .cardMetricRow span {
   color: #64748b;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
@@ -628,8 +628,8 @@
 
 .roomGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
-  gap: clamp(16px, 2vw, 24px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
 }
 
 .corridorSection {
@@ -650,8 +650,9 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 251, 0.92)),
     white;
   border: 1px solid #dce5ea;
-  border-radius: 18px;
-  padding: clamp(22px, 2.4vw, 32px);
+  border-radius: 16px;
+  min-height: 72px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -660,7 +661,7 @@
   text-align: center;
   text-decoration: none;
   color: #1f2937;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
   transition: all 0.2s ease;

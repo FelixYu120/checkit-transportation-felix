@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../helper/SupabaseClients';
 import styles from './Login.module.css';
 
-function CreateAccount() {
+function CreateAccount({ setIsLoggedIn }) {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -11,6 +11,28 @@ function CreateAccount() {
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const [hasInviteSession, setHasInviteSession] = useState(false);
+
+    useEffect(() => {
+        let mounted = true;
+
+        supabase.auth.getSession().then(({ data }) => {
+            if (mounted) {
+                setHasInviteSession(Boolean(data.session));
+                setEmail(data.session?.user?.email || '');
+            }
+        });
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            setHasInviteSession(Boolean(session));
+            if (session?.user?.email) setEmail(session.user.email);
+        });
+
+        return () => {
+            mounted = false;
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -28,16 +50,22 @@ function CreateAccount() {
         }
 
         setLoading(true);
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                emailRedirectTo: `${window.location.origin}/login`
-            }
-        });
+        const { error } = hasInviteSession
+            ? await supabase.auth.updateUser({ password })
+            : await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: `${window.location.origin}/login`
+                }
+            });
 
         if (error) {
             setErrorMessage(error.message);
+        } else if (hasInviteSession) {
+            setSuccessMessage('Account created. Redirecting to your dashboard...');
+            setIsLoggedIn?.(true);
+            setTimeout(() => navigate('/map'), 900);
         } else {
             setSuccessMessage('Account request created. Check your email to confirm your account, then log in.');
             setEmail('');
@@ -61,7 +89,9 @@ function CreateAccount() {
                     <div className={styles.headerBlock}>
                         <h1 className={styles.logintitle}>CREATE ACCOUNT</h1>
                         <p className={styles.helperText}>
-                            Use the email approved for administrator access.
+                            {hasInviteSession
+                                ? 'Choose a password for your invited CheckIt administrator account.'
+                                : 'Use the email approved for administrator access.'}
                         </p>
                     </div>
 
@@ -79,6 +109,7 @@ function CreateAccount() {
                                 value={email}
                                 placeholder="you@organization.edu"
                                 autoComplete="off"
+                                disabled={hasInviteSession}
                                 required
                                 onChange={(event) => setEmail(event.target.value)}
                             />
@@ -117,7 +148,7 @@ function CreateAccount() {
                         <div className={styles.navrow}>
                             <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>BACK</button>
                             <button type="submit" className={styles.continuebutton} disabled={loading}>
-                                {loading ? 'CREATING...' : 'CREATE'}
+                                {loading ? 'CREATING...' : hasInviteSession ? 'SAVE PASSWORD' : 'CREATE'}
                             </button>
                         </div>
                     </form>

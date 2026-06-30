@@ -27,9 +27,18 @@ const getSupabaseAuthRedirectPath = () => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const searchParams = new URLSearchParams(window.location.search);
     const authType = hashParams.get('type') || searchParams.get('type');
+    const hasAuthCode = searchParams.has('code');
 
-    if (authType === 'invite' || authType === 'recovery') {
+    if (authType === 'invite') {
+        return '/create-account';
+    }
+
+    if (authType === 'recovery') {
         return '/set-password';
+    }
+
+    if (hasAuthCode && window.location.pathname === '/login') {
+        return '/create-account';
     }
 
     return null;
@@ -129,8 +138,8 @@ function App() {
 
                         {/* ------------------- AUTHENTICATION ------------------- */}
                         <Route path="/login" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Login page="login" setIsLoggedIn={setIsLoggedIn} />} />
-                        <Route path="/signup" element={<CreateAccount />} />
-                        <Route path="/create-account" element={<CreateAccount />} />
+                        <Route path="/signup" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
+                        <Route path="/create-account" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
                         <Route path="/verify" element={<Login page="verify" setIsLoggedIn={setIsLoggedIn} />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/set-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
