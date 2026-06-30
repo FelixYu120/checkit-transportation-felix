@@ -13,7 +13,7 @@ import CreateAccount from "./components/authentication/CreateAccount.jsx";
 import ForgotPassword from "./components/authentication/ForgotPassword.jsx";
 import SetPassword from "./components/authentication/SetPassword.jsx";
 
-// --- Admin Dashboard Components (Protected Area) ---
+// --- Admin Dashboards Components (Protected Area) ---
 import AdminLayout from './components/admin/layout/AdminLayout.jsx';
 import { AreaOverview, CollegeOverview } from './components/admin/pages/AdminRoutePages.jsx';
 import FloorDashboard from './components/admin/pages/FloorDashboard.jsx'; 
