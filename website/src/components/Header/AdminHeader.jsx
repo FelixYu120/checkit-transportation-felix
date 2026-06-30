@@ -1,5 +1,5 @@
 import styles from './AdminHeader.module.css'
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import React from 'react';
 import { DEFAULT_ADMIN_ROUTE } from '../admin/routing/AdminRouteUtils';
 import ProfileDropdown from './ProfileDropdown';
@@ -11,13 +11,13 @@ function AdminHeader() {
     return (
         <header className={styles.headerBar}>  
             {/* Logo */}
-            <Link to="/">
+            <a href="https://checkit.dev" aria-label="Go to CheckIt landing page">
                 <img 
                     src="/checkit-logo.png" 
                     alt="logo" 
                     className={styles.checkitLogo} 
                 />
-            </Link>
+            </a>
 
             <nav className={styles.primaryTabs} aria-label="Admin sections">
                 <NavLink

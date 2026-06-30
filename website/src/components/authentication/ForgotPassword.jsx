@@ -33,7 +33,7 @@ function ForgotPassword() {
         <div className={styles.authcontainer}>
             <div className={styles.card}>
                 <div className={styles.brandBlock}>
-                    <a href="/" aria-label="Go to CheckIt home page" className={styles.logoLink}>
+                    <a href="https://checkit.dev" aria-label="Go to CheckIt landing page" className={styles.logoLink}>
                         <img src="/checkit-logo.png" alt="CheckIt logo" className={styles.icon} />
                     </a>
                 </div>
