@@ -1,60 +1,86 @@
 import { slugifyAdminPathSegment } from "../routing/AdminRouteUtils";
+import { fetchSensorDirectory } from "../data/SensorDirectoryData";
 
-const CAMPUS_NAVIGATION_QUERY = `
-  id,
-  name,
-  buildings (
-    id,
-    name,
-    rooms (
-      floor_number
-    )
-  )
-`;
+export const formatCampusNavigation = (institutes = [], sensors = []) =>
+  institutes.map((institute) => {
+    const instituteSensors = sensors.filter(
+      (sensor) => sensor.institute_id === institute.institute_id
+    );
 
-export const formatCampusNavigation = (areas = []) =>
-  areas.map((area) => {
-    const rooms = (area.buildings || []).flatMap((building) => building.rooms || []);
-    const floors = [...new Set(rooms.map((room) => room.floor_number))]
-      .sort((a, b) => a - b)
-      .map((floorNumber) => ({
-        id: floorNumber,
-      }));
+    const areasByName = instituteSensors.reduce((areas, sensor) => {
+      const areaName = sensor.area_name || "Unassigned Area";
+      const areaId = slugifyAdminPathSegment(areaName);
+
+      if (!areas[areaId]) {
+        areas[areaId] = {
+          id: areaId,
+          name: areaName,
+          corridors: [],
+        };
+      }
+
+      areas[areaId].corridors.push({
+        id: sensor.sensor_id,
+        name: sensor.corridor_name || `Corridor ${sensor.sensor_id}`,
+        status: sensor.status || "unknown",
+        latitude: sensor.latitude,
+        longitude: sensor.longitude,
+      });
+
+      return areas;
+    }, {});
 
     return {
-      id: slugifyAdminPathSegment(area.name),
-      instituteName: area.name,
-      floors,
+      id: institute.institute_id,
+      instituteName: institute.full_name || institute.institute_id,
+      areas: Object.values(areasByName)
+        .map((area) => ({
+          ...area,
+          corridors: area.corridors.sort((a, b) => a.name.localeCompare(b.name)),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     };
   });
 
 export const fetchCampusNavigation = async (supabase) => {
-  const { data, error } = await supabase
-    .from("areas")
-    .select(CAMPUS_NAVIGATION_QUERY);
-
-  if (error) throw error;
-  return formatCampusNavigation(data || []);
+  const { institutes, sensors } = await fetchSensorDirectory(supabase);
+  return formatCampusNavigation(institutes, sensors);
 };
 
 export const getSearchTokens = (query) =>
   query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-export const filterCampusNavigation = (colleges, tokens) => {
-  if (tokens.length === 0) return colleges;
+export const filterCampusNavigation = (institutes, tokens) => {
+  if (tokens.length === 0) return institutes;
 
-  return colleges
-    .map((college) => {
+  return institutes
+    .map((institute) => {
       const instituteMatches = tokens.every((token) =>
-        college.instituteName.toLowerCase().includes(token)
+        institute.instituteName.toLowerCase().includes(token)
       );
-      const floors = college.floors.filter((floor) => {
-        const floorText = `corridor ${floor.id} corridors ${floor.id}`;
-        return instituteMatches || tokens.every((token) => floorText.toLowerCase().includes(token));
-      });
 
-      if (instituteMatches) return college;
-      return { ...college, floors };
+      if (instituteMatches) return institute;
+
+      const areas = institute.areas
+        .map((area) => {
+          const areaMatches = tokens.every((token) =>
+            area.name.toLowerCase().includes(token)
+          );
+
+          if (areaMatches) return area;
+
+          return {
+            ...area,
+            corridors: area.corridors.filter((corridor) =>
+              tokens.every((token) =>
+                `${corridor.name} ${corridor.status}`.toLowerCase().includes(token)
+              )
+            ),
+          };
+        })
+        .filter((area) => area.corridors.length > 0);
+
+      return { ...institute, areas };
     })
-    .filter((college) => college.floors.length > 0);
+    .filter((institute) => institute.areas.length > 0);
 };

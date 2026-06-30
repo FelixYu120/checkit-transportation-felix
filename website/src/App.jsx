@@ -30,6 +30,8 @@ function App() {
                         {/* ------------------- HOME / MAP ------------------- */}
                         <Route path="/" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
                         <Route path="/map" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
+                        <Route path="/dashboard/institute/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
+                        <Route path="/dashboard/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
 
                         {/* ------------------- ADMIN DASHBOARD ROUTES ------------------- */}
                         <Route path="/dashboard/institute/:collegeId" element={<AdminLayout />}>

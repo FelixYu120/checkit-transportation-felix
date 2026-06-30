@@ -116,7 +116,7 @@ const CampusMap = ({ embedded = false }) => {
           const normalizedCollegeId =
             buildingAreaLookupRef.current[buildingSlug] ||
             collegeId ||
-            "pepper_canyon";
+            "ucsd";
           navigate(getAdminCollegePath(normalizedCollegeId));
         }
       };

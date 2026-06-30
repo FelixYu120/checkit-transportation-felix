@@ -2,7 +2,7 @@
 // This is the default page when logged in for now, we should have a default landing page
 // at some point 
 export const DEFAULT_ADMIN_ROUTE =
-  "/dashboard/institute/pepper_canyon";
+  "/dashboard/institute/ucsd";
 
 export const slugifyAdminPathSegment = (text) => {
   if (!text) return "unknown";

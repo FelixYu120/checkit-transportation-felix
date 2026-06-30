@@ -22,6 +22,7 @@ const Sidebar = () => {
     const [loading, setLoading] = useState(true);
     const [colleges, setColleges] = useState([]);
     const [expandedColleges, setExpandedColleges] = useState({});
+    const [expandedAreas, setExpandedAreas] = useState({});
 
     useEffect(() => {
         const fetchEverything = async () => {
@@ -46,6 +47,7 @@ const Sidebar = () => {
     }, [urlCollegeId]);
 
     const toggleCollege = (id) => setExpandedColleges(p => ({ ...p, [id]: !p[id] }));
+    const toggleArea = (id) => setExpandedAreas(p => ({ ...p, [id]: !p[id] }));
     const handleSelection = () => { setQuery(""); setMobileOpen(false); };
     const tokens = useMemo(() => getSearchTokens(query), [query]);
     const visibleColleges = useMemo(
@@ -100,19 +102,45 @@ const Sidebar = () => {
 
                                 {isCollegeOpen && (
                                     <div className={`${styles.navGroup} ${styles.buildingGroup}`}>
-                                        <div className={styles.floorList}>
-                                            {college.floors.map((floor) => (
-                                                <div key={floor.id} className={styles.floorGroup}>
-                                                    <NavLink
-                                                        to={getAdminFloorPath(college.id, floor.id)}
-                                                        onClick={handleSelection}
-                                                        className={({ isActive }) => `${styles.floorLink} ${isActive ? styles.activeFloor : ""}`}
-                                                    >
-                                                        Corridor {floor.id}
-                                                    </NavLink>
+                                        {college.areas.map((area) => {
+                                            const areaKey = `${college.id}-${area.id}`;
+                                            const isAreaOpen = tokens.length > 0 || !!expandedAreas[areaKey];
+
+                                            return (
+                                                <div key={areaKey}>
+                                                    <div className={styles.buildingHeaderWrapper}>
+                                                        <button
+                                                            type="button"
+                                                            className={styles.buildingExpandButton}
+                                                            onClick={() => toggleArea(areaKey)}
+                                                            aria-label={`${isAreaOpen ? "Collapse" : "Expand"} ${area.name}`}
+                                                        >
+                                                            {isAreaOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                                        </button>
+                                                        <span className={styles.buildingLink}>{area.name}</span>
+                                                    </div>
+
+                                                    {isAreaOpen && (
+                                                        <div className={styles.floorList}>
+                                                            {area.corridors.map((corridor) => (
+                                                                <div key={corridor.id} className={styles.floorGroup}>
+                                                                    <NavLink
+                                                                        to={getAdminFloorPath(college.id, corridor.id)}
+                                                                        onClick={handleSelection}
+                                                                        className={({ isActive }) => `${styles.floorLink} ${isActive ? styles.activeFloor : ""}`}
+                                                                    >
+                                                                        <span>{corridor.name}</span>
+                                                                        <span className={`${styles.statusPill} ${styles[corridor.status] || ""}`}>
+                                                                            {corridor.status}
+                                                                        </span>
+                                                                    </NavLink>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

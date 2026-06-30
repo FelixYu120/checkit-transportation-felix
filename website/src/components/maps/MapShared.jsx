@@ -35,29 +35,7 @@ export const createBuildingsLayer = (FeatureLayer, options = {}) =>
     ...options,
   });
 
-export const fetchBuildingAreaLookup = async (supabase) => {
-  const { data, error } = await supabase.from("areas").select(`
-    name,
-    buildings (
-      name
-    )
-  `);
-
-  if (error) throw error;
-
-  return (data || []).reduce((lookup, area) => {
-    const areaSlug = slugifyBuildingName(area.name);
-
-    (area.buildings || []).forEach((building) => {
-      const buildingSlug = slugifyBuildingName(building.name);
-      if (areaSlug && buildingSlug) {
-        lookup[buildingSlug] = areaSlug;
-      }
-    });
-
-    return lookup;
-  }, {});
-};
+export const fetchBuildingAreaLookup = async () => ({});
 
 export const createBuildingSearchWidget = (
   Search,

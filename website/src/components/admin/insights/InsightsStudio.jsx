@@ -33,6 +33,7 @@ import ComparisonAggregateChart from '../visualizations/ComparisonAggregateChart
 import { AGGREGATE_CHART_TYPES, COMPARISON_CHART_TYPES } from '../visualizations/AggregateChartTypes';
 import SummaryMetrics from '../summaries/SummaryMetrics';
 import ComparisonSummaryMetrics from '../summaries/ComparisonSummaryMetrics';
+import { fetchSensorDirectory } from '../data/SensorDirectoryData';
 
 const DEFAULT_CARD_BACKGROUND = '#ffffff';
 const DEFAULT_TEXT_COLOR = '#0f172a';
@@ -849,21 +850,18 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   });
 
   const [areas, setAreas] = useState([]);
-  const [allBuildings, setAllBuildings] = useState([]);
   const [allRooms, setAllRooms] = useState([]);
   const [selections, setSelections] = useState(EMPTY_TARGET_SELECTION);
   const [comparisonSelections, setComparisonSelections] = useState(EMPTY_TARGET_SELECTION);
 
-  useEffect(() => { supabase.from('areas').select('id, name').order('name').then(({ data }) => setAreas(data || [])); }, []);
   useEffect(() => {
-    supabase.from('buildings').select('id, name, area_id').order('name').then(({ data }) => setAllBuildings(data || []));
+    fetchSensorDirectory(supabase).then(({ institutes }) => setAreas((institutes || []).map((institute) => ({
+        id: institute.institute_id,
+        name: institute.full_name || institute.institute_id,
+      }))));
   }, []);
   useEffect(() => {
-    supabase
-      .from('rooms')
-      .select('id, floor_number, building_id')
-      .order('floor_number', { ascending: true })
-      .then(({ data }) => setAllRooms(data || []));
+    fetchSensorDirectory(supabase).then(({ sensors }) => setAllRooms(sensors || []));
   }, []);
   useEffect(() => {
     const fetchExistingLayout = async () => {
@@ -953,31 +951,25 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const getRoomsForSelections = (targetSelections) => {
     if (!targetSelections.areaId) return [];
 
-    const areaBuildingIds = allBuildings
-      .filter((building) => building.area_id === targetSelections.areaId)
-      .map((building) => building.id);
-    const visibleBuildingIds = targetSelections.buildingId
-      ? [targetSelections.buildingId]
-      : areaBuildingIds;
-
-    return allRooms.filter((room) => visibleBuildingIds.includes(room.building_id));
+    return allRooms.filter((sensor) => sensor.institute_id === targetSelections.areaId);
   };
 
   const getFloorsForSelections = (targetSelections) => (
     [...new Set(getRoomsForSelections(targetSelections)
-      .map((room) => room.floor_number)
-      .filter((floorNumber) => floorNumber !== null && floorNumber !== undefined))]
-      .sort((a, b) => Number(a) - Number(b))
+      .map((sensor) => sensor.sensor_id)
+      .filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b)))
   );
 
   const getTargetFromSelections = (targetSelections, fallbackLabel) => {
     const selectedArea = areas.find((area) => area.id === targetSelections.areaId);
 
     if (targetSelections.floorNumber) {
+      const selectedSensor = allRooms.find((sensor) => sensor.sensor_id === targetSelections.floorNumber);
       return {
         level: 'floor',
         id: targetSelections.floorNumber,
-        label: `Corridor ${targetSelections.floorNumber}`,
+        label: selectedSensor?.corridor_name || `Corridor ${targetSelections.floorNumber}`,
       };
     }
 
@@ -1837,7 +1829,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           <label className={styles.inputLabel}>Corridor</label>
           <select className={styles.inputField} value={targetSelections.floorNumber} onChange={(e) => onChange({ ...targetSelections, buildingId: '', floorNumber: e.target.value, roomId: '' })}>
             <option value="">Whole Institute</option>
-            {targetFloors.map(f => <option key={f} value={f}>Corridor {f}</option>)}
+            {targetFloors.map((f) => {
+              const targetSensor = allRooms.find((sensor) => sensor.sensor_id === f);
+              return (
+                <option key={f} value={f}>
+                  {targetSensor?.corridor_name || `Corridor ${f}`}
+                </option>
+              );
+            })}
           </select>
         </>
       )}

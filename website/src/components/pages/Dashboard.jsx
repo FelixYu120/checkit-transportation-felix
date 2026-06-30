@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styles from './Dashboard.module.css';
 import supabase from '../helper/SupabaseClients';
+import { fetchSensorDirectory } from '../admin/data/SensorDirectoryData';
 
 const slugify = (text) => {
     if (!text) return "unknown";
@@ -17,65 +18,28 @@ function Dashboard() {
     const [searchTerm, setSearchTerm] = useState("");
 
     // 1. MOVED INSIDE THE COMPONENT: useCallback must be inside the React function
-    const formatData = useCallback((rawCorridorRecords) => {
+    const formatData = useCallback((rawSensors) => {
         const areasMap = {};
 
-        rawCorridorRecords.forEach((corridorRecord) => {
-            const peopleCount = Number(corridorRecord.current_people_count) || 0;
-            const capacity = Number(corridorRecord.room_capacity) || 0;
-            const areaName = corridorRecord.buildings?.name || "Unknown Area";
-            const corridorNumber = corridorRecord.floor_number || "1";
-            const areaKey = slugify(areaName);
-            const corridorKey = `${areaKey}-${corridorNumber}`;
+        rawSensors.forEach((sensor) => {
+            const areaName = sensor.area_name || "Unknown Area";
+            const areaKey = slugify(`${sensor.institute_id}-${areaName}`);
 
             if (!areasMap[areaKey]) {
                 areasMap[areaKey] = { id: areaKey, name: areaName, corridors: {} };
             }
 
-            if (!areasMap[areaKey].corridors[corridorKey]) {
-                areasMap[areaKey].corridors[corridorKey] = {
-                    id: corridorKey,
-                    name: `Corridor ${corridorNumber}`,
-                    capacity: 0,
-                    peopleCount: 0,
-                    segmentCount: 0,
-                    latestUpdate: null,
-                };
-            }
-
-            const corridor = areasMap[areaKey].corridors[corridorKey];
-            corridor.capacity += capacity;
-            corridor.peopleCount += peopleCount;
-            corridor.segmentCount += 1;
-
-            if (corridorRecord.last_updated) {
-                const observedAt = new Date(corridorRecord.last_updated);
-                if (!corridor.latestUpdate || observedAt > corridor.latestUpdate) {
-                    corridor.latestUpdate = observedAt;
-                }
-            }
+            areasMap[areaKey].corridors[sensor.sensor_id] = {
+                id: sensor.sensor_id,
+                name: sensor.corridor_name || `Corridor ${sensor.sensor_id}`,
+                status: sensor.status || "unknown",
+                density: sensor.status === "active" ? 0 : 100,
+            };
         });
 
         return Object.values(areasMap).map((area) => ({
             ...area,
-            corridors: Object.values(area.corridors).map((corridor) => {
-                const density = corridor.capacity > 0
-                    ? (corridor.peopleCount / corridor.capacity) * 100
-                    : 0;
-                let status = 'empty';
-                if (density >= 85) status = 'full';
-                else if (density >= 60) status = 'nearly-full';
-                else if (corridor.peopleCount > 0) status = 'partially-full';
-
-                return {
-                    ...corridor,
-                    density,
-                    status,
-                    lastUpdated: corridor.latestUpdate
-                        ? corridor.latestUpdate.toLocaleTimeString()
-                        : 'Never',
-                };
-            }),
+            corridors: Object.values(area.corridors).sort((a, b) => a.name.localeCompare(b.name)),
         }));
     }, []);
 
@@ -84,20 +48,8 @@ function Dashboard() {
             if (showLoading) setLoading(true);
             setFetchError('');
             
-            // 2. FIXED QUERY: Removed the deleted room_current_state table
-            const { data, error } = await supabase
-                .from('rooms')
-                .select(`
-                    id,
-                    current_people_count,
-                    room_capacity,
-                    floor_number,
-                    last_updated,
-                    buildings(name)
-                `);
-            
-            if (error) throw error;
-            setCampusData(formatData(data));
+            const { sensors } = await fetchSensorDirectory(supabase);
+            setCampusData(formatData(sensors));
         } catch (error) {
             console.error("Supabase Fetch error:", error);
             setCampusData([]);
@@ -115,7 +67,7 @@ function Dashboard() {
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
-                table: 'rooms'  
+                table: 'sensors'  
             }, (payload) => {
                 console.info('Dashboard realtime corridor change:', payload);
                 fetchData({ showLoading: false }); 
@@ -240,7 +192,7 @@ const CorridorCard = ({ corridor }) => {
                         <div className={`${styles.statusDot} ${dotClass}`}></div>
                     </div>
                 </div>
-                <p className={styles.roomDetails}>Capacity: {corridor.capacity}</p>
+                <p className={styles.roomDetails}>Status: {corridor.status}</p>
             </div>
         </div>
     );
