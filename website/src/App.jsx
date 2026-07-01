@@ -28,6 +28,8 @@ const getSupabaseAuthRedirectPath = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const authType = hashParams.get('type') || searchParams.get('type');
     const hasAuthCode = searchParams.has('code');
+    const hasAuthToken = hashParams.has('access_token') || hashParams.has('refresh_token');
+    const isPasswordPath = window.location.pathname === '/set-password' || window.location.pathname === '/forgot-password';
 
     if (authType === 'invite') {
         return '/create-account';
@@ -37,12 +39,84 @@ const getSupabaseAuthRedirectPath = () => {
         return '/set-password';
     }
 
-    if (hasAuthCode && window.location.pathname === '/login') {
+    if ((hasAuthCode || hasAuthToken) && !isPasswordPath) {
         return '/create-account';
     }
 
     return null;
 };
+
+function AppShell({ isLoggedIn, setIsLoggedIn }) {
+    return (
+        <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+            
+            {isLoggedIn ? <AdminHeader /> : <Header />}
+            
+            <div className={styles.mainContent} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <Routes>
+
+                    {/* ------------------- HOME / MAP ------------------- */}
+                    <Route path="/" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Navigate to="/login" replace />} />
+                    <Route path="/map" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Navigate to="/login" replace />} />
+                    <Route path="/dashboard/institute/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
+                    <Route path="/dashboard/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
+
+                    {/* ------------------- ADMIN DASHBOARD ROUTES ------------------- */}
+                    <Route path="/dashboard/institute/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                        <Route index element={<CollegeOverview />} />
+                        <Route path="corridors/:floorId" element={<FloorDashboard />} />
+                        <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
+                        <Route path="area/:buildingId">
+                            <Route index element={<AreaOverview />} />
+                            <Route path="corridors/:floorId" element={<FloorDashboard />} />
+                            <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
+                        </Route>
+                    </Route>
+                    <Route path="/dashboard/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                        <Route index element={<CollegeOverview />} />
+                        <Route path="corridors/:floorId" element={<FloorDashboard />} />
+                        <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
+                        <Route path=":buildingId">
+                            <Route index element={<Navigate to=".." replace />} />
+                            <Route path=":floorId" element={<FloorDashboard />} />
+                            <Route path=":floorId/:legacyId" element={<Navigate to=".." replace />} />
+                        </Route>
+                    </Route>
+                    <Route path="/dashboard/college/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                        <Route index element={<CollegeOverview />} />
+                        <Route path="floor/:floorId" element={<FloorDashboard />} />
+                        <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
+                        <Route path="building/:buildingId">
+                            <Route index element={<Navigate to=".." replace />} />
+                            <Route path=":floorId" element={<FloorDashboard />} />
+                            <Route path=":floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
+                            <Route path="floor/:floorId" element={<FloorDashboard />} />
+                            <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
+                        </Route>
+                    </Route>
+                    <Route path="/insights-studio" element={isLoggedIn ? <InsightsStudio /> : <Navigate to="/login" replace />} />
+                    <Route path="/insights-studio/solo" element={isLoggedIn ? <InsightBuilderPage type="solo" title="Solo Insight" /> : <Navigate to="/login" replace />} />
+                    <Route path="/insights-studio/comparison" element={isLoggedIn ? <InsightBuilderPage type="comparison" title="Comparison Insight" /> : <Navigate to="/login" replace />} />
+
+                    {/* ------------------- STATIC PAGES ------------------- */}
+                    <Route path="/resources" element={<div className={styles.centeredPageShell}><Resources/></div>} />
+                    <Route path="/terms" element={<div className={styles.centeredPageShell}><Terms/></div>} />
+                    <Route path="/privacy" element={<div className={styles.centeredPageShell}><Privacy/></div>} />
+                    <Route path="/contact" element={<div className={styles.centeredPageShell}><Contact/></div>} />
+
+                    {/* ------------------- AUTHENTICATION ------------------- */}
+                    <Route path="/login" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Login page="login" setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/signup" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/create-account" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/verify" element={<Login page="verify" setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/set-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
+
+                </Routes>
+            </div>
+        </div>
+    );
+}
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -80,73 +154,7 @@ function App() {
 
     return (
         <Router>
-            <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-                
-                {isLoggedIn ? <AdminHeader /> : <Header />}
-                
-                <div className={styles.mainContent} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-                    <Routes>
-                        
-                        {/* ------------------- HOME / MAP ------------------- */}
-                        <Route path="/" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Navigate to="/login" replace />} />
-                        <Route path="/map" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Navigate to="/login" replace />} />
-                        <Route path="/dashboard/institute/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
-                        <Route path="/dashboard/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
-
-                        {/* ------------------- ADMIN DASHBOARD ROUTES ------------------- */}
-                        <Route path="/dashboard/institute/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
-                            <Route index element={<CollegeOverview />} />
-                            <Route path="corridors/:floorId" element={<FloorDashboard />} />
-                            <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
-                            <Route path="area/:buildingId">
-                                <Route index element={<AreaOverview />} />
-                                <Route path="corridors/:floorId" element={<FloorDashboard />} />
-                                <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
-                            </Route>
-                        </Route>
-                        <Route path="/dashboard/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
-                            <Route index element={<CollegeOverview />} />
-                            <Route path="corridors/:floorId" element={<FloorDashboard />} />
-                            <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
-                            <Route path=":buildingId">
-                                <Route index element={<Navigate to=".." replace />} />
-                                <Route path=":floorId" element={<FloorDashboard />} />
-                                <Route path=":floorId/:legacyId" element={<Navigate to=".." replace />} />
-                            </Route>
-                        </Route>
-                        <Route path="/dashboard/college/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
-                            <Route index element={<CollegeOverview />} />
-                            <Route path="floor/:floorId" element={<FloorDashboard />} />
-                            <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
-                            <Route path="building/:buildingId">
-                                <Route index element={<Navigate to=".." replace />} />
-                                <Route path=":floorId" element={<FloorDashboard />} />
-                                <Route path=":floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
-                                <Route path="floor/:floorId" element={<FloorDashboard />} />
-                                <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
-                            </Route>
-                        </Route>
-                        <Route path="/insights-studio" element={isLoggedIn ? <InsightsStudio /> : <Navigate to="/login" replace />} />
-                        <Route path="/insights-studio/solo" element={isLoggedIn ? <InsightBuilderPage type="solo" title="Solo Insight" /> : <Navigate to="/login" replace />} />
-                        <Route path="/insights-studio/comparison" element={isLoggedIn ? <InsightBuilderPage type="comparison" title="Comparison Insight" /> : <Navigate to="/login" replace />} />
-
-                        {/* ------------------- STATIC PAGES ------------------- */}
-                        <Route path="/resources" element={<div className={styles.centeredPageShell}><Resources/></div>} />
-                        <Route path="/terms" element={<div className={styles.centeredPageShell}><Terms/></div>} />
-                        <Route path="/privacy" element={<div className={styles.centeredPageShell}><Privacy/></div>} />
-                        <Route path="/contact" element={<div className={styles.centeredPageShell}><Contact/></div>} />
-
-                        {/* ------------------- AUTHENTICATION ------------------- */}
-                        <Route path="/login" element={isLoggedIn ? <Navigate to={DEFAULT_ADMIN_ROUTE} replace /> : <Login page="login" setIsLoggedIn={setIsLoggedIn} />} />
-                        <Route path="/signup" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
-                        <Route path="/create-account" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
-                        <Route path="/verify" element={<Login page="verify" setIsLoggedIn={setIsLoggedIn} />} />
-                        <Route path="/forgot-password" element={<ForgotPassword />} />
-                        <Route path="/set-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
-
-                    </Routes>
-                </div>
-            </div>
+            <AppShell isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
         </Router>
     );
 }
