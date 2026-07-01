@@ -3,11 +3,9 @@ import {
   getDateBounds,
   hasActiveTimeFilter,
 } from "../controls/AnalyticsFilterUtils";
+import { getSupabaseErrorContext, shouldUseLocalData } from "../../helper/SupabaseClients.jsx";
 
-const USE_LOCAL_SUMMARIES =
-  import.meta.env.VITE_SENSOR_DIRECTORY_SOURCE === "local" ||
-  !import.meta.env.VITE_SUPABASE_URL ||
-  !import.meta.env.VITE_SUPABASE_ANON_KEY;
+const USE_LOCAL_SUMMARIES = shouldUseLocalData;
 
 const FALLBACK_TEN_MINUTE_SUMMARIES = [
   { id: "03ffd455-bb24-4757-8481-75837af37de5", sensor_id: "peppercanyon1", time_bucket: "2026-06-25 23:50:00+00", direction: "away", volume: 10, avg_speed: 8, v85_speed: 10, max_speed: 10 },
@@ -167,7 +165,7 @@ export const fetchTrafficSummaryRows = async (supabase, {
 
     return applyAnalyticsFilters(combineDirectionRows(data), filters);
   } catch (error) {
-    console.warn("Using local 10-minute summary fallback:", error);
+    console.warn("Using local 10-minute summary fallback:", getSupabaseErrorContext(error));
     const localRows = getFallbackSummaryRows(sensorId);
 
     return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
@@ -208,7 +206,7 @@ export const fetchTrafficDirectionRows = async (supabase, {
 
     return applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), filters);
   } catch (error) {
-    console.warn("Using local directional traffic fallback:", error);
+    console.warn("Using local directional traffic fallback:", getSupabaseErrorContext(error));
     return applyFallbackDirectionRows(sensorId, filters);
   }
 };
