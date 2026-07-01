@@ -11,13 +11,13 @@ function AdminHeader() {
     return (
         <header className={styles.headerBar}>  
             {/* Logo */}
-            <a href="https://checkit.dev" aria-label="Go to CheckIt landing page">
+            <NavLink to={DEFAULT_ADMIN_ROUTE} aria-label="Go to default analytics page">
                 <img 
                     src="/checkit-logo.png" 
                     alt="logo" 
                     className={styles.checkitLogo} 
                 />
-            </a>
+            </NavLink>
 
             <nav className={styles.primaryTabs} aria-label="Admin sections">
                 <NavLink
