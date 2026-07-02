@@ -24,6 +24,7 @@ const PEOPLE_PRIMARY_COLOR = '#64748b';
 const PEOPLE_SECONDARY_COLOR = '#b8a2f3';
 const OCCUPANCY_COLORS = [PRIMARY_COLOR, SECONDARY_COLOR, '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
 const PEOPLE_COLORS = [PEOPLE_PRIMARY_COLOR, PEOPLE_SECONDARY_COLOR, '#94a3b8', '#d97706', '#059669', '#dc2626', '#818cf8', '#0f766e'];
+const DEFAULT_CUSTOM_METRICS = { volume: true, avgSpeed: true };
 
 const normalizeOccupancy = (density, people, capacity) => {
     const numericDensity = Number(density);
@@ -439,6 +440,7 @@ const ComparisonAggregateChart = ({
     thresholdColor = '#ef4444',
     showLegend = true,
     legendItems,
+    customMetrics,
     frameless = false,
 }) => {
     const [liveChartData, setLiveChartData] = useState([]);
@@ -492,6 +494,7 @@ const ComparisonAggregateChart = ({
         targetSeries.map((series) => Number(point[series.occupancyKey]) || 0)
     )))), [chartData, targetSeries]);
     const effectiveLegendItems = { occupancy: true, people: true, threshold: true, ...(legendItems || {}) };
+    const effectiveCustomMetrics = { ...DEFAULT_CUSTOM_METRICS, ...(customMetrics || {}) };
 
     useEffect(() => {
         if (snapshotData?.length) {
@@ -549,11 +552,13 @@ const ComparisonAggregateChart = ({
 
         const point = payload[0].payload;
         const tooltipLabel = point?.dateLabel || point?.time || label;
+        const showsSpeed = plotType === 'custom' ? effectiveCustomMetrics.avgSpeed : plotType !== 'people_bar';
+        const showsVolume = plotType === 'custom' ? effectiveCustomMetrics.volume : plotType === 'people_bar' || plotType === 'combo';
 
         return (
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
                 <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '8px' }}>{tooltipLabel}</div>
-                {targetSeries.map((series) => {
+                {showsSpeed && targetSeries.map((series) => {
                     const hasData = point[`${series.key}HasData`] !== false;
                     return (
                         <div key={series.key} style={{ color: hasData ? series.occupancyColor : '#6b7280', fontSize: '12px', fontWeight: 600, marginTop: '4px' }}>
@@ -561,13 +566,13 @@ const ComparisonAggregateChart = ({
                         </div>
                     );
                 })}
-                {(plotType === 'people_bar' || plotType === 'combo') && (
+                {showsVolume && (
                     <>
                         {targetSeries.map((series) => {
                             const hasData = point[`${series.key}HasData`] !== false;
                             return hasData ? (
                                 <div key={`${series.key}-people`} style={{ color: series.peopleColor, fontSize: '12px', marginTop: '4px' }}>
-                                    {series.label} vehicles: {point[series.peopleKey] ?? 0}
+                                    {series.label} traffic volume: {point[series.peopleKey] ?? 0}
                                 </div>
                             ) : null;
                         })}
@@ -603,7 +608,7 @@ const ComparisonAggregateChart = ({
         />
     );
     const renderPeopleYAxis = (props = {}) => (
-        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} allowDecimals={false} domain={[0, peopleAxisMax]} label={props.yAxisId ? { value: 'Vehicle count', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 } : undefined} {...props} />
+        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} allowDecimals={false} domain={[0, peopleAxisMax]} label={props.yAxisId ? { value: 'Traffic volume', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 } : undefined} {...props} />
     );
     const renderThresholdLine = (props = {}) => {
         const parsedValue = Number(thresholdValue);
@@ -627,23 +632,27 @@ const ComparisonAggregateChart = ({
         const entries = [];
         if (effectiveLegendItems.occupancy && plotType !== 'people_bar') {
             targetSeries.forEach((series) => {
-                entries.push({
-                    key: `${series.key}-occupancy`,
-                    label: plotType === 'combo' ? `${series.label} avg speed mph (left axis)` : `${series.label} avg speed mph`,
-                    color: series.occupancyColor,
-                    type: 'line',
-                    dash: Boolean(series.dash),
-                });
+                if (plotType !== 'custom' || effectiveCustomMetrics.avgSpeed) {
+                    entries.push({
+                        key: `${series.key}-occupancy`,
+                        label: ['combo', 'custom'].includes(plotType) ? `${series.label} avg speed mph (left axis)` : `${series.label} avg speed mph`,
+                        color: series.occupancyColor,
+                        type: 'line',
+                        dash: Boolean(series.dash),
+                    });
+                }
             });
         }
-        if (effectiveLegendItems.people && (plotType === 'people_bar' || plotType === 'combo')) {
+        if (effectiveLegendItems.people && (plotType === 'people_bar' || plotType === 'combo' || plotType === 'custom')) {
             targetSeries.forEach((series) => {
-                entries.push({
-                    key: `${series.key}-people`,
-                    label: plotType === 'combo' ? `${series.label} vehicle count (right axis)` : `${series.label} vehicle count`,
-                    color: series.peopleColor,
-                    type: 'bar',
-                });
+                if (plotType !== 'custom' || effectiveCustomMetrics.volume) {
+                    entries.push({
+                        key: `${series.key}-people`,
+                        label: ['combo', 'custom'].includes(plotType) ? `${series.label} traffic volume (right axis)` : `${series.label} traffic volume`,
+                        color: series.peopleColor,
+                        type: 'bar',
+                    });
+                }
             });
         }
         if (effectiveLegendItems.threshold && thresholdEnabled && Number.isFinite(Number(thresholdValue))) {
@@ -681,6 +690,29 @@ const ComparisonAggregateChart = ({
     const renderChart = () => {
         const commonMargin = { top: 28, right: 10, left: -12, bottom: 18 };
 
+        if (plotType === 'custom') {
+            const hasSpeedMetric = Boolean(effectiveCustomMetrics.avgSpeed);
+            const hasVolumeMetric = Boolean(effectiveCustomMetrics.volume);
+            const thresholdAxisId = hasSpeedMetric ? 'occupancy' : 'people';
+
+            return (
+                <ComposedChart data={chartData} margin={{ top: 28, right: 14, left: 0, bottom: 18 }}>
+                    {renderGrid()}
+                    {renderXAxis()}
+                    {hasSpeedMetric && renderOccupancyYAxis({ yAxisId: 'occupancy' })}
+                    {hasVolumeMetric && renderPeopleYAxis({ yAxisId: 'people', orientation: 'right', width: 46 })}
+                    {(hasSpeedMetric || hasVolumeMetric) && renderThresholdLine({ yAxisId: thresholdAxisId })}
+                    <Tooltip content={renderTooltip} />
+                    {effectiveCustomMetrics.volume && targetSeries.map((series) => (
+                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
+                    ))}
+                    {effectiveCustomMetrics.avgSpeed && targetSeries.map((series) => (
+                        <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} avg speed mph`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />
+                    ))}
+                </ComposedChart>
+            );
+        }
+
         if (plotType === 'bar') {
             return (
                 <BarChart data={chartData} margin={commonMargin}>
@@ -705,7 +737,7 @@ const ComparisonAggregateChart = ({
                     {renderThresholdLine()}
                     <Tooltip content={renderTooltip} />
                     {targetSeries.map((series) => (
-                        <Bar key={series.peopleKey} dataKey={series.peopleKey} name={`${series.label} vehicles`} fill={series.peopleColor} radius={[5, 5, 0, 0]} />
+                        <Bar key={series.peopleKey} dataKey={series.peopleKey} name={`${series.label} traffic volume`} fill={series.peopleColor} radius={[5, 5, 0, 0]} />
                     ))}
                 </BarChart>
             );
@@ -721,7 +753,7 @@ const ComparisonAggregateChart = ({
                     {renderThresholdLine({ yAxisId: 'occupancy' })}
                     <Tooltip content={renderTooltip} />
                     {targetSeries.map((series) => (
-                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} vehicle count (right axis)`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
+                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume (right axis)`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
                     ))}
                     {targetSeries.map((series) => (
                         <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} avg speed mph (left axis)`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />

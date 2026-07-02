@@ -377,10 +377,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                                             {point.hasData === false ? (
                                                 <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
                                             ) : (
-                                                <>
-                                                    <div style={{ color: lineColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.density ?? 0} mph</div>
-                                                    <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Vehicles: {point.peopleCount ?? 0}</div>
-                                                </>
+                                                <div style={{ color: lineColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.density ?? 0} mph</div>
                                             )}
                                         </div>
                                     );

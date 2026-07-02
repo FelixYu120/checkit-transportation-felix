@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, Clock, Timer } from 'lucide-react';
+import { AlertTriangle, Timer } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -195,13 +195,6 @@ const FloorDashboard = () => {
             label: 'Safety signal',
             value: `${summary.maxSpeed} mph max`,
             description: 'Maximum vehicle speed recorded for the selected range.',
-        },
-        {
-            key: 'updated',
-            icon: <Clock size={18} />,
-            label: 'Last updated',
-            value: formatDateTime(summary.latestTime),
-            description: "Most recent timestamp available for this corridor's traffic data.",
         },
     ];
     const updateTrendView = (timeframe, view) => {

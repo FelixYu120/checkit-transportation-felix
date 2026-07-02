@@ -138,10 +138,10 @@
 .corridorHeader {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
-  padding: 0 0 4px;
+  padding: 0;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -150,26 +150,27 @@
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
   width: fit-content;
-  padding: 5px 8px;
-  border-radius: 8px;
-  background: #ffffff;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: #6b7280;
-  font-size: 0.74rem;
-  font-weight: 700;
-  line-height: 1.1;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .sensorStatusLegend strong {
   color: #374151;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .sensorStatusLegend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .sensorStatusLegend .currentStatus {
@@ -177,22 +178,25 @@
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
   background: #9ca3af;
-  box-shadow: 0 0 0 2px #eef2f7;
+  box-shadow: none;
 }
 
 .statusDot.active {
   background: #10b981;
-  box-shadow: 0 0 0 2px #d7f8ec;
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
 .statusDot.down,
 .statusDot.offline {
   background: #9ca3af;
-  box-shadow: 0 0 0 2px #e5e7eb;
+  border-color: #9ca3af;
+  box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.2);
 }
 
 .topControls {
@@ -211,6 +215,10 @@
 .topControls > :global(.filterBar),
 .topControls > section {
   min-width: 0;
+}
+
+.topControls > :global(.filterBar) {
+  align-self: flex-start;
 }
 
 .exportControl {
@@ -510,7 +518,7 @@
 .networkMarker.unknown span { background: #64748b; }
 
 .trafficCardGrid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
 }
 
 .trafficSensorCard {
@@ -518,22 +526,20 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid #dce5ea;
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 251, 0.92)),
-    #ffffff;
+  border-radius: 12px;
+  background: #ffffff;
   color: #1f2937;
   text-decoration: none;
-  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+  box-shadow: none;
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .trafficSensorCard:hover {
   border-color: #a0d1c5;
-  transform: translateY(-3px);
-  box-shadow: 0 16px 34px rgba(160, 209, 197, 0.24);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(160, 209, 197, 0.16);
 }
 
 .cardTopline,
@@ -546,7 +552,7 @@
 
 .cardMetricRow {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -1083,31 +1089,29 @@
 
 .areaCardGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
 }
 
 .areaCard {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid #dce5ea;
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 251, 0.92)),
-    #ffffff;
+  border-radius: 12px;
+  background: #ffffff;
   color: #1f2937;
   text-decoration: none;
-  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+  box-shadow: none;
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .areaCard:hover {
   border-color: #a0d1c5;
-  transform: translateY(-3px);
-  box-shadow: 0 16px 34px rgba(160, 209, 197, 0.24);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(160, 209, 197, 0.16);
 }
 
 .areaCardTopline {
@@ -1126,7 +1130,7 @@
 
 .areaCardMetricRow {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1190,17 +1194,15 @@
 .placeSummaryBox {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  padding: clamp(18px, 1.8vw, 24px);
+  padding: clamp(16px, 1.5vw, 22px);
   border: 1px solid #d7e0e7;
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
-    #ffffff;
-  box-shadow: 0 14px 32px rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(148, 163, 184, 0.08);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -1221,7 +1223,7 @@
 .placeSummaryCopy h1 {
   margin: 4px 0 10px;
   color: #16212d;
-  font-size: clamp(2rem, 3vw, 2.75rem);
+  font-size: clamp(1.75rem, 2.5vw, 2.35rem);
   line-height: 1.05;
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -1246,7 +1248,7 @@
 .heroMetricGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1255,24 +1257,24 @@
 .heroMetricGrid > div {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-  min-height: 116px;
+  min-height: 88px;
   align-items: center;
   justify-content: center;
-  padding: 14px 10px;
+  padding: 10px 8px;
   text-align: center;
   border: 1px solid #dce5ea;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+  box-shadow: none;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .heroMetricGrid strong {
   color: #172033;
-  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  font-size: clamp(1.2rem, 1.85vw, 1.75rem);
   line-height: 1.05;
   font-weight: 900;
   max-width: 100%;
@@ -1281,7 +1283,7 @@
 
 .heroMetricGrid span {
   color: #64748b;
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1293,7 +1295,7 @@
 .insightGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
 }
@@ -1303,15 +1305,15 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid #dce5ea;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff;
   color: inherit;
   font: inherit;
   text-align: left;
   overflow: hidden;
-  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
+  box-shadow: none;
 }
 
 .insightCard strong {

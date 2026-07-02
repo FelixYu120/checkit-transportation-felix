@@ -96,37 +96,37 @@ const CHART_PRESETS = {
   solo: [
     {
       id: 'utilization-trend',
-      label: 'Utilization trend',
+      label: 'Volume + speed',
       updates: {
-        label: 'Utilization Trend',
-        chartType: 'area',
+        label: 'Volume + Speed',
+        chartType: 'combo',
         highlightPeak: true,
-        showLegend: false,
+        showLegend: true,
         occupancyColor: '#2f716f',
         peopleColor: '#94a3b8',
       },
     },
     {
       id: 'people-activity',
-      label: 'Vehicle activity',
+      label: 'Direction split',
       updates: {
-        label: 'Vehicle Activity',
-        chartType: 'bar',
+        label: 'Direction Split',
+        chartType: 'direction_bar',
         highlightPeak: true,
         showLegend: true,
-        occupancyColor: '#2563eb',
-        peopleColor: '#7aa2f7',
+        occupancyColor: '#2f716f',
+        peopleColor: '#9fbfb8',
       },
     },
     {
       id: 'threshold-review',
-      label: 'Speed limit review',
+      label: 'Speed profile',
       updates: {
-        label: 'Speed Limit Review',
-        chartType: 'combo',
+        label: 'Speed Profile',
+        chartType: 'speed_profile',
         thresholdEnabled: true,
         thresholdValue: 50,
-        thresholdLabel: 'Speed Limit',
+        thresholdLabel: 'Threshold',
         thresholdColor: '#ef4444',
         showLegend: true,
         legendItems: { occupancy: true, people: true, threshold: true },
@@ -148,9 +148,9 @@ const CHART_PRESETS = {
     },
     {
       id: 'utilization-comparison',
-      label: 'Utilization comparison',
+      label: 'Speed comparison',
       updates: {
-        label: 'Utilization Comparison',
+        label: 'Speed Comparison',
         chartType: 'line',
         showLegend: true,
         thresholdEnabled: false,
@@ -159,39 +159,42 @@ const CHART_PRESETS = {
     },
     {
       id: 'capacity-watch',
-      label: 'Speed limit watch',
+      label: 'Threshold watch',
       updates: {
-        label: 'Speed Limit Watch',
+        label: 'Threshold Watch',
         chartType: 'combo',
         showLegend: true,
         thresholdEnabled: true,
         thresholdValue: 50,
-        thresholdLabel: 'Speed Limit',
+        thresholdLabel: 'Threshold',
         thresholdColor: '#ef4444',
         legendItems: { occupancy: true, people: true, threshold: true },
       },
     },
   ],
 };
-const DEFAULT_SUMMARY_METRICS = ['current', 'peak', 'busiestDay', 'busiestTime'];
+const DEFAULT_SUMMARY_METRICS = ['total', 'peak', 'averageSpeed', 'busiestTime'];
 const SUMMARY_METRIC_OPTIONS = [
-  { value: 'current', label: 'Current Traffic' },
-  { value: 'peak', label: 'Peak' },
-  { value: 'busiestDay', label: 'Busiest Day' },
-  { value: 'busiestTime', label: 'Busiest Time' },
+  { value: 'total', label: 'Total Traffic Volume' },
+  { value: 'peak', label: 'Peak Traffic Volume' },
+  { value: 'averageSpeed', label: 'Average Speed' },
+  { value: 'v85Speed', label: '85th Speed' },
+  { value: 'maxSpeed', label: 'Max Speed' },
+  { value: 'approachShare', label: 'Approach Share' },
+  { value: 'busiestDay', label: 'Highest Volume Day' },
+  { value: 'busiestTime', label: 'Highest Volume Time' },
 ];
 const COMPARISON_SUMMARY_MODES = [
-  { value: 'current', label: 'Current Difference' },
   { value: 'average', label: 'Average Difference' },
   { value: 'peak', label: 'Peak Difference' },
   { value: 'change', label: 'Change From Start' },
-  { value: 'totalCurrent', label: 'Total Current' },
+  { value: 'totalVolume', label: 'Total Traffic Volume' },
   { value: 'groupAverage', label: 'Group Average' },
-  { value: 'topCurrent', label: 'Top Current Corridor' },
+  { value: 'topVolume', label: 'Top Volume Corridor' },
   { value: 'topAverage', label: 'Top Average Corridor' },
   { value: 'range', label: 'Traffic Spread' },
 ];
-const DEFAULT_COMPARISON_SUMMARY_METRICS = ['totalCurrent', 'topCurrent', 'groupAverage', 'range'];
+const DEFAULT_COMPARISON_SUMMARY_METRICS = ['totalVolume', 'topVolume', 'groupAverage', 'range'];
 
 const roundToGrid = (value) => Math.ceil(value / GRID_SIZE) * GRID_SIZE;
 
@@ -484,7 +487,7 @@ const getRequiredPageCount = (layout = []) => {
 };
 
 const EMPTY_TARGET_SELECTION = { areaId: '', buildingId: '', floorNumber: '', roomId: '' };
-const CHART_SNAPSHOT_VERSION = 8;
+const CHART_SNAPSHOT_VERSION = 9;
 
 const isFormField = (element) =>
   ['INPUT', 'TEXTAREA', 'SELECT'].includes(element?.tagName) || element?.isContentEditable;
@@ -759,7 +762,7 @@ const createDividerElement = (id, x, y, width = DEFAULT_REPORT_WIDTH, height = 2
 const createDefaultTemplateElements = (isComparison) => [
   ...(isComparison ? [] : [{ id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_SUMMARY_HEIGHT, summaryMetrics: DEFAULT_SUMMARY_METRICS, useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } }]),
   createDividerElement('divider-1', 48, isComparison ? 168 : 432),
-  { id: 'chart-1', type: 'chart', x: 48, y: isComparison ? 192 : 456, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_CHART_HEIGHT, timeType: 'weekly', chartType: isComparison ? 'line' : 'area', style: { background: 'transparent', borderRadius: '12px' } },
+  { id: 'chart-1', type: 'chart', x: 48, y: isComparison ? 192 : 456, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_CHART_HEIGHT, timeType: 'weekly', chartType: isComparison ? 'line' : 'combo', style: { background: 'transparent', borderRadius: '12px' } },
 ];
 
 const createTemplateElements = (templateId, isComparison) => {
@@ -767,7 +770,7 @@ const createTemplateElements = (templateId, isComparison) => {
 
   if (!isComparison && templateId === 'operations') {
     return [
-      { id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 168, summaryMetrics: ['current', 'peak', 'busiestTime'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
+      { id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 168, summaryMetrics: ['total', 'peak', 'busiestTime'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-1', 48, 372),
       { id: 'chart-1', type: 'chart', x: 48, y: 396, width: 432, height: 360, timeType: 'daily', chartType: 'bar', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-2', 488, 396, 24, 360, 'vertical'),
@@ -778,9 +781,9 @@ const createTemplateElements = (templateId, isComparison) => {
 
   if (!isComparison && templateId === 'trend-review') {
     return [
-      { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 528, timeType: 'weekly', chartType: 'area', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
+      { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 528, timeType: 'weekly', chartType: 'combo', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-1', 48, 732),
-      { id: 'summary-1', type: 'summary', x: 48, y: 756, width: 336, height: 216, summaryMetrics: ['current', 'peak'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
+      { id: 'summary-1', type: 'summary', x: 48, y: 756, width: 336, height: 216, summaryMetrics: ['total', 'peak'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-2', 396, 756, 24, 216, 'vertical'),
       { id: 'text-1', type: 'text', x: 420, y: 756, width: 348, height: 216, content: 'Key takeaways', style: { fontSize: '24px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
     ];
@@ -1094,7 +1097,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const updateElement = (id, updates) => {
     pushUndoSnapshot();
-    const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId'].some((key) => key in updates);
+    const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId'].some((key) => key in updates);
     setElements(elements.map((el) => {
       if (el.id !== id) return el;
       const nextElement = { ...el, ...(shouldRefreshSnapshot ? { snapshotData: undefined, snapshotKey: undefined } : {}), ...updates };
@@ -1386,8 +1389,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         newEl.label = type === 'chart' ? `Chart ${elements.filter((element) => element.type === 'chart').length + 1}` : undefined;
         newEl.useReportTimeframe = true;
         newEl.timeType = reportSettings.timeframe;
-        newEl.chartType = type === 'chart' ? (isComparison ? 'line' : 'area') : undefined;
-        newEl.summaryMetric = type === 'summary' && isComparison ? 'current' : undefined;
+        newEl.chartType = type === 'chart' ? (isComparison ? 'line' : 'combo') : undefined;
+        newEl.summaryMetric = type === 'summary' && isComparison ? 'totalVolume' : undefined;
         newEl.summaryMetrics = type === 'summary'
           ? (isComparison ? DEFAULT_COMPARISON_SUMMARY_METRICS : DEFAULT_SUMMARY_METRICS)
           : undefined;
@@ -1969,16 +1972,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     if (isComparison && !elementHasComparisonTargets) return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', opacity: 0.6 }}>Select two data sources in the sidebar.</div>;
     if (!isComparison && !elementHasSoloTarget) return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', opacity: 0.6 }}>Select a data source in the sidebar.</div>;
 
-    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={reportFilters} timeframe={reportSettings.timeframe} metricMode={el.summaryMetric || 'current'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
-    if (el.type === 'summary') return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} metrics={el.summaryMetrics || DEFAULT_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={reportFilters} timeframe={reportSettings.timeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    if (el.type === 'summary') return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} timeframe={reportSettings.timeframe} metrics={el.summaryMetrics || DEFAULT_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
     if (el.type === 'chart' && isComparison) return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <ComparisonAggregateChart targets={elementComparisonTargets} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Speed Limit'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} frameless />
+        <ComparisonAggregateChart targets={elementComparisonTargets} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'area'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Speed Limit'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? (el.chartType || 'area') === 'combo'} legendItems={el.legendItems} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -2547,30 +2550,43 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     placeholder="e.g. Monthly corridor comparison"
                   />
 
-                  <label className={styles.inputLabel}>Chart Preset</label>
-                  <select
-                    className={styles.inputField}
-                    defaultValue=""
-                    onChange={(e) => {
-                      const preset = CHART_PRESETS[isComparison ? 'comparison' : 'solo'].find((candidate) => candidate.id === e.target.value);
-                      if (preset) applyChartPreset(preset);
-                      e.target.value = '';
-                    }}
-                  >
-                    <option value="" disabled>Choose a preset...</option>
-                    {CHART_PRESETS[isComparison ? 'comparison' : 'solo'].map((preset) => (
-                      <option key={preset.id} value={preset.id}>{preset.label}</option>
-                    ))}
-                  </select>
-
                   {renderModuleTargetControls(activeElement)}
 
                   <label className={styles.inputLabel}>Plot Type</label>
-                  <select value={activeElement.chartType || (isComparison ? 'line' : 'area')} onChange={(e) => updateElement(activeElement.id, { chartType: e.target.value })} className={styles.inputField}>
+                  <select value={activeElement.chartType || (isComparison ? 'line' : 'combo')} onChange={(e) => updateElement(activeElement.id, { chartType: e.target.value })} className={styles.inputField}>
                     {(isComparison ? COMPARISON_CHART_TYPES : AGGREGATE_CHART_TYPES).map((chartType) => (
                       <option key={chartType.value} value={chartType.value}>{chartType.label}</option>
                     ))}
                   </select>
+
+                  {(activeElement.chartType || (isComparison ? 'line' : 'combo')) === 'custom' && (
+                    <div className={styles.controlCard}>
+                      <div className={styles.controlCardHeader}>
+                        <h5 className={styles.controlCardTitle}>Custom Metrics</h5>
+                      </div>
+                      <div className={styles.checkboxGroup}>
+                        {[
+                          { key: 'volume', label: 'Traffic volume', defaultChecked: true },
+                          { key: 'avgSpeed', label: 'Average speed', defaultChecked: true },
+                          ...(!isComparison ? [
+                            { key: 'v85Speed', label: '85th speed', defaultChecked: false },
+                            { key: 'maxSpeed', label: 'Max speed', defaultChecked: false },
+                            { key: 'approach', label: 'Approach traffic', defaultChecked: false },
+                            { key: 'away', label: 'Away traffic', defaultChecked: false },
+                          ] : []),
+                        ].map((metric) => (
+                          <label key={metric.key} className={styles.checkboxRow}>
+                            <input
+                              type="checkbox"
+                              checked={activeElement.customMetrics?.[metric.key] ?? metric.defaultChecked}
+                              onChange={(e) => updateElementObjectValue(activeElement.id, 'customMetrics', metric.key, e.target.checked)}
+                            />
+                            {metric.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className={styles.sidebarSection}>
                     <h4 className={styles.sidebarSectionTitle}>Visualization Style</h4>
@@ -2582,7 +2598,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                             <input type="color" value={getColorInputValue(activeElement.occupancyColor, '#7cb49c')} onChange={(e) => updateElement(activeElement.id, { occupancyColor: e.target.value })} className={styles.colorPicker} />
                           </div>
                           <div>
-                            <label className={styles.inputLabel}>Vehicle Bars</label>
+                            <label className={styles.inputLabel}>Traffic Bars</label>
                             <input type="color" value={getColorInputValue(activeElement.peopleColor, '#6b7280')} onChange={(e) => updateElement(activeElement.id, { peopleColor: e.target.value })} className={styles.colorPicker} />
                           </div>
                         </div>
@@ -2601,7 +2617,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               />
                             </div>
                             <div>
-                              <label className={styles.inputLabel}>Vehicles {index + 1}</label>
+                              <label className={styles.inputLabel}>Traffic {index + 1}</label>
                               <input
                                 type="color"
                                 value={getColorInputValue(activeElement.peopleSeriesColors?.[index], ['#64748b', '#b8a2f3', '#94a3b8', '#d97706'][index] || '#64748b')}
@@ -2622,14 +2638,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                         <label className={`${styles.checkboxRow} ${styles.inlineToggle}`}>
                           <input
                             type="checkbox"
-                            checked={activeElement.showLegend ?? (isComparison || (activeElement.chartType || 'area') === 'combo')}
+                            checked={activeElement.showLegend ?? (isComparison || (activeElement.chartType || 'combo') === 'combo')}
                             onChange={(e) => updateElement(activeElement.id, { showLegend: e.target.checked })}
                           />
                           Show
                         </label>
                       </div>
 
-                      {(activeElement.showLegend ?? (isComparison || (activeElement.chartType || 'area') === 'combo')) && (
+                      {(activeElement.showLegend ?? (isComparison || (activeElement.chartType || 'combo') === 'combo')) && (
                         <div className={styles.checkboxGroup}>
                           <label className={styles.checkboxRow}>
                             <input
@@ -2637,7 +2653,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               checked={activeElement.legendItems?.occupancy ?? true}
                               onChange={(e) => updateElementObjectValue(activeElement.id, 'legendItems', 'occupancy', e.target.checked)}
                             />
-                            Utilization %
+                            Avg speed
                           </label>
                           <label className={styles.checkboxRow}>
                             <input
@@ -2645,7 +2661,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               checked={activeElement.legendItems?.people ?? true}
                               onChange={(e) => updateElementObjectValue(activeElement.id, 'legendItems', 'people', e.target.checked)}
                             />
-                            Vehicle count
+                            Traffic volume
                           </label>
                           {activeElement.thresholdEnabled && (
                             <label className={styles.checkboxRow}>
@@ -2654,7 +2670,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                                 checked={activeElement.legendItems?.threshold ?? true}
                                 onChange={(e) => updateElementObjectValue(activeElement.id, 'legendItems', 'threshold', e.target.checked)}
                               />
-                              Speed limit entry
+                              Threshold entry
                             </label>
                           )}
                         </div>
@@ -2664,7 +2680,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     <div className={styles.controlCard}>
                       <div className={styles.controlCardHeader}>
                         <div>
-                          <h5 className={styles.controlCardTitle}>Speed Limit Line</h5>
+                          <h5 className={styles.controlCardTitle}>Threshold Line</h5>
                         </div>
                         <label className={`${styles.checkboxRow} ${styles.inlineToggle}`}>
                           <input
@@ -2689,7 +2705,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                           <div className={styles.twoColumnFields}>
                             <div>
                               <label className={styles.inputLabel}>Label</label>
-                              <input type="text" value={activeElement.thresholdLabel || 'Speed Limit'} onChange={(e) => updateElement(activeElement.id, { thresholdLabel: e.target.value })} className={styles.inputField} />
+                              <input type="text" value={activeElement.thresholdLabel || 'Threshold'} onChange={(e) => updateElement(activeElement.id, { thresholdLabel: e.target.value })} className={styles.inputField} />
                             </div>
                             <div>
                               <label className={styles.inputLabel}>Color</label>

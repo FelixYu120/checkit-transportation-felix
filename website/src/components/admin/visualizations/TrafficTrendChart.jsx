@@ -185,7 +185,7 @@ const getMetricSet = (mode, stats) => {
       {
         label: 'Average speed',
         value: `${stats.avgSpeed} mph`,
-        detail: 'Weighted average vehicle speed across the chart window.',
+        detail: 'Weighted average traffic speed across the chart window.',
       },
       {
         label: '85th speed',
@@ -214,7 +214,7 @@ const getMetricSet = (mode, stats) => {
     {
       label: 'Average speed',
       value: `${stats.avgSpeed} mph`,
-      detail: 'Weighted average vehicle speed across the chart window.',
+      detail: 'Weighted average traffic speed across the chart window.',
     },
     {
       label: '85th speed',
@@ -388,7 +388,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
                     {mode === 'direction' && <TooltipRow label="Away" value={point.away} />}
                     {mode !== 'direction' && <TooltipRow label="Avg speed" value={`${point.avgSpeed} mph`} />}
                     {mode !== 'direction' && <TooltipRow label="85th speed" value={`${point.v85Speed} mph`} />}
-                    <TooltipRow label="Max speed" value={`${point.maxSpeed} mph`} />
+                    {mode !== 'direction' && <TooltipRow label="Max speed" value={`${point.maxSpeed} mph`} />}
                   </div>
                 );
               }}

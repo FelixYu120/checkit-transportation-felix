@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, ArrowDownUp, Gauge, Timer } from 'lucide-react';
+import { Activity, ArrowDownUp, Gauge } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -22,17 +22,6 @@ const groupSensorsByArea = (sensors = []) =>
     }, {});
 
 const roundOne = (value) => Math.round((Number(value) || 0) * 10) / 10;
-
-const formatUpdatedAt = (value) => {
-    if (!value) return 'No data yet';
-
-    return new Date(value).toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
-};
 
 const getTrafficHealth = ({ volume = 0, avgSpeed = 0, maxSpeed = 0, lastSeen }) => {
     if (!lastSeen) return { label: 'No data', tone: 'unknown' };
@@ -181,19 +170,6 @@ const getOverviewMetrics = (trafficSummaries = []) => {
     };
 };
 
-const getLatestObservedAt = (trafficSummaries = []) => (
-    trafficSummaries.reduce((latest, sensor) => {
-        if (!sensor.lastSeen) return latest;
-
-        const sensorTime = new Date(sensor.lastSeen).getTime();
-        const latestTime = latest ? new Date(latest).getTime() : 0;
-
-        return Number.isFinite(sensorTime) && sensorTime > latestTime
-            ? sensor.lastSeen
-            : latest;
-    }, null)
-);
-
 const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
     const areaSensorIds = new Set(areaSensors.map((sensor) => sensor.sensor_id));
 
@@ -227,8 +203,6 @@ const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
         )
         : 0;
 
-    const latestObservedAt = getLatestObservedAt(activeSummaries);
-
     return {
         activeCount: activeSummaries.length,
         totalCount: areaSensors.length,
@@ -236,23 +210,11 @@ const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
         totalApproach,
         totalAway,
         averageSpeed,
-        latestObservedAt,
     };
 };
 
 const PlaceSuperlatives = ({ busiestSensor, peakVelocity, highestInbound }) => (
     <section className={styles.insightGrid} aria-label="Place transportation superlatives">
-        <div className={styles.insightCard}>
-            <Gauge size={18} />
-            <span>Fastest Corridor</span>
-            <strong>{peakVelocity?.corridor_name || peakVelocity?.sensor_id || 'No data'}</strong>
-            <p>
-                {peakVelocity
-                    ? `${peakVelocity.v85Speed} mph 85th percentile speed.`
-                    : 'No speed samples yet.'}
-            </p>
-        </div>
-
         <div className={styles.insightCard}>
             <Activity size={18} />
             <span>Busiest Corridor</span>
@@ -261,6 +223,17 @@ const PlaceSuperlatives = ({ busiestSensor, peakVelocity, highestInbound }) => (
                 {busiestSensor
                     ? `${busiestSensor.latestVolume} movements in the latest interval.`
                     : 'No movement data yet.'}
+            </p>
+        </div>
+
+        <div className={styles.insightCard}>
+            <Gauge size={18} />
+            <span>Fastest Corridor</span>
+            <strong>{peakVelocity?.corridor_name || peakVelocity?.sensor_id || 'No data'}</strong>
+            <p>
+                {peakVelocity
+                    ? `${peakVelocity.v85Speed} mph 85th percentile speed.`
+                    : 'No speed samples yet.'}
             </p>
         </div>
 
@@ -299,12 +272,7 @@ const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
                     <div className={styles.areaCardMetricRow}>
                         <div>
                             <strong>{summary.totalVolume}</strong>
-                            <span>volume</span>
-                        </div>
-
-                        <div>
-                            <strong>{summary.totalApproach}/{summary.totalAway}</strong>
-                            <span>in / out</span>
+                            <span>traffic volume</span>
                         </div>
 
                         <div>
@@ -313,9 +281,6 @@ const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
                         </div>
                     </div>
 
-                    <span className={styles.areaCardFooter}>
-                        Last updated: {formatUpdatedAt(summary.latestObservedAt)}
-                    </span>
                 </Link>
             );
         })}
@@ -348,17 +313,12 @@ const TrafficSensorCards = ({ collegeId, sensors, trafficSummaries }) => (
                     <div className={styles.cardMetricRow}>
                         <div>
                             <strong>{summary.latestVolume ?? 0}</strong>
-                            <span>volume</span>
+                            <span>traffic volume</span>
                         </div>
 
                         <div>
                             <strong>{summary.avgSpeed ?? 0}</strong>
                             <span>avg mph</span>
-                        </div>
-
-                        <div>
-                            <strong>{summary.v85Speed ?? 0}</strong>
-                            <span>85th mph</span>
                         </div>
                     </div>
 
@@ -372,9 +332,6 @@ const TrafficSensorCards = ({ collegeId, sensors, trafficSummaries }) => (
                         <span>Away {summary.away ?? 0}</span>
                     </div>
 
-                    <span className={styles.updatedText}>
-                        {formatUpdatedAt(summary.lastSeen)}
-                    </span>
                 </Link>
             );
         })}
@@ -439,8 +396,6 @@ export const CollegeOverview = () => {
         peakVelocity,
         highestInbound,
     } = getOverviewMetrics(trafficSummaries);
-
-    const latestObservedAt = getLatestObservedAt(trafficSummaries);
 
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
@@ -513,16 +468,6 @@ export const CollegeOverview = () => {
                         />
                     </section>
 
-                    <footer
-                        style={{
-                            marginTop: '2rem',
-                            textAlign: 'center',
-                            fontSize: '0.875rem',
-                            color: '#64748b',
-                        }}
-                    >
-                        Last Updated: {formatUpdatedAt(latestObservedAt)}
-                    </footer>
                 </div>
             )}
         </div>
@@ -590,8 +535,6 @@ export const AreaOverview = () => {
         highestInbound,
     } = getOverviewMetrics(trafficSummaries);
 
-    const latestObservedAt = getLatestObservedAt(trafficSummaries);
-
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
             <AdminBreadcrumb
@@ -639,9 +582,9 @@ export const AreaOverview = () => {
                                 </div>
 
                                 <div>
-                                    <Timer size={18} />
-                                    <strong>{formatUpdatedAt(latestObservedAt)}</strong>
-                                    <span>Last updated</span>
+                                    <Gauge size={18} />
+                                    <strong>{roundOne(averageSpeed)} mph</strong>
+                                    <span>Average speed</span>
                                 </div>
                             </div>
                         </div>

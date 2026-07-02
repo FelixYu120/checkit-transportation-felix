@@ -22,6 +22,14 @@ import {
 const OCCUPANCY_COLOR = '#7cb49c';
 const PEOPLE_COLOR = '#6b7280';
 const HIGHLIGHT_COLOR = '#f59e0b';
+const DEFAULT_CUSTOM_METRICS = {
+    volume: true,
+    avgSpeed: true,
+    v85Speed: false,
+    maxSpeed: false,
+    approach: false,
+    away: false,
+};
 
 const normalizeOccupancy = (density, people, capacity) => {
     const numericDensity = Number(density);
@@ -59,9 +67,41 @@ const createWeeklyDay = (date) => {
         dateLabel,
         peopleSum: 0,
         occupancySum: 0,
+        v85Sum: 0,
+        maxSpeed: 0,
+        approachSum: 0,
+        awaySum: 0,
         count: 0,
     };
 };
+
+const addTrafficRowToGroup = (group, row) => {
+    const people = row.people_count ?? row.total_people ?? 0;
+    const capacity = row.total_capacity ?? 0;
+    const occupancy = normalizeOccupancy(row.density ?? row.avg_speed, people, capacity);
+
+    group.peopleSum += people;
+    group.occupancySum += occupancy;
+    group.v85Sum = (group.v85Sum || 0) + (Number(row.v85_speed) || 0);
+    group.maxSpeed = Math.max(group.maxSpeed || 0, Number(row.max_speed) || 0);
+    group.approachSum = (group.approachSum || 0) + (Number(row.approach_volume) || 0);
+    group.awaySum = (group.awaySum || 0) + (Number(row.away_volume) || 0);
+    group.count += 1;
+};
+
+const groupToTrafficPoint = (group) => ({
+    sortKey: group.sortKey || group.sortDate || group.key || group.time,
+    time: group.time,
+    axisLabel: group.axisLabel,
+    dateLabel: group.dateLabel,
+    hasData: group.count > 0,
+    occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
+    total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
+    v85_speed: group.count > 0 ? Math.round(group.v85Sum / group.count) : 0,
+    max_speed: group.count > 0 ? group.maxSpeed : 0,
+    approach_volume: group.count > 0 ? Math.round(group.approachSum / group.count) : 0,
+    away_volume: group.count > 0 ? Math.round(group.awaySum / group.count) : 0,
+});
 
 const getWeeklyAnchorDate = (rawData, filters) => {
     if (filters?.endDate) return new Date(`${filters.endDate}T00:00:00`);
@@ -101,6 +141,10 @@ const createDailySlot = (date) => ({
     dateLabel: date.toLocaleDateString([], { month: 'numeric', day: 'numeric' }),
     peopleSum: 0,
     occupancySum: 0,
+    v85Sum: 0,
+    maxSpeed: 0,
+    approachSum: 0,
+    awaySum: 0,
     count: 0,
 });
 
@@ -146,6 +190,10 @@ const createHourOfDayTimeline = (filters) => getSelectedHours(filters).map((hour
     time: getHourLabel(hour),
     peopleSum: 0,
     occupancySum: 0,
+    v85Sum: 0,
+    maxSpeed: 0,
+    approachSum: 0,
+    awaySum: 0,
     count: 0,
 }));
 
@@ -167,6 +215,10 @@ const createSingleDateHourlyTimeline = (filters) => {
             time: getHourLabel(hour),
             peopleSum: 0,
             occupancySum: 0,
+            v85Sum: 0,
+            maxSpeed: 0,
+            approachSum: 0,
+            awaySum: 0,
             count: 0,
         };
     });
@@ -203,6 +255,10 @@ const createHourlyTimeline = (rawData, filters, type) => {
             time: getHourlyLabel(cursor, filters),
             peopleSum: 0,
             occupancySum: 0,
+            v85Sum: 0,
+            maxSpeed: 0,
+            approachSum: 0,
+            awaySum: 0,
             count: 0,
         });
         cursor.setHours(cursor.getHours() + 1);
@@ -222,23 +278,10 @@ const buildDateAggregateData = (rawData, filters) => {
         const group = groupsByDate[getLocalDateKey(new Date(row.observed_at))];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficRowToGroup(group, row);
     });
 
-    return dayTimeline.map((group) => ({
-        sortKey: group.sortKey,
-        time: group.time,
-        dateLabel: group.dateLabel,
-        hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+    return dayTimeline.map(groupToTrafficPoint);
 };
 
 const buildHourOfDayAggregateData = (rawData, filters) => {
@@ -253,22 +296,10 @@ const buildHourOfDayAggregateData = (rawData, filters) => {
         const group = groupsByHour[String(date.getHours())];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficRowToGroup(group, row);
     });
 
-    return hourlyTimeline.map((group) => ({
-        sortKey: group.sortKey,
-        time: group.time,
-        hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+    return hourlyTimeline.map(groupToTrafficPoint);
 };
 
 const buildSingleDateHourlyAggregateData = (rawData, filters) => {
@@ -284,22 +315,10 @@ const buildSingleDateHourlyAggregateData = (rawData, filters) => {
         const group = hourGroups[getLocalHourKey(date)];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficRowToGroup(group, row);
     });
 
-    return hourlyTimeline.map((group) => ({
-        sortKey: group.sortKey,
-        time: group.time,
-        hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+    return hourlyTimeline.map(groupToTrafficPoint);
 };
 
 const buildWeeklyAggregateData = (rawData, filters) => {
@@ -323,31 +342,17 @@ const buildWeeklyAggregateData = (rawData, filters) => {
 
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficRowToGroup(group, row);
     });
 
     return dayGroups
         .filter((group) => matchesDayPreset(new Date(`${group.sortDate}T00:00:00`), filters))
-        .map((group) => ({
-            sortKey: group.sortDate,
-            time: group.time,
-            axisLabel: group.axisLabel,
-            dateLabel: group.dateLabel,
-            hasData: group.count > 0,
-            occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-            total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-        }));
+        .map(groupToTrafficPoint);
 };
 
 const getHighlightIndex = (data, plotType, highlightMode) => {
     if (!highlightMode || highlightMode === 'none' || data.length === 0) return -1;
-    const key = plotType === 'people_bar' ? 'total_people' : 'occupancy';
+    const key = plotType === 'people_bar' || plotType === 'direction_bar' ? 'total_people' : 'occupancy';
     return data.reduce((bestIndex, point, index) => {
         const bestValue = data[bestIndex]?.[key] ?? -Infinity;
         const nextValue = point?.[key] ?? -Infinity;
@@ -380,6 +385,7 @@ const AggregateChart = ({
     thresholdColor = '#ef4444',
     showLegend,
     legendItems,
+    customMetrics,
     frameless = false,
 }) => {
     const [liveChartData, setLiveChartData] = useState([]);
@@ -407,9 +413,14 @@ const AggregateChart = ({
     const highlightIndex = getHighlightIndex(chartData, plotType, highlightMode);
     const highlightedPoint = highlightIndex >= 0 ? chartData[highlightIndex] : null;
     const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData), [chartData]);
-    const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(10, ...chartData.map((point) => Number(point.occupancy) || 0))), [chartData]);
+    const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(10, ...chartData.flatMap((point) => [
+        Number(point.occupancy) || 0,
+        Number(point.v85_speed) || 0,
+        Number(point.max_speed) || 0,
+    ]))), [chartData]);
     const effectiveLegendItems = { occupancy: true, people: true, threshold: true, ...(legendItems || {}) };
-    const shouldShowLegend = showLegend ?? plotType === 'combo';
+    const effectiveCustomMetrics = { ...DEFAULT_CUSTOM_METRICS, ...(customMetrics || {}) };
+    const shouldShowLegend = showLegend ?? ['combo', 'custom'].includes(plotType);
 
     useEffect(() => {
         if (snapshotData?.length) {
@@ -464,22 +475,10 @@ const AggregateChart = ({
                             const group = hourGroups[getLocalHourKey(date)];
                             if (!group) return;
 
-                            const people = row.people_count ?? row.total_people ?? 0;
-                            const capacity = row.total_capacity ?? 0;
-                            const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-                            group.peopleSum += people;
-                            group.occupancySum += occupancy;
-                            group.count += 1;
+                            addTrafficRowToGroup(group, row);
                         });
 
-                        processedData = hourlyTimeline.map(group => ({
-                            sortKey: group.sortKey,
-                            time: group.time,
-                            hasData: group.count > 0,
-                            occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-                            total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-                        }));
+                        processedData = hourlyTimeline.map(groupToTrafficPoint);
                     }
                 }
                 if (isMounted) {
@@ -512,17 +511,35 @@ const AggregateChart = ({
 
         const point = payload[0].payload;
         const tooltipLabel = point?.dateLabel || point?.time || label;
+        const showsSpeed = plotType === 'custom'
+            ? effectiveCustomMetrics.avgSpeed
+            : !['people_bar', 'direction_bar'].includes(plotType);
+        const showsVolume = plotType === 'custom'
+            ? effectiveCustomMetrics.volume
+            : ['people_bar', 'combo'].includes(plotType);
 
         return (
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
                 <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{tooltipLabel}</div>
                 {point.hasData === false ? (
                     <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
-                ) : 'occupancy' in point && (
+                ) : showsSpeed && 'occupancy' in point && (
                     <div style={{ color: occupancyColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.occupancy ?? 0} mph</div>
                 )}
-                {point.hasData !== false && 'total_people' in point && (
-                    <div style={{ color: peopleColor, fontSize: '12px', marginTop: '4px' }}>Vehicles: {point.total_people ?? 0}</div>
+                {point.hasData !== false && showsVolume && 'total_people' in point && (
+                    <div style={{ color: peopleColor, fontSize: '12px', marginTop: '4px' }}>Traffic volume: {point.total_people ?? 0}</div>
+                )}
+                {point.hasData !== false && (plotType === 'direction_bar' || (plotType === 'custom' && (effectiveCustomMetrics.approach || effectiveCustomMetrics.away))) && (
+                    <>
+                        {(plotType === 'direction_bar' || effectiveCustomMetrics.approach) && <div style={{ color: '#2f716f', fontSize: '12px', marginTop: '4px' }}>Approach: {point.approach_volume ?? 0}</div>}
+                        {(plotType === 'direction_bar' || effectiveCustomMetrics.away) && <div style={{ color: '#9fbfb8', fontSize: '12px', marginTop: '4px' }}>Away: {point.away_volume ?? 0}</div>}
+                    </>
+                )}
+                {point.hasData !== false && (plotType === 'speed_profile' || plotType === 'custom') && (
+                    <>
+                        {(plotType === 'speed_profile' || effectiveCustomMetrics.v85Speed) && <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>85th speed: {point.v85_speed ?? 0} mph</div>}
+                        {(plotType === 'speed_profile' || effectiveCustomMetrics.maxSpeed) && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>Max speed: {point.max_speed ?? 0} mph</div>}
+                    </>
                 )}
             </div>
         );
@@ -565,7 +582,7 @@ const AggregateChart = ({
             tick={{ fontSize: 12, fill: '#888' }}
             allowDecimals={false}
             domain={[0, peopleAxisMax]}
-            label={props.yAxisId ? { value: 'Vehicle count', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 } : undefined}
+            label={props.yAxisId ? { value: 'Traffic volume', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 } : undefined}
             {...props}
         />
     );
@@ -590,21 +607,30 @@ const AggregateChart = ({
         if (!shouldShowLegend) return null;
 
         const entries = [];
-        if (effectiveLegendItems.occupancy && plotType !== 'people_bar') {
-            entries.push({
-                key: 'occupancy',
-                label: plotType === 'combo' ? 'Avg speed mph (left axis)' : 'Avg speed mph',
-                color: occupancyColor,
-                type: 'line',
-            });
+        if (effectiveLegendItems.occupancy && !['people_bar', 'direction_bar'].includes(plotType)) {
+            if (plotType !== 'custom' || effectiveCustomMetrics.avgSpeed) {
+                entries.push({
+                    key: 'occupancy',
+                    label: ['combo', 'custom'].includes(plotType) ? 'Avg speed mph (left axis)' : 'Avg speed mph',
+                    color: occupancyColor,
+                    type: 'line',
+                });
+            }
+            if (plotType === 'custom' && effectiveCustomMetrics.v85Speed) entries.push({ key: 'v85', label: '85th speed mph', color: '#64748b', type: 'line' });
+            if (plotType === 'custom' && effectiveCustomMetrics.maxSpeed) entries.push({ key: 'max', label: 'Max speed mph', color: '#ef4444', type: 'line' });
         }
-        if (effectiveLegendItems.people && (plotType === 'people_bar' || plotType === 'combo')) {
+        if (effectiveLegendItems.people && (plotType === 'people_bar' || plotType === 'combo' || plotType === 'direction_bar')) {
             entries.push({
                 key: 'people',
-                label: plotType === 'combo' ? 'Vehicle count (right axis)' : 'Vehicle count',
+                label: plotType === 'direction_bar' ? 'Approach / away traffic' : plotType === 'combo' ? 'Traffic volume (right axis)' : 'Traffic volume',
                 color: peopleColor,
                 type: 'bar',
             });
+        }
+        if (effectiveLegendItems.people && plotType === 'custom') {
+            if (effectiveCustomMetrics.volume) entries.push({ key: 'volume', label: 'Traffic volume (right axis)', color: peopleColor, type: 'bar' });
+            if (effectiveCustomMetrics.approach) entries.push({ key: 'approach', label: 'Approach traffic', color: '#2f716f', type: 'bar' });
+            if (effectiveCustomMetrics.away) entries.push({ key: 'away', label: 'Away traffic', color: '#9fbfb8', type: 'bar' });
         }
         if (effectiveLegendItems.threshold && thresholdEnabled && Number.isFinite(Number(thresholdValue))) {
             entries.push({
@@ -640,6 +666,29 @@ const AggregateChart = ({
 
     const renderChart = () => {
         const commonMargin = { top: 28, right: 10, left: -12, bottom: 18 };
+
+        if (plotType === 'custom') {
+            const hasSpeedMetric = effectiveCustomMetrics.avgSpeed || effectiveCustomMetrics.v85Speed || effectiveCustomMetrics.maxSpeed;
+            const hasVolumeMetric = effectiveCustomMetrics.volume || effectiveCustomMetrics.approach || effectiveCustomMetrics.away;
+            const thresholdAxisId = hasSpeedMetric ? 'occupancy' : 'people';
+
+            return (
+                <ComposedChart data={chartData} margin={{ top: 28, right: 14, left: 0, bottom: 18 }}>
+                    {renderCommonGrid()}
+                    {renderXAxis()}
+                    {hasSpeedMetric && renderOccupancyYAxis({ yAxisId: "occupancy" })}
+                    {hasVolumeMetric && renderPeopleYAxis({ yAxisId: "people", orientation: "right", width: 46 })}
+                    {(hasSpeedMetric || hasVolumeMetric) && renderThresholdLine({ yAxisId: thresholdAxisId })}
+                    <Tooltip content={renderTooltip} />
+                    {effectiveCustomMetrics.volume && <Bar yAxisId="people" dataKey="total_people" name="Traffic volume" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.58} />}
+                    {effectiveCustomMetrics.approach && <Bar yAxisId="people" dataKey="approach_volume" name="Approach" fill="#2f716f" radius={[5, 5, 0, 0]} opacity={0.72} />}
+                    {effectiveCustomMetrics.away && <Bar yAxisId="people" dataKey="away_volume" name="Away" fill="#9fbfb8" radius={[5, 5, 0, 0]} opacity={0.72} />}
+                    {effectiveCustomMetrics.avgSpeed && <Line yAxisId="occupancy" type="monotone" dataKey="occupancy" name="Avg speed" stroke={occupancyColor} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
+                    {effectiveCustomMetrics.v85Speed && <Line yAxisId="occupancy" type="monotone" dataKey="v85_speed" name="85th speed" stroke="#64748b" strokeWidth={2.2} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
+                    {effectiveCustomMetrics.maxSpeed && <Line yAxisId="occupancy" type="monotone" dataKey="max_speed" name="Max speed" stroke="#ef4444" strokeWidth={2} strokeDasharray="3 5" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
+                </ComposedChart>
+            );
+        }
 
         if (plotType === 'line') {
             return (
@@ -690,12 +739,41 @@ const AggregateChart = ({
                     {renderPeopleYAxis()}
                     {renderThresholdLine()}
                     <Tooltip content={renderTooltip} />
-                    <Bar dataKey="total_people" name="Vehicles" fill={peopleColor} radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="total_people" name="Traffic volume" fill={peopleColor} radius={[6, 6, 0, 0]}>
                         {chartData.map((entry, index) => (
                             <Cell key={`${entry.time || entry.dateLabel}-${index}`} fill={index === highlightIndex ? highlightColor : peopleColor} />
                         ))}
                     </Bar>
                 </BarChart>
+            );
+        }
+
+        if (plotType === 'direction_bar') {
+            return (
+                <BarChart data={chartData} margin={commonMargin}>
+                    {renderCommonGrid()}
+                    {renderXAxis()}
+                    {renderPeopleYAxis()}
+                    {renderThresholdLine()}
+                    <Tooltip content={renderTooltip} />
+                    <Bar dataKey="approach_volume" name="Approach" fill={occupancyColor} radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="away_volume" name="Away" fill={peopleColor} radius={[5, 5, 0, 0]} />
+                </BarChart>
+            );
+        }
+
+        if (plotType === 'speed_profile') {
+            return (
+                <LineChart data={chartData} margin={commonMargin}>
+                    {renderCommonGrid()}
+                    {renderXAxis()}
+                    {renderOccupancyYAxis()}
+                    {renderThresholdLine()}
+                    <Tooltip content={renderTooltip} />
+                    <Line type="monotone" dataKey="occupancy" name="Average speed" stroke={occupancyColor} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />
+                    <Line type="monotone" dataKey="v85_speed" name="85th speed" stroke="#64748b" strokeWidth={2.2} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />
+                    <Line type="monotone" dataKey="max_speed" name="Max speed" stroke="#ef4444" strokeWidth={2} strokeDasharray="3 5" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />
+                </LineChart>
             );
         }
 
@@ -708,7 +786,7 @@ const AggregateChart = ({
                     {renderPeopleYAxis({ yAxisId: "people", orientation: "right", width: 46 })}
                     {renderThresholdLine({ yAxisId: "occupancy" })}
                     <Tooltip content={renderTooltip} />
-                    <Bar yAxisId="people" dataKey="total_people" name="Vehicle count (right axis)" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.62}>
+                    <Bar yAxisId="people" dataKey="total_people" name="Traffic volume (right axis)" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.62}>
                         {chartData.map((entry, index) => (
                             <Cell key={`${entry.time || entry.dateLabel}-${index}`} fill={peopleColor} />
                         ))}
@@ -782,7 +860,7 @@ const AggregateChart = ({
             )}
             {highlightedPoint && (
                 <div style={{ alignSelf: 'flex-start', margin: '0 0 8px', padding: '5px 9px', borderRadius: '999px', background: '#fffbeb', color: '#92400e', border: `1px solid ${highlightColor}`, fontSize: '11px', fontWeight: 700, lineHeight: 1.2 }}>
-                    {highlightLabel}: {plotType === 'people_bar' ? highlightedPoint.total_people : highlightedPoint.occupancy}{plotType === 'people_bar' ? ' vehicles' : ' mph'} at {highlightedPoint.dateLabel || highlightedPoint.time}
+                    {highlightLabel}: {plotType === 'people_bar' || plotType === 'direction_bar' ? highlightedPoint.total_people : highlightedPoint.occupancy}{plotType === 'people_bar' || plotType === 'direction_bar' ? ' movements' : ' mph'} at {highlightedPoint.dateLabel || highlightedPoint.time}
                 </div>
             )}
             {renderLegend()}

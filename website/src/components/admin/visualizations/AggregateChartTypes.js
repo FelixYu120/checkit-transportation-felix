@@ -1,15 +1,14 @@
 export const AGGREGATE_CHART_TYPES = [
-    { value: 'area', label: 'Traffic Area' },
-    { value: 'line', label: 'Traffic Line' },
-    { value: 'bar', label: 'Traffic Bars' },
-    { value: 'people_bar', label: 'Vehicle Bars' },
-    { value: 'combo', label: 'Vehicles + Utilization' },
+    { value: 'combo', label: 'Volume + Speed' },
+    { value: 'people_bar', label: 'Traffic Volume' },
+    { value: 'direction_bar', label: 'Direction Split' },
+    { value: 'speed_profile', label: 'Speed Profile' },
+    { value: 'custom', label: 'Custom Chart' },
 ];
 
 export const COMPARISON_CHART_TYPES = [
-    { value: 'area', label: 'Comparison Area' },
-    { value: 'line', label: 'Comparison Lines' },
-    { value: 'bar', label: 'Comparison Bars' },
-    { value: 'people_bar', label: 'Vehicle Bars' },
-    { value: 'combo', label: 'Vehicles + Utilization' },
+    { value: 'combo', label: 'Volume + Speed' },
+    { value: 'people_bar', label: 'Traffic Volume' },
+    { value: 'line', label: 'Speed Line' },
+    { value: 'custom', label: 'Custom Chart' },
 ];

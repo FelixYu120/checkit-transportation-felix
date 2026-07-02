@@ -30,21 +30,31 @@ const getBestAverageGroup = (groups) => {
 };
 
 const METRIC_CONFIG = {
-    current: { label: 'Current Traffic', unit: 'vehicles' },
-    peak: { label: 'Peak Traffic', unit: 'vehicles' },
-    busiestDay: { label: 'Highest Traffic Day', unit: '' },
-    busiestTime: { label: 'Highest Traffic Time', unit: '' },
+    total: { label: 'Total Traffic Volume', unit: 'movements' },
+    current: { label: 'Latest Period Point', unit: 'movements' },
+    peak: { label: 'Peak Traffic Volume', unit: 'movements' },
+    averageSpeed: { label: 'Avg Speed', unit: 'mph' },
+    v85Speed: { label: '85th Speed', unit: 'mph' },
+    maxSpeed: { label: 'Max Speed', unit: 'mph' },
+    approachShare: { label: 'Approach Share', unit: '%' },
+    busiestDay: { label: 'Highest Volume Day', unit: '' },
+    busiestTime: { label: 'Highest Volume Time', unit: '' },
 };
 
-const DEFAULT_VISIBLE_METRICS = ['current', 'peak', 'busiestDay', 'busiestTime'];
+const DEFAULT_VISIBLE_METRICS = ['total', 'peak', 'averageSpeed', 'busiestTime'];
 
-const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['current', 'peak', 'busiestDay', 'busiestTime'], snapshotData, onSnapshotData }) => {
+const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: visibleMetrics = DEFAULT_VISIBLE_METRICS, snapshotData, onSnapshotData }) => {
     const normalizedVisibleMetrics = Array.isArray(visibleMetrics) && visibleMetrics.length > 0
         ? visibleMetrics
         : DEFAULT_VISIBLE_METRICS;
     const [liveMetrics, setLiveMetrics] = useState({
+        total: 0,
         current: 0,
         peak: 0,
+        averageSpeed: 0,
+        v85Speed: 0,
+        maxSpeed: 0,
+        approachShare: 0,
         busiestDay: '-',
         busiestTime: '-'
     });
@@ -75,7 +85,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
             setLoading(true);
             if (!id) {
                 if (isMounted) {
-                    setLiveMetrics({ current: 0, peak: 0, busiestDay: '-', busiestTime: '-' });
+                    setLiveMetrics({ total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' });
                     setLoading(false);
                 }
                 return;
@@ -85,7 +95,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
             const data = await fetchTrafficSummaryRows(supabase, {
                 sensorId,
                 filters: effectiveFilters,
-                type: 'weekly',
+                type: timeframe,
             });
             const filteredData = applyAnalyticsFilters([...(data || [])].reverse(), effectiveFilters);
 
@@ -93,6 +103,20 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
                 const getCount = (row) => row.people_count ?? row.total_people ?? 0;
                 const getAverageSpeed = (row) => row.avg_speed ?? row.density ?? 0;
                 const current = getCount(filteredData[0]); // Most recent data point
+                const total = filteredData.reduce((sum, row) => sum + getCount(row), 0);
+                const speedWeight = filteredData.reduce((sum, row) => sum + Math.max(getCount(row), 1), 0);
+                const weightedAverageSpeed = speedWeight
+                    ? filteredData.reduce((sum, row) => sum + (getAverageSpeed(row) * Math.max(getCount(row), 1)), 0) / speedWeight
+                    : 0;
+                const weightedV85Speed = speedWeight
+                    ? filteredData.reduce((sum, row) => sum + ((Number(row.v85_speed) || 0) * Math.max(getCount(row), 1)), 0) / speedWeight
+                    : 0;
+                const maxSpeed = Math.max(0, ...filteredData.map((row) => Number(row.max_speed) || 0));
+                const approachVolume = filteredData.reduce((sum, row) => sum + (Number(row.approach_volume) || 0), 0);
+                const awayVolume = filteredData.reduce((sum, row) => sum + (Number(row.away_volume) || 0), 0);
+                const approachShare = approachVolume + awayVolume > 0
+                    ? Math.round((approachVolume / (approachVolume + awayVolume)) * 100)
+                    : 0;
                 let peak = 0;
                 
                 // Match the weekly chart: daily cards use averages, not raw sums.
@@ -136,20 +160,30 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
                         visibleChartHourCounts[hour] = { total: 0, count: 0 };
                     }
 
-                    visibleChartHourCounts[hour].total += getAverageSpeed(row);
+                    visibleChartHourCounts[hour].total += getCount(row);
                     visibleChartHourCounts[hour].count += 1;
                 });
 
                 const busiestTimeGroup = getBestAverageGroup(visibleChartHourCounts);
                 const busiestTime = busiestTimeGroup ? busiestTimeGroup[0] : '-';
 
-                const nextMetrics = { current, peak, busiestDay, busiestTime };
+                const nextMetrics = {
+                    total,
+                    current,
+                    peak,
+                    averageSpeed: Math.round(weightedAverageSpeed * 10) / 10,
+                    v85Speed: Math.round(weightedV85Speed * 10) / 10,
+                    maxSpeed,
+                    approachShare,
+                    busiestDay,
+                    busiestTime,
+                };
                 if (isMounted) {
                     setLiveMetrics(nextMetrics);
                     onSnapshotData?.(nextMetrics);
                 }
             } else {
-                const emptyMetrics = { current: 0, peak: 0, busiestDay: '-', busiestTime: '-' };
+                const emptyMetrics = { total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' };
                 if (isMounted) {
                     setLiveMetrics(emptyMetrics);
                     onSnapshotData?.(emptyMetrics);
@@ -162,7 +196,7 @@ const SummaryMetrics = ({ level, id, filters, metrics: visibleMetrics = ['curren
         return () => {
             isMounted = false;
         };
-    }, [level, id, effectiveFilters, snapshotData, onSnapshotData]);
+    }, [level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData]);
 
     // Reusable styles for the cards
     const cardStyle = {

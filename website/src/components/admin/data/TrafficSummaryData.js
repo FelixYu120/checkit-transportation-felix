@@ -59,6 +59,8 @@ const combineDirectionRows = (rows = []) => {
       speedWeight: 0,
       v85WeightedSum: 0,
       max_speed: 0,
+      approach_volume: 0,
+      away_volume: 0,
       directions: new Set(),
     };
 
@@ -68,6 +70,8 @@ const combineDirectionRows = (rows = []) => {
     group.v85WeightedSum += toNumber(row.v85_speed) * speedWeight;
     group.speedWeight += speedWeight;
     group.max_speed = Math.max(group.max_speed, toNumber(row.max_speed));
+    if (row.direction === "approach") group.approach_volume += volume;
+    if (row.direction === "away") group.away_volume += volume;
     if (row.direction) group.directions.add(row.direction);
     groups.set(key, group);
   });
@@ -88,6 +92,8 @@ const combineDirectionRows = (rows = []) => {
         avg_speed: avgSpeed,
         v85_speed: group.speedWeight > 0 ? roundOne(group.v85WeightedSum / group.speedWeight) : 0,
         max_speed: group.max_speed,
+        approach_volume: group.approach_volume,
+        away_volume: group.away_volume,
         direction_count: group.directions.size,
       };
     })
