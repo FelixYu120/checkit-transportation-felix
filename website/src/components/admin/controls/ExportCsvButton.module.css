@@ -2,15 +2,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px;
+  gap: 7px;
+  min-height: 38px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 251, 0.94)),
     #ffffff;
   border: 1px solid #d7e1e8;
-  border-radius: 12px;
-  padding: 0 16px;
-  font-size: 0.95rem;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13px;
   font-weight: 800;
   color: #1f2937;
   cursor: pointer;
@@ -20,8 +20,8 @@
 }
 
 .exportButton svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .exportButton:hover {

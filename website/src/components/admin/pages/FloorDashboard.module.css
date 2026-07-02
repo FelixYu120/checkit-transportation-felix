@@ -13,7 +13,7 @@
 .analyticsStack {
   display: flex;
   flex-direction: column;
-  gap: clamp(18px, 2vw, 28px);
+  gap: clamp(16px, 1.8vw, 24px);
   margin-top: clamp(12px, 1.4vw, 24px);
   padding-bottom: 100px;
   width: 100%;
@@ -37,10 +37,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 14px clamp(16px, 1.8vw, 24px);
+  gap: 12px;
+  padding: 12px clamp(16px, 1.6vw, 22px);
   border-bottom: 1px solid #e5edf2;
-  background: #ffffff;
+  background: #fbfdfe;
 }
 
 .trendCopy {
@@ -66,7 +66,7 @@
 
 .timeframeSegment {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  grid-template-columns: repeat(3, minmax(68px, 1fr));
   gap: 4px;
   flex-shrink: 0;
   padding: 4px;
@@ -76,14 +76,14 @@
 }
 
 .timeframeButton {
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 30px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #475569;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
   transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
@@ -196,16 +196,13 @@
 }
 
 .topControls {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-areas:
-    ". . export"
-    "filters filters filters";
-  align-items: center;
-  gap: clamp(10px, 1vw, 14px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
-  padding-bottom: clamp(10px, 1.2vw, 18px);
+  padding-bottom: 12px;
   border-bottom: 1px solid #dbe3ea;
   min-width: 0;
   box-sizing: border-box;
@@ -213,14 +210,13 @@
 
 .topControls > :global(.filterBar),
 .topControls > section {
-  grid-area: filters;
   min-width: 0;
 }
 
 .exportControl {
-  grid-area: export;
   display: flex;
   justify-content: flex-end;
+  width: 100%;
   min-width: 0;
 }
 
@@ -758,10 +754,6 @@
   }
 
   .topControls {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "export"
-      "filters";
     align-items: stretch;
   }
 

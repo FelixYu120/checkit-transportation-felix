@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, Clock, Gauge, Timer, Waves } from 'lucide-react';
+import { AlertTriangle, Clock, Timer } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -86,13 +86,13 @@ const TRAFFIC_TIMEFRAMES = [
     { value: 'monthly', label: 'Monthly' },
 ];
 const TRAFFIC_VIEW_PRESETS = [
-    { value: 'combined', label: 'Traffic' },
-    { value: 'volume', label: 'Volume + Speed' },
-    { value: 'direction', label: 'Directions' },
+    { value: 'combined', label: 'Flow' },
+    { value: 'volume', label: 'Speed' },
+    { value: 'direction', label: 'Direction' },
 ];
 
 const getChartTitleLabel = (preset) => (
-    preset?.value === 'combined' ? 'Overview' : preset?.label || 'Overview'
+    preset?.value === 'combined' ? 'Flow' : preset?.label || 'Flow'
 );
 
 const FloorDashboard = () => {
@@ -112,34 +112,66 @@ const FloorDashboard = () => {
     const [activeInsight, setActiveInsight] = useState(null);
 
     useEffect(() => {
-        const fetchSensor = async () => {
+        let isMounted = true;
+
+        const fetchCorridorContext = async () => {
             try {
                 setLoading(true);
-                const [data, rows, directory] = await Promise.all([
+                setSensor(null);
+                setTrafficRows([]);
+
+                const [data, directory] = await Promise.all([
                     fetchSensorById(supabase, normalizedCollegeId, corridorId),
-                    fetchTrafficDirectionRows(supabase, {
-                        sensorId: corridorId,
-                        filters,
-                        type: 'daily',
-                        limit: 5000,
-                    }),
                     fetchSensorDirectory(supabase, normalizedCollegeId),
                 ]);
+
+                if (!isMounted) return;
                 setSensor(data || null);
-                setTrafficRows(rows || []);
                 setInstituteName(directory?.institutes?.[0]?.full_name || formatAdminRouteLabel(normalizedCollegeId));
             } catch (err) {
+                if (!isMounted) return;
                 console.error('Corridor fetch error:', err);
                 setSensor(null);
                 setTrafficRows([]);
                 setInstituteName(formatAdminRouteLabel(normalizedCollegeId));
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
-        if (normalizedCollegeId && corridorId) fetchSensor();
-    }, [corridorId, normalizedCollegeId, filters]);
+        if (normalizedCollegeId && corridorId) fetchCorridorContext();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [corridorId, normalizedCollegeId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchFilteredTraffic = async () => {
+            try {
+                const rows = await fetchTrafficDirectionRows(supabase, {
+                    sensorId: corridorId,
+                    filters,
+                    type: 'daily',
+                    limit: 5000,
+                });
+
+                if (isMounted) setTrafficRows(rows || []);
+            } catch (err) {
+                if (!isMounted) return;
+                console.error('Corridor traffic fetch error:', err);
+                setTrafficRows([]);
+            }
+        };
+
+        if (normalizedCollegeId && corridorId) fetchFilteredTraffic();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [corridorId, filters, normalizedCollegeId]);
 
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
@@ -149,36 +181,6 @@ const FloorDashboard = () => {
     const areaPath = getAdminAreaPath(normalizedCollegeId, slugifyAdminPathSegment(areaName));
     const summary = summarizeTraffic(trafficRows);
     const exportRows = getTrafficExportRows(trafficRows, sensor);
-    const summaryCards = [
-        {
-            key: 'volume',
-            icon: <Waves size={20} />,
-            label: 'Volume',
-            value: summary.volume,
-            description: 'Traffic movements recorded at this corridor for the latest reading.',
-        },
-        {
-            key: 'average-speed',
-            icon: <Gauge size={20} />,
-            label: 'Average Speed',
-            value: `${summary.avgSpeed} mph`,
-            description: 'Average vehicle speed recorded at this corridor for the selected range.',
-        },
-        {
-            key: 'approach',
-            icon: <ArrowUp size={20} />,
-            label: 'Approach',
-            value: summary.approach,
-            description: 'Traffic movements traveling toward the monitored approach direction.',
-        },
-        {
-            key: 'away',
-            icon: <ArrowDown size={20} />,
-            label: 'Away',
-            value: summary.away,
-            description: 'Traffic movements traveling away from the monitored approach direction.',
-        },
-    ];
     const insightCards = [
         {
             key: 'peak',
@@ -252,22 +254,6 @@ const FloorDashboard = () => {
                         <AnalyticsFilters filters={filters} onChange={setFilters} />
                     </section>
 
-                    <section className={styles.snapshotGrid}>
-                        {summaryCards.map((card) => (
-                            <button
-                                key={card.key}
-                                type="button"
-                                className={styles.snapshotCard}
-                                onClick={() => setActiveInsight(card)}
-                                aria-label={`${card.label} details`}
-                            >
-                                {card.icon}
-                                <span>{card.label}</span>
-                                <strong>{card.value}</strong>
-                            </button>
-                        ))}
-                    </section>
-
                     <section className={styles.insightGrid}>
                         {insightCards.map((card) => (
                             <button
@@ -324,7 +310,7 @@ const FloorDashboard = () => {
                                 <div className={styles.trendToolbar}>
                                     <div className={styles.trendCopy}>
                                         <span>{timeframe.label} chart</span>
-                                        <strong>{activePreset?.label || 'Traffic'}</strong>
+                                        <strong>{activePreset?.label || 'Flow'}</strong>
                                     </div>
                                     <div className={styles.timeframeSegment} aria-label={`${timeframe.label} traffic chart view`}>
                                         {TRAFFIC_VIEW_PRESETS.map((preset) => (

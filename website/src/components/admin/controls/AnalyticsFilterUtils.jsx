@@ -75,6 +75,33 @@ export const getFilterTimeRange = (filters) => {
   return { startMinutes, endMinutes };
 };
 
+export const matchesAnalyticsDayFilter = (date, filters) => {
+  if (!filters) return true;
+
+  const day = date.getDay();
+  if (filters.dayPreset === 'weekdays') return day !== 0 && day !== 6;
+  if (filters.dayPreset === 'weekends') return day === 0 || day === 6;
+  return true;
+};
+
+export const matchesAnalyticsTimeFilter = (date, filters) => {
+  const { startMinutes, endMinutes } = getFilterTimeRange(filters);
+  const currentMinutes = (date.getHours() * 60) + date.getMinutes();
+
+  if (startMinutes <= endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  }
+
+  return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+};
+
+export const matchesAnalyticsPeriodFilters = (row, filters) => {
+  if (!filters) return true;
+
+  const observedAt = new Date(row.observed_at);
+  return matchesAnalyticsDayFilter(observedAt, filters) && matchesAnalyticsTimeFilter(observedAt, filters);
+};
+
 export const matchesAnalyticsFilters = (row, filters) => {
   if (!filters) return true;
 
@@ -83,19 +110,7 @@ export const matchesAnalyticsFilters = (row, filters) => {
 
   if (start && observedAt < start) return false;
   if (end && observedAt > end) return false;
-
-  const day = observedAt.getDay();
-  if (filters.dayPreset === 'weekdays' && (day === 0 || day === 6)) return false;
-  if (filters.dayPreset === 'weekends' && day !== 0 && day !== 6) return false;
-
-  const { startMinutes, endMinutes } = getFilterTimeRange(filters);
-  const currentMinutes = (observedAt.getHours() * 60) + observedAt.getMinutes();
-
-  if (startMinutes <= endMinutes) {
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-  }
-
-  return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+  return matchesAnalyticsPeriodFilters(row, filters);
 };
 
 export const applyAnalyticsFilters = (rows = [], filters) =>

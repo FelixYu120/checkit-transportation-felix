@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
-  Label,
-  Legend,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -14,6 +11,7 @@ import {
 } from 'recharts';
 import supabase from "../../helper/SupabaseClients";
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
+import styles from './TrafficTrendChart.module.css';
 
 const formatTime = (value) =>
   new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -109,13 +107,160 @@ const buildChartData = (rows, granularity) => {
 
 const getChartTitle = (mode) => {
   if (mode === 'direction') return 'Direction Split';
-  if (mode === 'volume') return 'Volume and Speed Trend';
-  return 'Traffic Trend';
+  if (mode === 'volume') return 'Speed Profile';
+  return 'Traffic Flow';
 };
+
+const getNiceCeiling = (value) => {
+  const numeric = Number(value) || 0;
+  if (numeric <= 10) return 10;
+  const magnitude = 10 ** Math.floor(Math.log10(numeric));
+  return Math.ceil(numeric / magnitude) * magnitude;
+};
+
+const buildChartStats = (points = []) => {
+  const totals = points.reduce((acc, point) => {
+    const volume = Number(point.volume) || 0;
+    const speedWeight = volume > 0 ? volume : 1;
+
+    acc.volume += volume;
+    acc.approach += Number(point.approach) || 0;
+    acc.away += Number(point.away) || 0;
+    acc.speedWeightedSum += (Number(point.avgSpeed) || 0) * speedWeight;
+    acc.v85WeightedSum += (Number(point.v85Speed) || 0) * speedWeight;
+    acc.speedWeight += speedWeight;
+    acc.maxSpeed = Math.max(acc.maxSpeed, Number(point.maxSpeed) || 0);
+    if (!acc.peak || volume > acc.peak.volume) acc.peak = point;
+    return acc;
+  }, {
+    volume: 0,
+    approach: 0,
+    away: 0,
+    speedWeightedSum: 0,
+    v85WeightedSum: 0,
+    speedWeight: 0,
+    maxSpeed: 0,
+    peak: null,
+  });
+
+  return {
+    totalVolume: totals.volume,
+    approach: totals.approach,
+    away: totals.away,
+    avgSpeed: totals.speedWeight ? roundOne(totals.speedWeightedSum / totals.speedWeight) : 0,
+    v85Speed: totals.speedWeight ? roundOne(totals.v85WeightedSum / totals.speedWeight) : 0,
+    maxSpeed: roundOne(totals.maxSpeed),
+    peakLabel: totals.peak?.time || 'No peak',
+  };
+};
+
+const getMetricSet = (mode, stats) => {
+  if (mode === 'direction') {
+    return [
+      {
+        label: 'Total volume',
+        value: stats.totalVolume,
+        detail: 'Total observed movement across both directions in this chart window.',
+      },
+      {
+        label: 'Approach',
+        value: stats.approach,
+        detail: 'Movement traveling toward the monitored approach direction in this chart window.',
+      },
+      {
+        label: 'Away',
+        value: stats.away,
+        detail: 'Movement traveling away from the monitored approach direction in this chart window.',
+      },
+      {
+        label: 'Peak interval',
+        value: stats.peakLabel,
+        detail: 'The interval with the highest observed movement in this chart window.',
+      },
+    ];
+  }
+
+  if (mode === 'volume') {
+    return [
+      {
+        label: 'Average speed',
+        value: `${stats.avgSpeed} mph`,
+        detail: 'Weighted average vehicle speed across the chart window.',
+      },
+      {
+        label: '85th speed',
+        value: `${stats.v85Speed} mph`,
+        detail: 'A higher-end speed signal that helps show whether most traffic is staying within a typical range.',
+      },
+      {
+        label: 'Max speed',
+        value: `${stats.maxSpeed} mph`,
+        detail: 'Highest recorded speed in this chart window.',
+      },
+      {
+        label: 'Peak interval',
+        value: stats.peakLabel,
+        detail: 'The interval with the highest observed movement in this chart window.',
+      },
+    ];
+  }
+
+  return [
+    {
+      label: 'Total volume',
+      value: stats.totalVolume,
+      detail: 'Total observed movement in this chart window.',
+    },
+    {
+      label: 'Average speed',
+      value: `${stats.avgSpeed} mph`,
+      detail: 'Weighted average vehicle speed across the chart window.',
+    },
+    {
+      label: '85th speed',
+      value: `${stats.v85Speed} mph`,
+      detail: 'A higher-end speed signal that helps show whether most traffic is staying within a typical range.',
+    },
+    {
+      label: 'Max speed',
+      value: `${stats.maxSpeed} mph`,
+      detail: 'Highest recorded speed in this chart window.',
+    },
+  ];
+};
+
+const getLegendItems = (mode) => {
+  if (mode === 'direction') {
+    return [
+      { label: 'Approach', color: '#2f716f', bar: true },
+      { label: 'Away', color: '#a0d1c5', bar: true },
+    ];
+  }
+
+  if (mode === 'volume') {
+    return [
+      { label: 'Avg speed', color: '#2f716f' },
+      { label: '85th speed', color: '#89b8ae' },
+    ];
+  }
+
+  return [
+    { label: 'Total volume', color: '#2f716f', bar: true },
+    { label: 'Avg speed', color: '#89a9a3' },
+  ];
+};
+
+const TooltipRow = ({ label, value }) => (
+  <span className={styles.tooltipRow}>
+    <span>{label}</span>
+    <span>{value}</span>
+  </span>
+);
 
 const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeMetric, setActiveMetric] = useState(null);
   const effectiveFilters = useMemo(() => ({
     startDate: filters?.startDate || '',
     endDate: filters?.endDate || '',
@@ -130,6 +275,19 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
     [rows, type, effectiveFilters]
   );
   const chartData = useMemo(() => buildChartData(windowedRows, granularity), [windowedRows, granularity]);
+  const chartStats = useMemo(() => buildChartStats(chartData), [chartData]);
+  const metricSet = useMemo(() => getMetricSet(mode, chartStats), [mode, chartStats]);
+  const legendItems = useMemo(() => getLegendItems(mode), [mode]);
+  const volumeAxisMax = useMemo(() => {
+    const values = chartData.map((point) => (
+      mode === 'direction'
+        ? Math.max(Number(point.approach) || 0, Number(point.away) || 0)
+        : Number(point.volume) || 0
+    ));
+
+    return getNiceCeiling(Math.max(...values, 10));
+  }, [chartData, mode]);
+  const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(...chartData.map((point) => Number(point.maxSpeed) || Number(point.v85Speed) || 0), 10)), [chartData]);
 
   useEffect(() => {
     const loadRows = async () => {
@@ -153,83 +311,147 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
   }, [sensorId, type, effectiveFilters]);
 
   if (loading) {
-    return <div className="traffic-chart-loading">Loading traffic trend...</div>;
+    return <div className={styles.loading}>Loading traffic trend...</div>;
   }
 
   if (!chartData.length) {
     return (
-      <div className="traffic-chart-shell">
-        <div className="traffic-chart-header">
-          <div>
+      <div className={styles.shell}>
+        <div className={styles.header}>
+          <div className={styles.titleBlock}>
             <h3>{title || getChartTitle(mode)}</h3>
           </div>
         </div>
-        <div className="traffic-chart-empty">
+        <div className={styles.empty}>
           <strong>No traffic summaries found for this chart.</strong>
         </div>
       </div>
     );
   }
 
-  const ChartComponent = mode === 'direction' ? BarChart : ComposedChart;
-
   return (
-    <div className="traffic-chart-shell">
-      <div className="traffic-chart-header">
-        <div>
+    <div className={styles.shell}>
+      <div className={styles.header}>
+        <div className={styles.titleBlock}>
           <h3>{title || getChartTitle(mode)}</h3>
         </div>
       </div>
-      <div className="traffic-chart-canvas">
+
+      <div className={styles.metricStrip}>
+        {metricSet.map((metric) => (
+          <button
+            key={metric.label}
+            type="button"
+            className={styles.metric}
+            onClick={() => setActiveMetric(metric)}
+            aria-label={`${metric.label} details`}
+          >
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.canvas}>
         <ResponsiveContainer width="100%" height="100%">
-          <ChartComponent data={chartData} margin={{ top: 10, right: 18, left: 0, bottom: 34 }}>
-            <CartesianGrid stroke="#e8eef2" vertical={false} />
-            <XAxis dataKey="time" fontSize={11} tickLine={false} axisLine={false} minTickGap={18}>
-              <Label value={granularity === 'bucket' ? 'Time bucket' : 'Date'} offset={-22} position="insideBottom" />
-            </XAxis>
-            <YAxis yAxisId="volume" fontSize={11} tickLine={false} axisLine={false}>
-              <Label value="Volume" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
-            </YAxis>
+          <ComposedChart data={chartData} margin={{ top: 8, right: mode === 'combined' ? 12 : 8, left: -18, bottom: 8 }}>
+            <CartesianGrid stroke="#eef3f6" vertical={false} />
+            <XAxis dataKey="time" fontSize={11} tickLine={false} axisLine={false} minTickGap={18} />
+            <YAxis
+              yAxisId="volume"
+              domain={[0, volumeAxisMax]}
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              width={42}
+            />
             {mode !== 'direction' && (
-              <YAxis yAxisId="speed" orientation="right" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`}>
-                <Label value="Speed mph" angle={90} position="insideRight" style={{ textAnchor: 'middle' }} />
-              </YAxis>
+              <YAxis
+                yAxisId="speed"
+                orientation="right"
+                domain={[0, speedAxisMax]}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                width={38}
+              />
             )}
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload;
                 return (
-                  <div className="traffic-chart-tooltip">
+                  <div className={styles.tooltip}>
                     <strong>{point.fullTime}</strong>
-                    <span>Total volume: {point.volume}</span>
-                    <span>Approach: {point.approach}</span>
-                    <span>Away: {point.away}</span>
-                    <span>Avg speed: {point.avgSpeed} mph</span>
-                    <span>85th speed: {point.v85Speed} mph</span>
-                    <span>Max speed: {point.maxSpeed} mph</span>
+                    {mode !== 'volume' && <TooltipRow label="Total volume" value={point.volume} />}
+                    {mode === 'direction' && <TooltipRow label="Approach" value={point.approach} />}
+                    {mode === 'direction' && <TooltipRow label="Away" value={point.away} />}
+                    {mode !== 'direction' && <TooltipRow label="Avg speed" value={`${point.avgSpeed} mph`} />}
+                    {mode !== 'direction' && <TooltipRow label="85th speed" value={`${point.v85Speed} mph`} />}
+                    <TooltipRow label="Max speed" value={`${point.maxSpeed} mph`} />
                   </div>
                 );
               }}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {mode === 'volume' ? (
-              <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2f716f" radius={[4, 4, 0, 0]} />
+            {mode === 'direction' ? (
+              <>
+                <Bar yAxisId="volume" dataKey="approach" name="Approach" fill="#2f716f" radius={[6, 6, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="away" name="Away" fill="#a0d1c5" radius={[6, 6, 0, 0]} />
+              </>
+            ) : mode === 'volume' ? (
+              <>
+                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#2f716f" strokeWidth={2.8} dot={false} />
+                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke="#89b8ae" strokeWidth={2.2} strokeDasharray="5 5" dot={false} />
+              </>
             ) : (
               <>
-                <Bar yAxisId="volume" dataKey="approach" stackId="traffic" name="Approach volume" fill="#2f716f" radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="volume" dataKey="away" stackId="traffic" name="Away volume" fill="#a0d1c5" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2f716f" opacity={0.88} radius={[6, 6, 0, 0]} />
+                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#89a9a3" strokeWidth={2.2} dot={false} />
               </>
             )}
-            {mode !== 'direction' && (
-              <>
-                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#4c6d69" strokeWidth={2.4} dot={false} />
-                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke="#88afa6" strokeWidth={2} dot={false} />
-              </>
-            )}
-          </ChartComponent>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      <div className={styles.legend} aria-label="Chart legend">
+        {legendItems.map((item) => (
+          <span key={item.label} className={styles.legendItem}>
+            <i
+              className={`${styles.swatch} ${item.bar ? styles.barSwatch : ''}`}
+              style={{ '--swatch-color': item.color }}
+              aria-hidden="true"
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
+      {activeMetric && (
+        <div
+          className={styles.metricModalOverlay}
+          role="presentation"
+          onMouseDown={() => setActiveMetric(null)}
+        >
+          <div
+            className={styles.metricModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="traffic-metric-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h4 id="traffic-metric-title">{activeMetric.label}</h4>
+            <strong>{activeMetric.value}</strong>
+            <p>{activeMetric.detail}</p>
+            <button
+              type="button"
+              className={styles.metricModalClose}
+              onClick={() => setActiveMetric(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

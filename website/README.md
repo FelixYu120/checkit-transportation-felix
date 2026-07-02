@@ -30,7 +30,12 @@ Create `.env.local` in this folder:
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_SENSOR_DIRECTORY_SOURCE=supabase
 ```
+
+Use `VITE_SENSOR_DIRECTORY_SOURCE=supabase` for real local data. Setting it to
+`local` forces the app to use the small built-in fallback dataset, which is only
+useful for offline UI work.
 
 ## Main Areas
 

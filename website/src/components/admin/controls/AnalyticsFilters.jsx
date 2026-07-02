@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Calendar, Clock, CalendarDays, X } from 'lucide-react';
 import styles from './AnalyticsFilters.module.css';
 
@@ -11,29 +11,32 @@ const formatDateLabel = (value, fallback) => {
     });
 };
 
-const formatTimeLabel = (value) => {
-    if (!value) return 'Any Time';
-    return new Date(`2000-01-01T${value}`).toLocaleTimeString('en-US', {
+const formatTimeLabel = (value, fallback) => {
+    if (!value) return fallback;
+    const [hours, minutes] = value.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return fallback;
+
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
     });
 };
 
-const TIME_OPTIONS = Array.from({ length: 24 }, (_, hours) => {
-    const value = `${String(hours).padStart(2, '0')}:00`;
-
-    return {
-        value,
-        label: formatTimeLabel(value),
-    };
-});
-
 const PickerButton = ({ type, value, label, ariaLabel, onChange }) => {
     const inputRef = useRef(null);
 
     const openPicker = () => {
-        inputRef.current?.showPicker?.();
-        inputRef.current?.focus();
+        const input = inputRef.current;
+        if (!input) return;
+
+        input.focus();
+        if (typeof input.showPicker === 'function') {
+            input.showPicker();
+        } else {
+            input.click();
+        }
     };
 
     return (
@@ -55,62 +58,6 @@ const PickerButton = ({ type, value, label, ariaLabel, onChange }) => {
     );
 };
 
-const TimePickerSelect = ({ value, ariaLabel, onChange, includeEndOfDay = false }) => {
-    const isPresetValue =
-        !value ||
-        TIME_OPTIONS.some((option) => option.value === value) ||
-        (includeEndOfDay && value === '23:59');
-    const [isCustom, setIsCustom] = useState(!isPresetValue);
-    const showCustom = isCustom || (value && !isPresetValue);
-
-    const handleSelectChange = (event) => {
-        const nextValue = event.target.value;
-
-        if (nextValue === 'custom') {
-            setIsCustom(true);
-            return;
-        }
-
-        setIsCustom(false);
-        onChange(nextValue);
-    };
-
-    if (showCustom) {
-        return (
-            <input
-                className={styles.customTimeInput}
-                type="text"
-                inputMode="numeric"
-                placeholder="HH:MM"
-                maxLength={5}
-                value={value || ''}
-                onChange={(event) => onChange(event.target.value.replace(/[^\d:]/g, ''))}
-                aria-label={`${ariaLabel} custom value`}
-            />
-        );
-    }
-
-    return (
-        <select
-            className={styles.timeSelect}
-            value={value}
-            onChange={handleSelectChange}
-            aria-label={ariaLabel}
-        >
-            <option value="">Any Time</option>
-            {TIME_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                    {option.label}
-                </option>
-            ))}
-            {includeEndOfDay && (
-                <option value="23:59">11:59 PM</option>
-            )}
-            <option value="custom">Custom...</option>
-        </select>
-    );
-};
-
 const AnalyticsFilters = ({ filters, onChange }) => {
     const updateFilter = (key, value) => {
         onChange((current) => ({ ...current, [key]: value }));
@@ -118,7 +65,7 @@ const AnalyticsFilters = ({ filters, onChange }) => {
 
     return (
         <section className={styles.filterBar} aria-label="Analytics filters">
-            <label className={`${styles.filterControl} ${styles.dateControl}`}>
+            <div className={`${styles.filterControl} ${styles.dateControl}`}>
                 <Calendar size={18} />
                 <PickerButton
                     type="date"
@@ -135,22 +82,39 @@ const AnalyticsFilters = ({ filters, onChange }) => {
                     aria-label="End date"
                     onChange={(value) => updateFilter('endDate', value)}
                 />
-            </label>
+                <button
+                    className={styles.clearButton}
+                    type="button"
+                    aria-label="Clear date range"
+                    onClick={() => onChange((current) => ({ ...current, startDate: '', endDate: '' }))}
+                >
+                    <X size={14} strokeWidth={2.4} />
+                </button>
+            </div>
 
-            <label className={`${styles.filterControl} ${styles.timeControl}`}>
+            <div className={`${styles.filterControl} ${styles.timeControl}`}>
                 <Clock size={18} />
-                <TimePickerSelect
-                    value={filters.startTime}
-                    aria-label="Start time"
-                    onChange={(value) => updateFilter('startTime', value)}
-                />
-                <span aria-hidden="true">-</span>
-                <TimePickerSelect
-                    value={filters.endTime}
-                    aria-label="End time"
-                    includeEndOfDay
-                    onChange={(value) => updateFilter('endTime', value)}
-                />
+                <div className={styles.timeFields}>
+                    <span className={styles.timeField}>
+                        <PickerButton
+                            type="time"
+                            value={filters.startTime || ''}
+                            label={formatTimeLabel(filters.startTime, '12:00 AM')}
+                            ariaLabel="Start time"
+                            onChange={(value) => updateFilter('startTime', value)}
+                        />
+                    </span>
+                    <span className={styles.timeDivider} aria-hidden="true">-</span>
+                    <span className={styles.timeField}>
+                        <PickerButton
+                            type="time"
+                            value={filters.endTime || ''}
+                            label={formatTimeLabel(filters.endTime, '11:59 PM')}
+                            ariaLabel="End time"
+                            onChange={(value) => updateFilter('endTime', value)}
+                        />
+                    </span>
+                </div>
                 <button
                     className={styles.clearButton}
                     type="button"
@@ -159,7 +123,7 @@ const AnalyticsFilters = ({ filters, onChange }) => {
                 >
                     <X size={14} strokeWidth={2.4} />
                 </button>
-            </label>
+            </div>
 
             <label className={`${styles.filterControl} ${styles.dayControl}`}>
                 <CalendarDays size={18} />
