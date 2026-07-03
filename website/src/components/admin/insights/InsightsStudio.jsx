@@ -374,6 +374,30 @@ const createPageImageFromCanvas = (canvas, pageIndex) => ({
   height: canvas.height,
 });
 
+const createPageImageFromReportCanvas = (sourceCanvas, pageIndex) => {
+  const scale = sourceCanvas.width / PAGE_WIDTH || 1;
+  const pageCanvas = document.createElement('canvas');
+  pageCanvas.width = Math.round(PAGE_WIDTH * scale);
+  pageCanvas.height = Math.round(PAGE_HEIGHT * scale);
+
+  const context = pageCanvas.getContext('2d');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+  context.drawImage(
+    sourceCanvas,
+    0,
+    Math.round(pageIndex * PAGE_HEIGHT * scale),
+    pageCanvas.width,
+    pageCanvas.height,
+    0,
+    0,
+    pageCanvas.width,
+    pageCanvas.height
+  );
+
+  return createPageImageFromCanvas(pageCanvas, pageIndex);
+};
+
 const waitForReportReady = async (element, timeoutMs = 8000) => {
   const startedAt = Date.now();
 
@@ -537,11 +561,11 @@ const ConfirmDialog = ({ dialog, onClose }) => {
   );
 };
 
-const ExportPreviewModal = ({ image, pages = [], onClose, onDownload, isDownloading }) => {
+const ExportPreviewModal = ({ isOpen, pageCount = 1, renderPage, onClose, onDownload, isDownloading }) => {
   const [activePageIndex, setActivePageIndex] = useState(0);
 
-  if (!image) return null;
-  const previewPages = pages.length ? pages : [{ src: image, label: 'Page 1' }];
+  if (!isOpen) return null;
+  const previewPages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => ({ label: `Page ${index + 1}` }));
   const safeActivePageIndex = Math.min(activePageIndex, previewPages.length - 1);
 
   if (typeof document === 'undefined') return null;
@@ -568,7 +592,7 @@ const ExportPreviewModal = ({ image, pages = [], onClose, onDownload, isDownload
                   document.querySelector(`[data-export-preview-page="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
               >
-                <img src={page.src} alt={`${page.label} thumbnail`} />
+                <span className={styles.exportPreviewThumbnailSheet} aria-hidden="true" />
                 <span>{page.label}</span>
               </button>
             ))}
@@ -577,7 +601,7 @@ const ExportPreviewModal = ({ image, pages = [], onClose, onDownload, isDownload
             {previewPages.map((page, index) => (
               <figure key={page.label} className={styles.exportPreviewPage} data-export-preview-page={index}>
                 <figcaption>{page.label}</figcaption>
-                <img src={page.src} alt={`${page.label} preview`} />
+                {renderPage?.(index)}
               </figure>
             ))}
           </div>
@@ -1522,7 +1546,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const element = reportRef.current;
     if (!element) return [];
     let originalHeight = '';
-    const pageShells = [];
 
     flushSync(() => {
       setIsDownloading(true);
@@ -1546,64 +1569,37 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         ignoreElements: (node) => node?.classList?.contains?.('recharts-tooltip-wrapper'),
       };
 
-      const pages = [];
-
-      for (let pageIndex = 0; pageIndex < totalVisiblePageCount; pageIndex += 1) {
-        const pageShell = document.createElement('div');
-        const pageClone = element.cloneNode(true);
-
-        pageShell.style.position = 'fixed';
-        pageShell.style.left = '-10000px';
-        pageShell.style.top = '0';
-        pageShell.style.width = `${PAGE_WIDTH}px`;
-        pageShell.style.height = `${PAGE_HEIGHT}px`;
-        pageShell.style.overflow = 'hidden';
-        pageShell.style.background = '#ffffff';
-        pageShell.style.pointerEvents = 'none';
-        pageShell.style.zIndex = '-1';
-
-        pageClone.style.margin = '0';
-        pageClone.style.boxShadow = 'none';
-        pageClone.style.height = `${totalRequiredHeight}px`;
-        pageClone.style.transform = `translateY(-${pageIndex * PAGE_HEIGHT}px)`;
-        pageClone.style.transformOrigin = 'top left';
-
-        pageShell.appendChild(pageClone);
-        document.body.appendChild(pageShell);
-        pageShells.push(pageShell);
-
-        try {
-          const canvas = await html2canvas(pageShell, {
-            ...captureOptions,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
-            windowWidth: PAGE_WIDTH,
-            windowHeight: PAGE_HEIGHT,
-            scale: 2,
-          });
-          pages.push(createPageImageFromCanvas(canvas, pageIndex));
-        } catch (primaryError) {
-          console.warn('High resolution page capture failed, retrying preview capture:', primaryError);
-          const canvas = await html2canvas(pageShell, {
-            ...captureOptions,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
-            windowWidth: PAGE_WIDTH,
-            windowHeight: PAGE_HEIGHT,
-            scale: 1,
-            foreignObjectRendering: true,
-          });
-          pages.push(createPageImageFromCanvas(canvas, pageIndex));
-        }
+      let reportCanvas;
+      try {
+        reportCanvas = await html2canvas(element, {
+          ...captureOptions,
+          width: PAGE_WIDTH,
+          height: totalRequiredHeight,
+          windowWidth: PAGE_WIDTH,
+          windowHeight: totalRequiredHeight,
+          scale: 2,
+        });
+      } catch (primaryError) {
+        console.warn('High resolution report capture failed, retrying preview capture:', primaryError);
+        reportCanvas = await html2canvas(element, {
+          ...captureOptions,
+          width: PAGE_WIDTH,
+          height: totalRequiredHeight,
+          windowWidth: PAGE_WIDTH,
+          windowHeight: totalRequiredHeight,
+          scale: 1,
+          foreignObjectRendering: true,
+        });
       }
 
-      return pages;
+      return Array.from({ length: totalVisiblePageCount }, (_, pageIndex) => (
+        createPageImageFromReportCanvas(reportCanvas, pageIndex)
+      ));
     } catch (error) {
       console.error("Failed to capture report:", error);
       return [];
     } finally {
       element.style.height = originalHeight;
-      pageShells.forEach((pageShell) => pageShell.remove());
       setIsDownloading(false);
     }
   };
@@ -1632,19 +1628,19 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     pdf.save(`${docMeta.title.replace(/\s+/g, '_')}_Report.pdf`);
   };
 
-  const handleExportPreview = async () => {
-    const pages = await captureReportPages();
+  const handleExportPreview = () => {
     exportPageCountRef.current = totalVisiblePageCount;
-    if (!pages.length) {
-      alert('Export preview could not be generated. Please try again after the charts finish rendering.');
-      return;
-    }
-    setExportPreviewPages(pages);
-    setExportPreviewImage(pages[0].src);
+    setExportPreviewPages(Array.from({ length: totalVisiblePageCount }, (_, index) => ({ label: `Page ${index + 1}` })));
+    setExportPreviewImage('standard-page-view');
   };
 
-  const handleDownloadPDF = () => {
-    downloadPdfFromPages(exportPreviewPages);
+  const handleDownloadPDF = async () => {
+    const pages = await captureReportPages();
+    if (!pages.length) {
+      alert('Export could not be generated. Please try again after the charts finish rendering.');
+      return;
+    }
+    downloadPdfFromPages(pages);
     setExportPreviewImage('');
     setExportPreviewPages([]);
     exportPageCountRef.current = DEFAULT_PAGE_COUNT;
@@ -1986,6 +1982,138 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
     return null;
+  };
+
+  const renderStandardPreviewPage = (pageIndex) => {
+    const pageTop = pageIndex * PAGE_HEIGHT;
+
+    return (
+      <div className={styles.exportPreviewLivePage}>
+        <div
+          className={styles.exportPreviewLiveReport}
+          style={{ height: `${totalVisiblePageCount * PAGE_HEIGHT}px`, top: `-${pageTop}px` }}
+        >
+          {hasCoverPage && (
+            <section
+              className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
+              style={{
+                '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#2f716f'),
+                '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#f7fbfa'),
+              }}
+            >
+              <p
+                className={styles.coverEyebrow}
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverEyebrowX ?? 72}px`,
+                  top: `${reportSettings.coverEyebrowY ?? 88}px`,
+                  width: '704px',
+                  height: '48px',
+                  fontSize: reportSettings.coverEyebrowFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {reportSettings.coverEyebrow}
+              </p>
+              <h1
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverTitleX ?? 72}px`,
+                  top: `${reportSettings.coverTitleY ?? 160}px`,
+                  width: '704px',
+                  height: '136px',
+                  fontSize: reportSettings.coverTitleFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {docMeta.title}
+              </h1>
+              <p
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverSubtitleX ?? 72}px`,
+                  top: `${reportSettings.coverSubtitleY ?? 312}px`,
+                  width: '704px',
+                  height: '72px',
+                  fontSize: reportSettings.coverSubtitleFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {reportSettings.coverSubtitle || 'Add a short report subtitle'}
+              </p>
+              <div
+                className={styles.coverMeta}
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverMetaX ?? 72}px`,
+                  top: `${reportSettings.coverMetaY ?? 1040}px`,
+                  width: '704px',
+                  height: '88px',
+                  fontSize: reportSettings.coverMetaFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                <span>Prepared by {docMeta.author}</span>
+                <span>{docMeta.date}</span>
+                <span>{primaryTarget.label || docMeta.title}</span>
+              </div>
+            </section>
+          )}
+
+          {hasDocumentHeader && (
+            <div className={styles.documentHeader} style={{ position: 'absolute', top: `${reportContentOffset + 48}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
+              <h1 className={styles.documentTitle}>{docMeta.title}</h1>
+              <div className={styles.documentMetaGrid}>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Date Created</span><span className={styles.metaValue}>{docMeta.date}</span></div>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
+              </div>
+            </div>
+          )}
+
+          {elements.map((el) => {
+            const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
+
+            return (
+              <div
+                key={el.id}
+                style={{
+                  position: 'absolute',
+                  left: `${el.x}px`,
+                  top: `${el.y + reportContentOffset}px`,
+                  width: `${el.width}px`,
+                  height: `${el.height}px`,
+                  zIndex: el.zIndex || 1,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div
+                  className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''}`}
+                  style={{
+                    backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
+                    borderRadius: el.style.borderRadius,
+                    padding: ['divider', 'image', 'chart', 'summary'].includes(el.type) ? '0' : '16px',
+                    boxSizing: 'border-box',
+                    border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
+                    boxShadow: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
+                  }}
+                >
+                  {renderElementContent(el)}
+                </div>
+              </div>
+            );
+          })}
+
+          {reportSettings.showFooter && Array.from({ length: totalVisiblePageCount }).map((_, index) => (
+            <footer key={`preview-footer-${index}`} className={styles.reportFooter} style={{ top: `${((index + 1) * PAGE_HEIGHT) - 56}px` }}>
+              <span>CheckIt</span>
+              <span>{docMeta.title}</span>
+              <span>Page {index + 1}</span>
+            </footer>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // Ensure app stays strictly in light mode
@@ -2871,8 +2999,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       </div>
       <ConfirmDialog dialog={confirmDialog} onClose={resolveConfirmation} />
       <ExportPreviewModal
-        image={exportPreviewImage}
-        pages={exportPreviewPages}
+        isOpen={Boolean(exportPreviewImage)}
+        pageCount={exportPreviewPages.length || totalVisiblePageCount}
+        renderPage={renderStandardPreviewPage}
         onClose={() => {
           setExportPreviewImage('');
           setExportPreviewPages([]);

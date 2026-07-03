@@ -5,6 +5,9 @@ import supabase from '../helper/SupabaseClients';
 
 function Login({ setIsLoggedIn }) {
     const navigate = useNavigate();
+    const goToMainWebsite = () => {
+        window.location.assign('https://checkit.dev');
+    };
     
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -79,7 +82,7 @@ function Login({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.navrow}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/')}>BACK</button>
+                            <button type="button" className={styles.backbutton} onClick={goToMainWebsite}>BACK</button>
                             <button type="submit" className={styles.continuebutton} disabled={loading}>
                                 {loading ? 'VERIFYING...' : 'LOGIN'}
                             </button>

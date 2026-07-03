@@ -439,7 +439,7 @@ export const CollegeOverview = () => {
                                 <div>
                                     <Gauge size={18} />
                                     <strong>{roundOne(averageSpeed)} mph</strong>
-                                    <span>Network average speed</span>
+                                    <span>Average speed</span>
                                 </div>
                             </div>
                         </div>
