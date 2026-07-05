@@ -17,6 +17,7 @@ import {
 const Sidebar = () => {
     const {
         collegeId: urlCollegeId,
+        buildingId: urlAreaId,
     } = useParams();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [query, setQuery] = useState("");
@@ -34,6 +35,9 @@ const Sidebar = () => {
                 // Auto-expand based on URL or default to first institute
                 if (urlCollegeId) {
                     setExpandedColleges(prev => ({ ...prev, [urlCollegeId]: true }));
+                    if (urlAreaId) {
+                        setExpandedAreas(prev => ({ ...prev, [`${urlCollegeId}-${urlAreaId}`]: true }));
+                    }
                 } else if (formatted.length > 0) {
                     setExpandedColleges({ [formatted[0].id]: true });
                 }
@@ -50,6 +54,10 @@ const Sidebar = () => {
     const toggleCollege = (id) => setExpandedColleges(p => ({ ...p, [id]: !p[id] }));
     const toggleArea = (id) => setExpandedAreas(p => ({ ...p, [id]: !p[id] }));
     const handleSelection = () => { setQuery(""); setMobileOpen(false); };
+    const handleAreaSelection = (areaKey) => {
+        setExpandedAreas((prev) => ({ ...prev, [areaKey]: true }));
+        handleSelection();
+    };
     const tokens = useMemo(() => getSearchTokens(query), [query]);
     const visibleColleges = useMemo(
         () => filterCampusNavigation(colleges, tokens),
@@ -121,7 +129,7 @@ const Sidebar = () => {
                                                         <NavLink
                                                             end
                                                             to={getAdminAreaPath(college.id, area.id)}
-                                                            onClick={handleSelection}
+                                                            onClick={() => handleAreaSelection(areaKey)}
                                                             className={({ isActive }) => `${styles.buildingLink} ${isActive ? styles.activeBuilding : ""}`}
                                                         >
                                                             {area.name}
