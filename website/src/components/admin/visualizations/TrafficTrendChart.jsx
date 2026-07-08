@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -36,6 +37,19 @@ const dateTimeFormatter = new Intl.DateTimeFormat([], {
   timeZone: PACIFIC_TIME_ZONE,
 });
 
+const tooltipDateFormatter = new Intl.DateTimeFormat([], {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: PACIFIC_TIME_ZONE,
+});
+
+const tooltipTimeFormatter = new Intl.DateTimeFormat([], {
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: PACIFIC_TIME_ZONE,
+});
+
 const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
   month: '2-digit',
@@ -57,6 +71,14 @@ const monthDayFormatter = new Intl.DateTimeFormat([], {
 const formatHourLabel = (value) => timeFormatter.format(new Date(value));
 
 const formatDateTime = (value) => dateTimeFormatter.format(new Date(value));
+
+const formatTooltipDateTime = (value) => {
+  const date = new Date(value);
+  return {
+    date: tooltipDateFormatter.format(date),
+    time: tooltipTimeFormatter.format(date),
+  };
+};
 
 const roundOne = (value) => Math.round(value * 10) / 10;
 
@@ -131,6 +153,7 @@ const getDayBucketKey = (value) => {
 const getHourlyBuckets = (rows = [], filters = {}) => {
   const buckets = [];
   const filterDate = filters.endDate || filters.startDate;
+  let previousDateKey = '';
 
   if (filterDate) {
     const [year, month, day] = filterDate.split('-').map(Number);
@@ -139,11 +162,17 @@ const getHourlyBuckets = (rows = [], filters = {}) => {
     for (let index = 0; index < 24; index += 1) {
       const bucketDate = new Date(start.getTime() + (index * HOUR_MS));
       const key = getHourlyBucketKey(bucketDate);
+      const dateKey = getLocalDateKey(bucketDate);
+      const isDayStart = index === 0 || dateKey !== previousDateKey;
       buckets.push({
         key,
         time: formatHourLabel(key),
         fullTime: formatDateTime(key),
+        dateLabel: monthDayFormatter.format(getCalendarDate(dateKey)),
+        isDayStart,
+        isFirstBucket: index === 0,
       });
+      previousDateKey = dateKey;
     }
 
     return buckets;
@@ -156,11 +185,17 @@ const getHourlyBuckets = (rows = [], filters = {}) => {
   for (let index = 0; index < 24; index += 1) {
     const bucketDate = new Date(startTime + (index * HOUR_MS));
     const key = getHourlyBucketKey(bucketDate);
+    const dateKey = getLocalDateKey(bucketDate);
+    const isDayStart = index === 0 || dateKey !== previousDateKey;
     buckets.push({
       key,
       time: formatHourLabel(key),
       fullTime: formatDateTime(key),
+      dateLabel: monthDayFormatter.format(getCalendarDate(dateKey)),
+      isDayStart,
+      isFirstBucket: index === 0,
     });
+    previousDateKey = dateKey;
   }
 
   return buckets;
@@ -351,6 +386,47 @@ const buildChartStats = (points = []) => {
 
 const getDisplaySpeed = (value) => (value == null ? 'No data' : `${value} mph`);
 
+const getChartMargin = (mode) => ({
+  top: 10,
+  right: mode === 'direction' ? 24 : 30,
+  left: 25,
+  bottom: 35,
+});
+
+const getXAxisHeight = (type) => (type === 'daily' ? 58 : 46);
+
+const TrafficXAxisTick = ({ x, y, payload, pointsByKey, type }) => {
+  const point = pointsByKey.get(payload.value);
+  if (!point) return null;
+
+  if (type !== 'daily') {
+    return (
+      <text x={x} y={y + 16} textAnchor="middle" fill="#64748b" fontSize={11}>
+        {point.time}
+      </text>
+    );
+  }
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {point.isFirstBucket && (
+        <text x={0} y={14} textAnchor="middle" fill="#334155" fontSize={11} fontWeight={800}>
+          {point.dateLabel}
+        </text>
+      )}
+      <text
+        x={0}
+        y={point.isFirstBucket ? 34 : 24}
+        textAnchor="middle"
+        fill="#64748b"
+        fontSize={11}
+      >
+        {point.time}
+      </text>
+    </g>
+  );
+};
+
 const getMetricSet = (mode, stats) => {
   if (mode === 'direction') {
     return [
@@ -478,6 +554,15 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
   const metricSet = useMemo(() => getMetricSet(mode, chartStats), [mode, chartStats]);
   const legendItems = useMemo(() => getLegendItems(mode), [mode]);
   const xAxisInterval = getXAxisInterval(type);
+  const chartMargin = useMemo(() => getChartMargin(mode), [mode]);
+  const pointsByKey = useMemo(
+    () => new Map(chartData.map((point) => [point.key, point])),
+    [chartData]
+  );
+  const dayDividers = useMemo(
+    () => (type === 'daily' ? chartData.filter((point) => point.isDayStart && !point.isFirstBucket) : []),
+    [chartData, type]
+  );
   const volumeAxisMax = useMemo(() => {
     const values = chartData.map((point) => (
       mode === 'direction'
@@ -556,16 +641,24 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
 
       <div className={styles.canvas}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 8, right: mode === 'combined' ? 12 : 8, left: -18, bottom: 8 }}>
+          <ComposedChart data={chartData} margin={chartMargin}>
             <CartesianGrid stroke="#eef3f6" vertical={false} />
-            <XAxis dataKey="time" fontSize={11} tickLine={false} axisLine={false} minTickGap={18} interval={xAxisInterval} />
+            <XAxis
+              dataKey="key"
+              height={getXAxisHeight(type)}
+              tickLine={false}
+              axisLine={false}
+              minTickGap={25}
+              interval={xAxisInterval}
+              tick={<TrafficXAxisTick pointsByKey={pointsByKey} type={type} />}
+            />
             <YAxis
               yAxisId="volume"
               domain={[0, volumeAxisMax]}
               fontSize={11}
               tickLine={false}
               axisLine={false}
-              width={42}
+              width={55}
             />
             {mode !== 'direction' && (
               <YAxis
@@ -575,16 +668,37 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
-                width={38}
+                width={45}
               />
             )}
+            {dayDividers.map((point) => (
+              <ReferenceLine
+                key={`day-divider-${point.key}`}
+                x={point.key}
+                stroke="#cbd5e1"
+                strokeDasharray="3 4"
+                strokeWidth={1}
+                ifOverflow="extendDomain"
+                label={{
+                  value: point.dateLabel,
+                  position: 'insideTop',
+                  fill: '#475569',
+                  fontSize: 11,
+                  fontWeight: 800,
+                }}
+              />
+            ))}
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload;
+                const tooltipDateTime = formatTooltipDateTime(point.key);
                 return (
                   <div className={styles.tooltip}>
-                    <strong>{point.fullTime}</strong>
+                    <strong>
+                      {tooltipDateTime.date}
+                      <span>{tooltipDateTime.time}</span>
+                    </strong>
                     {mode !== 'volume' && <TooltipRow label="Total volume" value={point.volume} />}
                     {mode === 'direction' && <TooltipRow label="Approach" value={point.approach} />}
                     {mode === 'direction' && <TooltipRow label="Away" value={point.away} />}

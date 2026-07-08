@@ -136,8 +136,18 @@
 }
 
 .tooltip strong {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 2px;
   color: #111827;
+  line-height: 1.25;
+}
+
+.tooltip strong span {
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 750;
 }
 
 .tooltipRow {
@@ -240,6 +250,10 @@
 @media (max-width: 760px) {
   .header {
     flex-direction: column;
+  }
+
+  .canvas {
+    height: 320px;
   }
 
   .metricStrip {
