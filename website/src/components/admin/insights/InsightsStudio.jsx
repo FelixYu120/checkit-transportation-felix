@@ -1281,11 +1281,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     updateElement(id, { comparisonSelectionList: nextList });
   };
 
-  const applyChartPreset = (preset) => {
-    if (!activeElement || activeElement.type !== 'chart') return;
-    updateElement(activeElement.id, preset.updates);
-  };
-
   const copySelectedElement = useCallback(() => {
     if (!activeElement) return;
     copiedElementRef.current = activeElement;

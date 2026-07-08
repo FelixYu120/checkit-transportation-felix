@@ -13,35 +13,198 @@ import supabase from "../../helper/SupabaseClients";
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import styles from './TrafficTrendChart.module.css';
 
-const formatTime = (value) =>
-  new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const PACIFIC_TIME_ZONE = 'America/Los_Angeles';
+const HOUR_MS = 60 * 60 * 1000;
+const TRAFFIC_COLORS = {
+  volume: '#0f766e',
+  approach: '#0f766e',
+  away: '#2563eb',
+  avgSpeed: '#f97316',
+  v85Speed: '#475569',
+};
 
-const formatDateTime = (value) =>
-  new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const timeFormatter = new Intl.DateTimeFormat([], {
+  hour: 'numeric',
+  timeZone: PACIFIC_TIME_ZONE,
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat([], {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: PACIFIC_TIME_ZONE,
+});
+
+const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  timeZone: PACIFIC_TIME_ZONE,
+});
+
+const dayLabelFormatter = new Intl.DateTimeFormat([], {
+  weekday: 'short',
+  timeZone: 'UTC',
+});
+
+const monthDayFormatter = new Intl.DateTimeFormat([], {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
+const formatHourLabel = (value) => timeFormatter.format(new Date(value));
+
+const formatDateTime = (value) => dateTimeFormatter.format(new Date(value));
 
 const roundOne = (value) => Math.round(value * 10) / 10;
 
-const getBucketKey = (value, granularity) => {
+const toFiniteDate = (value) => {
   const date = new Date(value);
-  if (granularity === 'day') {
-    date.setHours(0, 0, 0, 0);
-  } else if (granularity === 'hour') {
-    date.setMinutes(0, 0, 0);
-  }
+  return Number.isFinite(date.getTime()) ? date : null;
+};
+
+const getLocalDateKey = (date = new Date()) => {
+  const parts = Object.fromEntries(
+    dateKeyFormatter.formatToParts(date).map((part) => [part.type, part.value])
+  );
+  const year = parts.year;
+  const month = parts.month;
+  const day = parts.day;
+  return `${year}-${month}-${day}`;
+};
+
+const getDateKeyFromParts = (year, monthIndex, day) => (
+  `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+);
+
+const getCalendarDate = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const addCalendarDays = (dateKey, days) => {
+  const date = getCalendarDate(dateKey);
+  date.setUTCDate(date.getUTCDate() + days);
+  return getDateKeyFromParts(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
+
+const getMonthBounds = (dateKey) => {
+  const [year, month] = dateKey.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0));
+
+  return {
+    startKey: getDateKeyFromParts(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+    endKey: getDateKeyFromParts(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()),
+  };
+};
+
+const getRowDate = (row) => toFiniteDate(row.observed_at || row.time_bucket);
+
+const getLatestRowDate = (rows = []) => rows.reduce((latest, row) => {
+  const rowDate = getRowDate(row);
+  if (!rowDate) return latest;
+  return !latest || rowDate > latest ? rowDate : latest;
+}, null);
+
+const getAnchorDate = (rows = [], filters = {}) => {
+  const filterDate = filters.endDate || filters.startDate;
+  if (filterDate) return new Date(`${filterDate}T23:59:59`);
+  return getLatestRowDate(rows) || new Date();
+};
+
+const getHourlyBucketKey = (value) => {
+  const date = toFiniteDate(value);
+  if (!date) return '';
+
+  date.setMinutes(0, 0, 0);
   return date.toISOString();
 };
 
-const getGranularity = (type, filters) => {
-  if (type === 'monthly') return 'day';
-  if (type === 'weekly') return 'day';
-  if (filters?.startDate && filters?.endDate && filters.startDate !== filters.endDate) return 'day';
-  return 'bucket';
+const getDayBucketKey = (value) => {
+  const date = toFiniteDate(value);
+  return date ? getLocalDateKey(date) : '';
+};
+
+const getHourlyBuckets = (rows = [], filters = {}) => {
+  const buckets = [];
+  const filterDate = filters.endDate || filters.startDate;
+
+  if (filterDate) {
+    const [year, month, day] = filterDate.split('-').map(Number);
+    const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+    for (let index = 0; index < 24; index += 1) {
+      const bucketDate = new Date(start.getTime() + (index * HOUR_MS));
+      const key = getHourlyBucketKey(bucketDate);
+      buckets.push({
+        key,
+        time: formatHourLabel(key),
+        fullTime: formatDateTime(key),
+      });
+    }
+
+    return buckets;
+  }
+
+  const end = getAnchorDate(rows, filters);
+  end.setMinutes(0, 0, 0);
+  const startTime = end.getTime() - (23 * HOUR_MS);
+
+  for (let index = 0; index < 24; index += 1) {
+    const bucketDate = new Date(startTime + (index * HOUR_MS));
+    const key = getHourlyBucketKey(bucketDate);
+    buckets.push({
+      key,
+      time: formatHourLabel(key),
+      fullTime: formatDateTime(key),
+    });
+  }
+
+  return buckets;
+};
+
+const getDailyRange = (startKey, endKey, labelType = 'day') => {
+  const buckets = [];
+  let currentKey = startKey;
+
+  while (currentKey <= endKey) {
+    const date = getCalendarDate(currentKey);
+    buckets.push({
+      key: currentKey,
+      time: labelType === 'weekday' ? dayLabelFormatter.format(date) : monthDayFormatter.format(date),
+      fullTime: monthDayFormatter.format(date),
+    });
+    currentKey = addCalendarDays(currentKey, 1);
+  }
+
+  return buckets;
+};
+
+const getWeeklyBuckets = (rows = [], filters = {}) => {
+  const endKey = getLocalDateKey(getAnchorDate(rows, filters));
+  const startKey = addCalendarDays(endKey, -6);
+  return getDailyRange(startKey, endKey, 'weekday');
+};
+
+const getMonthDateRange = (rows = [], filters = {}) => {
+  const anchorKey = getLocalDateKey(getAnchorDate(rows, filters));
+  const { startKey, endKey } = getMonthBounds(anchorKey);
+  return getDailyRange(startKey, endKey, 'monthDay');
+};
+
+const getChartBuckets = (type, rows, filters) => {
+  if (type === 'monthly') return getMonthDateRange(rows, filters);
+  if (type === 'weekly') return getWeeklyBuckets(rows, filters);
+  return getHourlyBuckets(rows, filters);
 };
 
 const hasDateFilter = (filters) => Boolean(filters?.startDate || filters?.endDate);
 
 const getWindowHours = (type) => {
-  if (type === 'monthly') return 30 * 24;
+  if (type === 'monthly') return 31 * 24;
   if (type === 'weekly') return 7 * 24;
   return 24;
 };
@@ -49,66 +212,93 @@ const getWindowHours = (type) => {
 const getWindowedRows = (rows, type, filters) => {
   if (!rows.length || hasDateFilter(filters)) return rows;
 
-  const latestTime = rows.reduce((latest, row) => {
-    const rowTime = new Date(row.observed_at).getTime();
-    return Number.isFinite(rowTime) && rowTime > latest ? rowTime : latest;
-  }, 0);
-
+  const latestTime = getLatestRowDate(rows)?.getTime() || 0;
   if (!latestTime) return rows;
 
-  const windowStart = latestTime - (getWindowHours(type) * 60 * 60 * 1000);
+  const windowStart = latestTime - (getWindowHours(type) * HOUR_MS);
   return rows.filter((row) => {
     const rowTime = new Date(row.observed_at).getTime();
     return Number.isFinite(rowTime) && rowTime >= windowStart && rowTime <= latestTime;
   });
 };
 
-const buildChartData = (rows, granularity) => {
-  const groups = new Map();
+const weightedAverageSpeed = (weightedSum, weight) => (
+  weight > 0 ? roundOne(weightedSum / weight) : null
+);
+
+const createEmptyAggregate = (bucket) => ({
+  ...bucket,
+  approach: 0,
+  away: 0,
+  volume: 0,
+  speedWeightedSum: 0,
+  v85WeightedSum: 0,
+  speedWeight: 0,
+  maxSpeed: 0,
+});
+
+const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
+  const groups = new Map(
+    buckets.map((bucket) => [bucket.key, createEmptyAggregate(bucket)])
+  );
 
   rows.forEach((row) => {
-    const key = getBucketKey(row.observed_at, granularity);
-    const group = groups.get(key) || {
+    const key = getBucketKey(row.observed_at);
+    if (!key) return;
+
+    const group = groups.get(key) || createEmptyAggregate({
       key,
-      approach: 0,
-      away: 0,
-      volume: 0,
-      speedWeightedSum: 0,
-      v85WeightedSum: 0,
-      speedWeight: 0,
-      maxSpeed: 0,
-    };
+      time: formatDateTime(row.observed_at),
+      fullTime: formatDateTime(row.observed_at),
+    });
     const directionKey = row.direction === 'away' ? 'away' : 'approach';
     const volume = Number(row.volume) || 0;
-    const weight = volume > 0 ? volume : 1;
 
     group[directionKey] += volume;
     group.volume += volume;
-    group.speedWeightedSum += (Number(row.avg_speed) || 0) * weight;
-    group.v85WeightedSum += (Number(row.v85_speed) || 0) * weight;
-    group.speedWeight += weight;
+    if (volume > 0) {
+      group.speedWeightedSum += (Number(row.avg_speed) || 0) * volume;
+      group.v85WeightedSum += (Number(row.v85_speed) || 0) * volume;
+      group.speedWeight += volume;
+    }
     group.maxSpeed = Math.max(group.maxSpeed, Number(row.max_speed) || 0);
     groups.set(key, group);
   });
 
   return Array.from(groups.values())
-    .sort((a, b) => new Date(a.key) - new Date(b.key))
+    .sort((a, b) => String(a.key).localeCompare(String(b.key)))
     .map((group) => ({
-      time: granularity === 'bucket' ? formatTime(group.key) : new Date(group.key).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-      fullTime: formatDateTime(group.key),
+      key: group.key,
+      time: group.time,
+      fullTime: group.fullTime,
       approach: group.approach,
       away: group.away,
       volume: group.volume,
-      avgSpeed: group.speedWeight ? roundOne(group.speedWeightedSum / group.speedWeight) : 0,
-      v85Speed: group.speedWeight ? roundOne(group.v85WeightedSum / group.speedWeight) : 0,
-      maxSpeed: group.maxSpeed,
+      avgSpeed: weightedAverageSpeed(group.speedWeightedSum, group.speedWeight),
+      v85Speed: weightedAverageSpeed(group.v85WeightedSum, group.speedWeight),
+      maxSpeed: roundOne(group.maxSpeed),
     }));
+};
+
+const buildChartData = (rows, type, filters) => {
+  const buckets = getChartBuckets(type, rows, filters);
+  const getBucketKey = type === 'daily' ? getHourlyBucketKey : getDayBucketKey;
+
+  // Ten-minute summaries arrive as one row per direction. Chart buckets first
+  // create the expected time range, then merge both directions into that range.
+  return aggregateSummariesByBucket(rows, buckets, getBucketKey);
 };
 
 const getChartTitle = (mode) => {
   if (mode === 'direction') return 'Direction Split';
   if (mode === 'volume') return 'Speed Profile';
   return 'Traffic Flow';
+};
+
+const getXAxisInterval = (type) => {
+  if (type === 'weekly') return 0;
+  if (type === 'monthly') return 4;
+  return 'preserveStartEnd';
 };
 
 const getNiceCeiling = (value) => {
@@ -121,16 +311,20 @@ const getNiceCeiling = (value) => {
 const buildChartStats = (points = []) => {
   const totals = points.reduce((acc, point) => {
     const volume = Number(point.volume) || 0;
-    const speedWeight = volume > 0 ? volume : 1;
 
     acc.volume += volume;
     acc.approach += Number(point.approach) || 0;
     acc.away += Number(point.away) || 0;
-    acc.speedWeightedSum += (Number(point.avgSpeed) || 0) * speedWeight;
-    acc.v85WeightedSum += (Number(point.v85Speed) || 0) * speedWeight;
-    acc.speedWeight += speedWeight;
+    if (volume > 0 && point.avgSpeed != null) {
+      acc.speedWeightedSum += Number(point.avgSpeed) * volume;
+      acc.speedWeight += volume;
+    }
+    if (volume > 0 && point.v85Speed != null) {
+      acc.v85WeightedSum += Number(point.v85Speed) * volume;
+      acc.v85Weight += volume;
+    }
     acc.maxSpeed = Math.max(acc.maxSpeed, Number(point.maxSpeed) || 0);
-    if (!acc.peak || volume > acc.peak.volume) acc.peak = point;
+    if (volume > 0 && (!acc.peak || volume > acc.peak.volume)) acc.peak = point;
     return acc;
   }, {
     volume: 0,
@@ -139,6 +333,7 @@ const buildChartStats = (points = []) => {
     speedWeightedSum: 0,
     v85WeightedSum: 0,
     speedWeight: 0,
+    v85Weight: 0,
     maxSpeed: 0,
     peak: null,
   });
@@ -147,12 +342,14 @@ const buildChartStats = (points = []) => {
     totalVolume: totals.volume,
     approach: totals.approach,
     away: totals.away,
-    avgSpeed: totals.speedWeight ? roundOne(totals.speedWeightedSum / totals.speedWeight) : 0,
-    v85Speed: totals.speedWeight ? roundOne(totals.v85WeightedSum / totals.speedWeight) : 0,
+    avgSpeed: weightedAverageSpeed(totals.speedWeightedSum, totals.speedWeight) ?? 0,
+    v85Speed: weightedAverageSpeed(totals.v85WeightedSum, totals.v85Weight) ?? 0,
     maxSpeed: roundOne(totals.maxSpeed),
     peakLabel: totals.peak?.time || 'No peak',
   };
 };
+
+const getDisplaySpeed = (value) => (value == null ? 'No data' : `${value} mph`);
 
 const getMetricSet = (mode, stats) => {
   if (mode === 'direction') {
@@ -190,7 +387,7 @@ const getMetricSet = (mode, stats) => {
       {
         label: '85th speed',
         value: `${stats.v85Speed} mph`,
-        detail: 'A higher-end speed signal that helps show whether most traffic is staying within a typical range.',
+        detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
       },
       {
         label: 'Max speed',
@@ -219,7 +416,7 @@ const getMetricSet = (mode, stats) => {
     {
       label: '85th speed',
       value: `${stats.v85Speed} mph`,
-      detail: 'A higher-end speed signal that helps show whether most traffic is staying within a typical range.',
+      detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
     },
     {
       label: 'Max speed',
@@ -232,21 +429,21 @@ const getMetricSet = (mode, stats) => {
 const getLegendItems = (mode) => {
   if (mode === 'direction') {
     return [
-      { label: 'Approach', color: '#2f716f', bar: true },
-      { label: 'Away', color: '#a0d1c5', bar: true },
+      { label: 'Approach', color: TRAFFIC_COLORS.approach, bar: true },
+      { label: 'Away', color: TRAFFIC_COLORS.away, bar: true },
     ];
   }
 
   if (mode === 'volume') {
     return [
-      { label: 'Avg speed', color: '#2f716f' },
-      { label: '85th speed', color: '#89b8ae' },
+      { label: 'Avg speed', color: TRAFFIC_COLORS.avgSpeed },
+      { label: '85th speed', color: TRAFFIC_COLORS.v85Speed },
     ];
   }
 
   return [
-    { label: 'Total volume', color: '#2f716f', bar: true },
-    { label: 'Avg speed', color: '#89a9a3' },
+    { label: 'Total volume', color: TRAFFIC_COLORS.volume, bar: true },
+    { label: 'Avg speed', color: TRAFFIC_COLORS.avgSpeed },
   ];
 };
 
@@ -269,15 +466,18 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
     dayPreset: filters?.dayPreset || 'all',
   }), [filters]);
 
-  const granularity = getGranularity(type, effectiveFilters);
   const windowedRows = useMemo(
     () => getWindowedRows(rows, type, effectiveFilters),
     [rows, type, effectiveFilters]
   );
-  const chartData = useMemo(() => buildChartData(windowedRows, granularity), [windowedRows, granularity]);
+  const chartData = useMemo(
+    () => buildChartData(windowedRows, type, effectiveFilters),
+    [windowedRows, type, effectiveFilters]
+  );
   const chartStats = useMemo(() => buildChartStats(chartData), [chartData]);
   const metricSet = useMemo(() => getMetricSet(mode, chartStats), [mode, chartStats]);
   const legendItems = useMemo(() => getLegendItems(mode), [mode]);
+  const xAxisInterval = getXAxisInterval(type);
   const volumeAxisMax = useMemo(() => {
     const values = chartData.map((point) => (
       mode === 'direction'
@@ -287,7 +487,9 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
 
     return getNiceCeiling(Math.max(...values, 10));
   }, [chartData, mode]);
-  const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(...chartData.map((point) => Number(point.maxSpeed) || Number(point.v85Speed) || 0), 10)), [chartData]);
+  const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(...chartData.map((point) => (
+    Number(point.maxSpeed) || Number(point.v85Speed) || Number(point.avgSpeed) || 0
+  )), 10)), [chartData]);
 
   useEffect(() => {
     const loadRows = async () => {
@@ -356,7 +558,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 8, right: mode === 'combined' ? 12 : 8, left: -18, bottom: 8 }}>
             <CartesianGrid stroke="#eef3f6" vertical={false} />
-            <XAxis dataKey="time" fontSize={11} tickLine={false} axisLine={false} minTickGap={18} />
+            <XAxis dataKey="time" fontSize={11} tickLine={false} axisLine={false} minTickGap={18} interval={xAxisInterval} />
             <YAxis
               yAxisId="volume"
               domain={[0, volumeAxisMax]}
@@ -386,8 +588,8 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
                     {mode !== 'volume' && <TooltipRow label="Total volume" value={point.volume} />}
                     {mode === 'direction' && <TooltipRow label="Approach" value={point.approach} />}
                     {mode === 'direction' && <TooltipRow label="Away" value={point.away} />}
-                    {mode !== 'direction' && <TooltipRow label="Avg speed" value={`${point.avgSpeed} mph`} />}
-                    {mode !== 'direction' && <TooltipRow label="85th speed" value={`${point.v85Speed} mph`} />}
+                    {mode !== 'direction' && <TooltipRow label="Avg speed" value={getDisplaySpeed(point.avgSpeed)} />}
+                    {mode !== 'direction' && <TooltipRow label="85th speed" value={getDisplaySpeed(point.v85Speed)} />}
                     {mode !== 'direction' && <TooltipRow label="Max speed" value={`${point.maxSpeed} mph`} />}
                   </div>
                 );
@@ -395,18 +597,18 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             />
             {mode === 'direction' ? (
               <>
-                <Bar yAxisId="volume" dataKey="approach" name="Approach" fill="#2f716f" radius={[6, 6, 0, 0]} />
-                <Bar yAxisId="volume" dataKey="away" name="Away" fill="#a0d1c5" radius={[6, 6, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="approach" name="Approach" fill={TRAFFIC_COLORS.approach} radius={[6, 6, 0, 0]} />
+                <Bar yAxisId="volume" dataKey="away" name="Away" fill={TRAFFIC_COLORS.away} radius={[6, 6, 0, 0]} />
               </>
             ) : mode === 'volume' ? (
               <>
-                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#2f716f" strokeWidth={2.8} dot={false} />
-                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke="#89b8ae" strokeWidth={2.2} strokeDasharray="5 5" dot={false} />
+                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke={TRAFFIC_COLORS.avgSpeed} strokeWidth={3} dot={{ r: 3, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
+                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke={TRAFFIC_COLORS.v85Speed} strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 2.5, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
               </>
             ) : (
               <>
-                <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill="#2f716f" opacity={0.88} radius={[6, 6, 0, 0]} />
-                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke="#89a9a3" strokeWidth={2.2} dot={false} />
+                <Bar yAxisId="volume" dataKey="volume" name="Total volume" fill={TRAFFIC_COLORS.volume} opacity={0.9} radius={[6, 6, 0, 0]} />
+                <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke={TRAFFIC_COLORS.avgSpeed} strokeWidth={3} dot={{ r: 3, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
               </>
             )}
           </ComposedChart>
