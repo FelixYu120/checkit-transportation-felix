@@ -958,6 +958,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [shareNotice, setShareNotice] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [reportAccessRole, setReportAccessRole] = useState('owner');
+  const isReadOnlyReport = reportAccessRole === 'viewer';
   
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
@@ -1190,6 +1191,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   }, [collaborationUser]);
 
   const selectElement = useCallback((elementId) => {
+    if (isReadOnlyReport) return false;
     if (elementId && remoteLocks[elementId]) return false;
     setSelectedElementId((currentId) => {
       if (currentId && currentId !== elementId) broadcastWidgetUnlock(currentId);
@@ -1197,7 +1199,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       return elementId;
     });
     return true;
-  }, [broadcastWidgetLock, broadcastWidgetUnlock, remoteLocks]);
+  }, [broadcastWidgetLock, broadcastWidgetUnlock, isReadOnlyReport, remoteLocks]);
 
   const clearSelectedElement = useCallback(() => {
     setSelectedElementId((currentId) => {
@@ -1265,8 +1267,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   ]);
 
   const markDirty = useCallback(() => {
+    if (isReadOnlyReport) return;
     if (hasLoadedReportRef.current) setIsDirty(true);
-  }, []);
+  }, [isReadOnlyReport]);
 
   const getReportSnapshot = useCallback(() => ({
     docMeta,
@@ -1278,12 +1281,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   }), [comparisonSelections, docMeta, elements, pageCount, reportSettings, selections]);
 
   const pushUndoSnapshot = useCallback(() => {
+    if (isReadOnlyReport) return;
     if (!hasLoadedReportRef.current) return;
     undoStackRef.current = [...undoStackRef.current.slice(-39), getReportSnapshot()];
     redoStackRef.current = [];
-  }, [getReportSnapshot]);
+  }, [getReportSnapshot, isReadOnlyReport]);
 
   const restoreSnapshot = useCallback((snapshot) => {
+    if (isReadOnlyReport) return;
     if (!snapshot) return;
     setDocMeta(snapshot.docMeta);
     setElements(snapshot.elements);
@@ -1292,7 +1297,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     setComparisonSelections(snapshot.comparisonSelections);
     setReportSettings(snapshot.reportSettings);
     markDirty();
-  }, [markDirty]);
+  }, [isReadOnlyReport, markDirty]);
 
   const undoLastChange = useCallback(() => {
     const previousSnapshot = undoStackRef.current.pop();
@@ -1317,12 +1322,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   ));
 
   const updateDocMeta = (updates) => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     setDocMeta((current) => ({ ...current, ...updates }));
     markDirty();
   };
 
   const updateReportSettings = (updates) => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     const shouldRefreshSnapshots = ['timeframe', 'startDate', 'endDate', 'startTime', 'endTime', 'dayPreset'].some((key) => key in updates);
     if (shouldRefreshSnapshots) {
@@ -1350,6 +1357,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const updateElement = (id, updates) => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId'].some((key) => key in updates);
     setElements(elements.map((el) => {
@@ -1363,6 +1371,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     markDirty();
   };
   const updateElementStyle = (id, property, value) => {
+    if (isReadOnlyReport) return;
     const selectedText = getSelectionInsideTextElement(id) || (
       textSelectionRef.current?.id === id
         ? { range: textSelectionRef.current.range, container: textSelectionRef.current.container }
@@ -1432,13 +1441,15 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const getNextZIndex = useCallback(() => Math.max(0, ...elements.map((element) => element.zIndex || 1)) + 1, [elements]);
 
   const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData) => {
+    if (isReadOnlyReport) return;
     setElements((currentElements) => currentElements.map((element) => {
       if (element.id !== id || element.snapshotKey === snapshotKey) return element;
       return { ...element, snapshotKey, snapshotData };
     }));
-  }, []);
+  }, [isReadOnlyReport]);
 
   const refreshElementSnapshot = (id) => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     setElements(elements.map((element) => (
       element.id === id ? { ...element, snapshotData: undefined, snapshotKey: undefined } : element
@@ -1771,18 +1782,21 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const addPage = () => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     setPageCount((currentPageCount) => currentPageCount + 1);
     markDirty();
   };
 
   const removePage = () => {
+    if (isReadOnlyReport) return;
     pushUndoSnapshot();
     setPageCount((currentPageCount) => Math.max(DEFAULT_PAGE_COUNT, currentPageCount - 1));
     markDirty();
   };
 
   const deleteSelected = useCallback(() => {
+    if (isReadOnlyReport) return;
     if (selectedElementId) {
       pushUndoSnapshot();
       setElements(elements.filter(el => el.id !== selectedElementId));
@@ -1790,7 +1804,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       setSelectedElementId(null);
       markDirty();
     }
-  }, [broadcastWidgetUnlock, elements, markDirty, pushUndoSnapshot, selectedElementId]);
+  }, [broadcastWidgetUnlock, elements, isReadOnlyReport, markDirty, pushUndoSnapshot, selectedElementId]);
 
   const alignSelectedHorizontal = (position) => {
     if (!activeElement) return;
@@ -2370,6 +2384,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   useEffect(() => {
     const handleKeyboardDelete = (event) => {
+      if (isReadOnlyReport) return;
       const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
       const isRedo = isUndo && event.shiftKey;
       const isCopy = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c';
@@ -2408,7 +2423,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     window.addEventListener('keydown', handleKeyboardDelete);
     return () => window.removeEventListener('keydown', handleKeyboardDelete);
-  }, [confirmDialog, copySelectedElement, deleteSelected, pasteCopiedElement, redoLastChange, selectedElementId, undoLastChange]);
+  }, [confirmDialog, copySelectedElement, deleteSelected, isReadOnlyReport, pasteCopiedElement, redoLastChange, selectedElementId, undoLastChange]);
 
   const renderTargetControls = ({
     title: sectionTitle = 'Data Source',
@@ -2513,15 +2528,19 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       return (
         <div
           data-text-element-id={el.id}
-          contentEditable={isEditing && !isDownloading}
+          contentEditable={isEditing && !isDownloading && !isReadOnlyReport}
           suppressContentEditableWarning
-          onFocus={() => setSelectedElementId(el.id)}
+          onFocus={() => {
+            if (!isReadOnlyReport) setSelectedElementId(el.id);
+          }}
           onInput={(event) => {
+            if (isReadOnlyReport) return;
             const nextHtml = event.currentTarget.innerHTML;
             textDraftsRef.current[el.id] = nextHtml;
             markDirty();
           }}
           onBlur={(event) => {
+            if (isReadOnlyReport) return;
             const nextHtml = event.currentTarget.innerHTML;
             textDraftsRef.current[el.id] = nextHtml;
             if (event.relatedTarget?.closest?.('[data-insights-editor-sidebar="true"]')) {
@@ -2531,12 +2550,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             if (nextHtml !== savedTextHtml) updateElement(el.id, { html: nextHtml, content: stripHtml(nextHtml) });
             setEditingTextId(null);
           }}
-          onMouseUp={() => saveTextSelection(el.id)}
-          onKeyUp={() => saveTextSelection(el.id)}
-          onMouseDown={(event) => {
-            if (isEditing) event.stopPropagation();
+          onMouseUp={() => {
+            if (!isReadOnlyReport) saveTextSelection(el.id);
           }}
-          style={{ width: '100%', height: '100%', overflow: 'hidden', fontSize: getTextFontSize(el), fontFamily: el.style.fontFamily || FONT_FAMILY_OPTIONS[0].value, color: el.style.color || DEFAULT_TEXT_COLOR, fontWeight: el.style.fontWeight, textAlign: el.style.textAlign, outline: 'none', whiteSpace: 'pre-wrap', cursor: isEditing ? 'text' : 'move', lineHeight: 1.18 }}
+          onKeyUp={() => {
+            if (!isReadOnlyReport) saveTextSelection(el.id);
+          }}
+          onMouseDown={(event) => {
+            if (isReadOnlyReport || isEditing) event.stopPropagation();
+          }}
+          style={{ width: '100%', height: '100%', overflow: 'hidden', fontSize: getTextFontSize(el), fontFamily: el.style.fontFamily || FONT_FAMILY_OPTIONS[0].value, color: el.style.color || DEFAULT_TEXT_COLOR, fontWeight: el.style.fontWeight, textAlign: el.style.textAlign, outline: 'none', whiteSpace: 'pre-wrap', cursor: isReadOnlyReport ? 'default' : isEditing ? 'text' : 'move', lineHeight: 1.18 }}
           dangerouslySetInnerHTML={{ __html: textHtml }}
         />
       );
@@ -2748,12 +2771,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <div className={styles.navGroup}>
           <button onClick={handleExitRequest} className={styles.backLink}>← Back</button>
           <span className={styles.navTitle}>{title} Builder</span>
-          <span className={styles.collaborationPill} title={collaborators.map((user) => user.email || user.name).join(', ')}>
-            {reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
+          <span className={styles.collaborationPill} title={isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
+            {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
           </span>
         </div>
         
-        <div className={styles.navGroup}>
+        {!isReadOnlyReport && <div className={styles.navGroup}>
           <button onClick={() => addNewElement('text')} className={styles.toolbarBtn}><Type size={14} /> Text</button>
           <button onClick={() => addNewElement('chart')} className={styles.toolbarBtn}><BarChart2 size={14} /> Chart</button>
           <button onClick={() => addNewElement('summary')} className={styles.toolbarBtn}><Layers size={14} /> Banner</button>
@@ -2770,9 +2793,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
               event.target.value = '';
             }}
           />
-        </div>
+        </div>}
 
-        <div className={styles.navGroup}>
+        {!isReadOnlyReport && <div className={styles.navGroup}>
           <button onClick={handleExportPreview} disabled={isDownloading} className={styles.toolbarBtn}>
              <Download size={16} /> Preview Export
           </button>
@@ -2784,13 +2807,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           <button onClick={handleSaveLayout} disabled={reportAccessRole === 'viewer'} className={styles.primaryBtn}>
              {isSaved ? 'Saved!' : 'Save Layout'}
           </button>
-        </div>
+        </div>}
       </header>
 
-      <div className={styles.workspace}>
+      <div className={`${styles.workspace} ${isReadOnlyReport ? styles.viewerWorkspace : ''}`}>
         
         {/* LEFT SIDEBAR */}
-        <div className={`${styles.sidebarPanel} ${styles.left}`}>
+        {!isReadOnlyReport && <div className={`${styles.sidebarPanel} ${styles.left}`}>
           <h3 className={styles.sidebarTitle}>Document Metadata</h3>
           
           <label className={styles.inputLabel}>Report Title</label>
@@ -2878,10 +2901,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             Footer branding
           </label>
           <p className={styles.fieldHint}>Last saved by {reportSettings.lastSavedBy || 'Not saved yet'}</p>
-        </div>
+        </div>}
 
         {/* CENTER CANVAS */}
-        <div ref={canvasRef} onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }} className={styles.canvasArea}>
+        <div ref={canvasRef} onMouseDown={(e) => { if(!isReadOnlyReport && e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }} className={styles.canvasArea}>
           {isReportLoading ? (
             <div className={styles.reportLoadingState}>Loading report...</div>
           ) : (
@@ -2889,7 +2912,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             <div
             ref={reportRef}
             className={styles.paperBoundary}
-            onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }}
+            onMouseDown={(e) => { if(!isReadOnlyReport && e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }}
             style={{ height: `${totalVisiblePageCount * PAGE_HEIGHT}px`, backgroundColor: '#ffffff' }}
           >
             
@@ -2901,7 +2924,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 )
             ))}
 
-            {!isDownloading && (
+            {!isDownloading && !isReadOnlyReport && (
               <div data-html2canvas-ignore="true" className={styles.snapGuideLayer}>
                 {snapGuides.vertical.map((x, index) => (
                   <span key={`snap-v-${index}-${x}`} className={styles.snapGuideVertical} style={{ left: `${x}px` }} />
@@ -2916,6 +2939,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
               <section
                 className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
                 onMouseDown={() => {
+                  if (isReadOnlyReport) return;
                   setSelectedElementId('cover');
                   setEditingTextId(null);
                 }}
@@ -2930,15 +2954,17 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   position={{ x: reportSettings.coverEyebrowX ?? 72, y: reportSettings.coverEyebrowY ?? 88 }}
                   dragGrid={[GRID_SIZE, GRID_SIZE]}
                   enableResizing={false}
+                  disableDragging={isReadOnlyReport}
                   onMouseDown={(event) => {
                     event.stopPropagation();
+                    if (isReadOnlyReport) return;
                     setSelectedElementId('cover');
                   }}
                   onDragStop={(event, data) => updateReportSettings({ coverEyebrowX: data.x, coverEyebrowY: data.y })}
                 >
                   <p
                     className={styles.coverEyebrow}
-                    contentEditable={!isDownloading}
+                    contentEditable={!isDownloading && !isReadOnlyReport}
                     suppressContentEditableWarning
                     onMouseDown={(event) => event.stopPropagation()}
                     onBlur={(event) => updateReportSettings({ coverEyebrow: event.currentTarget.innerText })}
@@ -2953,14 +2979,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   position={{ x: reportSettings.coverTitleX ?? 72, y: reportSettings.coverTitleY ?? 160 }}
                   dragGrid={[GRID_SIZE, GRID_SIZE]}
                   enableResizing={false}
+                  disableDragging={isReadOnlyReport}
                   onMouseDown={(event) => {
                     event.stopPropagation();
+                    if (isReadOnlyReport) return;
                     setSelectedElementId('cover');
                   }}
                   onDragStop={(event, data) => updateReportSettings({ coverTitleX: data.x, coverTitleY: data.y })}
                 >
                   <h1
-                    contentEditable={!isDownloading}
+                    contentEditable={!isDownloading && !isReadOnlyReport}
                     suppressContentEditableWarning
                     onMouseDown={(event) => event.stopPropagation()}
                     onBlur={(event) => updateDocMeta({ title: event.currentTarget.innerText })}
@@ -2975,14 +3003,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   position={{ x: reportSettings.coverSubtitleX ?? 72, y: reportSettings.coverSubtitleY ?? 312 }}
                   dragGrid={[GRID_SIZE, GRID_SIZE]}
                   enableResizing={false}
+                  disableDragging={isReadOnlyReport}
                   onMouseDown={(event) => {
                     event.stopPropagation();
+                    if (isReadOnlyReport) return;
                     setSelectedElementId('cover');
                   }}
                   onDragStop={(event, data) => updateReportSettings({ coverSubtitleX: data.x, coverSubtitleY: data.y })}
                 >
                   <p
-                    contentEditable={!isDownloading}
+                    contentEditable={!isDownloading && !isReadOnlyReport}
                     suppressContentEditableWarning
                     onMouseDown={(event) => event.stopPropagation()}
                     onBlur={(event) => updateReportSettings({ coverSubtitle: event.currentTarget.innerText })}
@@ -2997,8 +3027,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   position={{ x: reportSettings.coverMetaX ?? 72, y: reportSettings.coverMetaY ?? 1040 }}
                   dragGrid={[GRID_SIZE, GRID_SIZE]}
                   enableResizing={false}
+                  disableDragging={isReadOnlyReport}
                   onMouseDown={(event) => {
                     event.stopPropagation();
+                    if (isReadOnlyReport) return;
                     setSelectedElementId('cover');
                   }}
                   onDragStop={(event, data) => updateReportSettings({ coverMetaX: data.x, coverMetaY: data.y })}
@@ -3030,7 +3062,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             )}
             
             {elements.map((el) => {
-              const isSelected = !isDownloading && selectedElementId === el.id;
+              const isSelected = !isDownloading && !isReadOnlyReport && selectedElementId === el.id;
               const lockedBy = remoteLocks[el.id];
               const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
 
@@ -3051,6 +3083,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     handleDragResizeStop(el.id, position.x, position.y - reportContentOffset, newWidth, newHeight);
                   }}
                   onMouseDown={() => {
+                    if (isReadOnlyReport) return;
                     if (lockedBy) return;
                     if (editingTextId && editingTextId !== el.id) commitTextDrafts();
                     selectElement(el.id);
@@ -3063,6 +3096,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     }
                   }}
                   onDoubleClick={(event) => {
+                    if (isReadOnlyReport) return;
                     if (lockedBy) return;
                     selectElement(el.id);
                     if (el.type === 'text') {
@@ -3071,8 +3105,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     }
                   }}
                   style={{ zIndex: isSelected ? (el.zIndex || 1) + 1000 : (el.zIndex || 1) }}
-                  disableDragging={editingTextId === el.id || Boolean(lockedBy)}
-                  enableResizing={isSelected && !lockedBy} 
+                  disableDragging={isReadOnlyReport || editingTextId === el.id || Boolean(lockedBy)}
+                  enableResizing={!isReadOnlyReport && isSelected && !lockedBy} 
                   resizeHandleStyles={{
                     bottomRight: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', right: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
                     bottomLeft: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', left: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
@@ -3083,7 +3117,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   <div className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''} ${isSelected ? styles.widgetBoxSelected : ''} ${lockedBy ? styles.widgetBoxLocked : ''}`} style={{
                       backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
                       borderRadius: el.style.borderRadius, 
-                      pointerEvents: isSelected || ['text', 'image', 'attachment', 'link'].includes(el.type) ? 'auto' : 'none', 
+                      pointerEvents: isReadOnlyReport ? 'none' : isSelected || ['text', 'image', 'attachment', 'link'].includes(el.type) ? 'auto' : 'none', 
                       padding: ['divider', 'image', 'chart', 'summary'].includes(el.type) ? '0' : '16px',
                       boxSizing: 'border-box',
                       border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
@@ -3106,7 +3140,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
           </div>
 
-          {!isDownloading && pageCount > DEFAULT_PAGE_COUNT && (
+          {!isDownloading && !isReadOnlyReport && pageCount > DEFAULT_PAGE_COUNT && (
             <div className={styles.pageControl} data-html2canvas-ignore="true" aria-label="Page controls">
               <button
                 type="button"
@@ -3129,7 +3163,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             </div>
           )}
 
-          {!isDownloading && pageCount === DEFAULT_PAGE_COUNT && (
+          {!isDownloading && !isReadOnlyReport && pageCount === DEFAULT_PAGE_COUNT && (
             <div className={styles.pageControl} data-html2canvas-ignore="true" aria-label="Page controls">
               <button
                 type="button"
@@ -3147,7 +3181,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         </div>
 
         {/* RIGHT SIDEBAR */}
-        <div className={`${styles.sidebarPanel} ${styles.right}`} data-insights-editor-sidebar="true">
+        {!isReadOnlyReport && <div className={`${styles.sidebarPanel} ${styles.right}`} data-insights-editor-sidebar="true">
           <h3 className={styles.sidebarTitle}>Widget Settings</h3>
 
           {!activeElement && !isCoverSelected ? (
@@ -3635,7 +3669,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
               <button onClick={deleteSelected} className={styles.dangerBtn}>Delete Widget</button>
             </div>
           )}
-        </div>
+        </div>}
 
       </div>
       <ConfirmDialog dialog={confirmDialog} onClose={resolveConfirmation} />

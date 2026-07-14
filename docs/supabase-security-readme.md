@@ -94,6 +94,7 @@ A viewer cannot:
 - Save edits
 - Delete the report
 - Change sharing/access settings
+- Use builder tools, sidebars, drag handles, page controls, or text editing controls in the UI
 
 ### Admin
 

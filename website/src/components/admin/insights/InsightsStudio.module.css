@@ -596,6 +596,10 @@
   width: 100%;
 }
 
+.viewerWorkspace {
+  justify-content: center;
+}
+
 .sidebarPanel {
   width: 280px;
   min-width: 280px;
