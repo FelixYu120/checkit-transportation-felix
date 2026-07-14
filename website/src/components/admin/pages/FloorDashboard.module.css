@@ -1227,9 +1227,10 @@
   line-height: 1.05;
   font-weight: 900;
   letter-spacing: -0.04em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .placeSummaryCopy p {
@@ -1247,7 +1248,7 @@
 
 .heroMetricGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: 8px;
   width: 100%;
   max-width: 100%;
@@ -1294,7 +1295,7 @@
 
 .insightGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 8px;
   width: 100%;
   min-width: 0;

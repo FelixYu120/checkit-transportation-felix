@@ -49,7 +49,7 @@ const Sidebar = () => {
         };
 
         fetchEverything();
-    }, [urlCollegeId]);
+    }, [urlAreaId, urlCollegeId]);
 
     const toggleCollege = (id) => setExpandedColleges(p => ({ ...p, [id]: !p[id] }));
     const toggleArea = (id) => setExpandedAreas(p => ({ ...p, [id]: !p[id] }));

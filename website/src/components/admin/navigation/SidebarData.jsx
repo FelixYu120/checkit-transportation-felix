@@ -1,6 +1,22 @@
 import { slugifyAdminPathSegment } from "../routing/AdminRouteUtils";
 import { fetchSensorDirectory } from "../data/SensorDirectoryData";
 
+const getInstituteDisplayName = (institute) => {
+  const rawName = institute.full_name || institute.institute_id || "Institute";
+  if (/^ucsd$/i.test(String(institute.institute_id || ""))) return "UCSD";
+  if (/university of california san diego|uc san diego|university of california sa/i.test(rawName)) return "UCSD";
+  if (String(rawName).length <= 22) return rawName;
+
+  const acronym = String(rawName)
+    .split(/\s+/)
+    .filter((word) => !/^(and|of|the|for)$/i.test(word))
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  return acronym.length >= 2 && acronym.length <= 6 ? acronym : rawName;
+};
+
 export const formatCampusNavigation = (institutes = [], sensors = []) =>
   institutes.map((institute) => {
     const instituteSensors = sensors.filter(
@@ -32,7 +48,7 @@ export const formatCampusNavigation = (institutes = [], sensors = []) =>
 
     return {
       id: institute.institute_id,
-      instituteName: institute.full_name || institute.institute_id,
+      instituteName: getInstituteDisplayName(institute),
       areas: Object.values(areasByName)
         .map((area) => ({
           ...area,

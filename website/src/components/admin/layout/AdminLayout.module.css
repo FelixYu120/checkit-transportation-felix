@@ -81,7 +81,7 @@
 
 .workspace-shell {
   display: grid;
-  grid-template-columns: minmax(560px, 1.55fr) minmax(320px, 0.95fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -97,6 +97,7 @@
 /* The main content area on the right */
 .admin-content {
   padding: clamp(24px, 2.6vw, 48px);
+  overflow-x: hidden;
   overflow-y: auto;
   min-width: 0;
   height: 100%;
@@ -126,7 +127,7 @@
 
 @media (max-width: 1200px) {
   .workspace-shell {
-    grid-template-columns: minmax(500px, 1.35fr) minmax(280px, 0.8fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
   }
 
   .sidebar-rail {
