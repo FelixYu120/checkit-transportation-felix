@@ -13,7 +13,6 @@ export const slugifyAdminPathSegment = (text) => {
     .replace(/^_+|_+$/g, "");
 };
 
-
 export const getFloorRouteSegment = (floorId) => {
   const value = String(floorId || "").trim();
   if (!value) return "corridors";
