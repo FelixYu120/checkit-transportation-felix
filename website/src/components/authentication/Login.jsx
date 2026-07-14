@@ -46,10 +46,8 @@ function Login({ setIsLoggedIn }) {
 
                 <div className={styles.fadein}>
                     <div className={styles.headerBlock}>
+                        <div className={styles.domainBadge}>Transportation</div>
                         <h1 className={styles.logintitle}>WELCOME BACK!</h1>
-                        <p className={styles.helperText}>
-                            Please log in with your organization credentials.
-                        </p>
                     </div>
 
                     {errorMessage && <div className={styles.errorMessage}>{errorMessage}</div>}

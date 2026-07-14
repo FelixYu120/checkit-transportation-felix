@@ -10,7 +10,9 @@ import {
   ImagePlus,
   Link2,
   FileText,
+  Plus,
   User,
+  Users,
   ArrowRight,
   Calendar,
   Trash2,
@@ -21,6 +23,8 @@ import {
   AlignCenterVertical,
   AlignEndVertical,
   RefreshCw,
+  Maximize2,
+  Share2,
 } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import html2canvas from 'html2canvas';
@@ -82,6 +86,7 @@ const DEFAULT_REPORT_SETTINGS = {
   coverFontFamily: 'Inter, system-ui, sans-serif',
   lastSavedBy: '',
   lastSavedAt: '',
+  sharedAccess: {},
 };
 const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 const FONT_FAMILY_OPTIONS = [
@@ -92,87 +97,6 @@ const FONT_FAMILY_OPTIONS = [
   { value: '"Courier New", Courier, monospace', label: 'Courier New' },
 ];
 
-const CHART_PRESETS = {
-  solo: [
-    {
-      id: 'utilization-trend',
-      label: 'Volume + speed',
-      updates: {
-        label: 'Volume + Speed',
-        chartType: 'combo',
-        highlightPeak: true,
-        showLegend: true,
-        occupancyColor: '#2f716f',
-        peopleColor: '#94a3b8',
-      },
-    },
-    {
-      id: 'people-activity',
-      label: 'Direction split',
-      updates: {
-        label: 'Direction Split',
-        chartType: 'direction_bar',
-        highlightPeak: true,
-        showLegend: true,
-        occupancyColor: '#2f716f',
-        peopleColor: '#9fbfb8',
-      },
-    },
-    {
-      id: 'threshold-review',
-      label: 'Speed profile',
-      updates: {
-        label: 'Speed Profile',
-        chartType: 'speed_profile',
-        thresholdEnabled: true,
-        thresholdValue: 50,
-        thresholdLabel: 'Threshold',
-        thresholdColor: '#ef4444',
-        showLegend: true,
-        legendItems: { occupancy: true, people: true, threshold: true },
-      },
-    },
-  ],
-  comparison: [
-    {
-      id: 'peak-comparison',
-      label: 'Peak comparison',
-      updates: {
-        label: 'Peak Comparison',
-        chartType: 'combo',
-        showLegend: true,
-        thresholdEnabled: false,
-        seriesColors: ['#2f716f', '#8b5cf6', '#0ea5e9'],
-        peopleSeriesColors: ['#64748b', '#b8a2f3', '#94a3b8'],
-      },
-    },
-    {
-      id: 'utilization-comparison',
-      label: 'Speed comparison',
-      updates: {
-        label: 'Speed Comparison',
-        chartType: 'line',
-        showLegend: true,
-        thresholdEnabled: false,
-        seriesColors: ['#0f766e', '#7c3aed', '#0284c7'],
-      },
-    },
-    {
-      id: 'capacity-watch',
-      label: 'Threshold watch',
-      updates: {
-        label: 'Threshold Watch',
-        chartType: 'combo',
-        showLegend: true,
-        thresholdEnabled: true,
-        thresholdValue: 50,
-        thresholdLabel: 'Threshold',
-        thresholdColor: '#ef4444',
-        legendItems: { occupancy: true, people: true, threshold: true },
-      },
-    },
-  ],
-};
 const DEFAULT_SUMMARY_METRICS = ['total', 'peak', 'averageSpeed', 'busiestTime'];
 const SUMMARY_METRIC_OPTIONS = [
   { value: 'total', label: 'Total Traffic Volume' },
@@ -217,20 +141,20 @@ const TEMPLATE_OPTIONS = {
   solo: [
     {
       id: 'default',
-      name: 'Default Template',
-      description: 'Cover, header, summary cards, and a weekly trend chart.',
+      name: 'Weekly Corridor Report',
+      description: 'Cover, KPI cards, and a weekly traffic trend for one selected corridor.',
       previewClass: 'default',
     },
     {
       id: 'operations',
-      name: 'Operations Snapshot',
-      description: 'Compact KPI strip, 24h activity, and a short notes area.',
+      name: 'Traffic Volume Review',
+      description: 'Compact KPI strip, 24h movement, and a notes area for operations follow-up.',
       previewClass: 'operations',
     },
     {
       id: 'trend-review',
-      name: 'Trend Review',
-      description: 'Large weekly visualization with supporting takeaways below.',
+      name: 'Speed Profile Review',
+      description: 'Large trend view with traffic takeaways and supporting metrics.',
       previewClass: 'trend',
     },
     {
@@ -243,20 +167,20 @@ const TEMPLATE_OPTIONS = {
   comparison: [
     {
       id: 'default',
-      name: 'Default Template',
-      description: 'Cover, header, and one comparison visualization.',
+      name: 'Before / After Comparison',
+      description: 'Cover, header, and one comparison visualization for two periods or corridors.',
       previewClass: 'default',
     },
     {
       id: 'executive-compare',
-      name: 'Executive Compare',
-      description: 'A comparison banner, chart, and interpretation block.',
+      name: 'Peak Traffic Review',
+      description: 'A comparison banner, chart, and interpretation block for busy corridors.',
       previewClass: 'executive',
     },
     {
       id: 'corridor-benchmark',
       name: 'Corridor Benchmark',
-      description: 'Side-by-side comparison modules for transportation reviews.',
+      description: 'Side-by-side comparison modules for identifying high and low traffic corridors.',
       previewClass: 'benchmark',
     },
     {
@@ -374,30 +298,6 @@ const createPageImageFromCanvas = (canvas, pageIndex) => ({
   height: canvas.height,
 });
 
-const createPageImageFromReportCanvas = (sourceCanvas, pageIndex) => {
-  const scale = sourceCanvas.width / PAGE_WIDTH || 1;
-  const pageCanvas = document.createElement('canvas');
-  pageCanvas.width = Math.round(PAGE_WIDTH * scale);
-  pageCanvas.height = Math.round(PAGE_HEIGHT * scale);
-
-  const context = pageCanvas.getContext('2d');
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-  context.drawImage(
-    sourceCanvas,
-    0,
-    Math.round(pageIndex * PAGE_HEIGHT * scale),
-    pageCanvas.width,
-    pageCanvas.height,
-    0,
-    0,
-    pageCanvas.width,
-    pageCanvas.height
-  );
-
-  return createPageImageFromCanvas(pageCanvas, pageIndex);
-};
-
 const waitForReportReady = async (element, timeoutMs = 8000) => {
   const startedAt = Date.now();
 
@@ -468,6 +368,19 @@ const getSnappedElementPosition = (movingElement, layout, nextX, nextY) => {
 const getColorInputValue = (value, fallback) =>
   /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
 
+const getCoverExportBackground = (settings) => {
+  const accent = getColorInputValue(settings.coverAccentColor, '#2f716f');
+  const bg = getColorInputValue(settings.coverBackground, '#f7fbfa');
+  const layout = settings.coverLayout || 'classic';
+
+  if (layout === 'minimal') return bg;
+  if (layout === 'banded') return `linear-gradient(180deg, ${accent} 0 255px, transparent 255px), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
+  if (layout === 'editorial') return `linear-gradient(90deg, transparent 0 620px, rgba(47, 113, 111, 0.18) 620px 100%), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
+  if (layout === 'executive') return `linear-gradient(135deg, rgba(71, 85, 105, 0.14) 0 34%, transparent 34%), linear-gradient(180deg, ${bg} 0%, #ffffff 100%)`;
+  if (layout === 'benchmark') return `linear-gradient(90deg, rgba(139, 92, 246, 0.16) 0 50%, #ffffff 50% 100%), linear-gradient(180deg, ${bg} 0%, #ffffff 100%)`;
+  return `linear-gradient(90deg, ${accent} 0 14px, transparent 14px), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
+};
+
 const normalizeFontSizeValue = (value, fallback = '16px') => {
   const nextValue = String(value || '').trim();
   if (!nextValue) return fallback;
@@ -534,13 +447,14 @@ const getSnapshotKey = ({ mode, target, secondaryTarget, targets, filters, timef
 
 const ConfirmDialog = ({ dialog, onClose }) => {
   if (!dialog) return null;
+  if (typeof document === 'undefined') return null;
   const actions = dialog.actions || [
     { value: false, label: dialog.cancelLabel || 'Cancel', variant: 'secondary' },
     { value: true, label: dialog.confirmLabel || 'Save', variant: 'primary' },
   ];
 
-  return (
-    <div className={styles.modalOverlay} role="presentation">
+  return createPortal((
+    <div className={`${styles.modalOverlay} ${styles.confirmOverlay}`} role="presentation">
       <div className={styles.confirmDialog} role="dialog" aria-modal="true" aria-labelledby="insights-confirm-title">
         <h2 id="insights-confirm-title">{dialog.title}</h2>
         <p>{dialog.message}</p>
@@ -558,7 +472,7 @@ const ConfirmDialog = ({ dialog, onClose }) => {
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 };
 
 const ExportPreviewModal = ({ isOpen, pageCount = 1, renderPage, onClose, onDownload, isDownloading }) => {
@@ -610,6 +524,116 @@ const ExportPreviewModal = ({ isOpen, pageCount = 1, renderPage, onClose, onDown
           <button type="button" className={styles.secondaryBtn} onClick={onClose}>Keep editing</button>
           <button type="button" className={styles.primaryBtn} onClick={onDownload} disabled={isDownloading}>
             {isDownloading ? 'Preparing...' : 'Download PDF'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ), document.body);
+};
+
+const ShareReportModal = ({
+  isOpen,
+  email,
+  error,
+  notice,
+  isSharing,
+  sharedWith = [],
+  sharedAccess = {},
+  onEmailChange,
+  onClose,
+  onShare,
+  onAccessChange,
+  onRemoveAccess,
+}) => {
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  const normalizedAccess = normalizeSharedAccess(sharedAccess, sharedWith);
+
+  return createPortal((
+    <div className={styles.modalOverlay} role="presentation" onMouseDown={onClose}>
+      <div className={styles.shareDialog} role="dialog" aria-modal="true" aria-labelledby="share-report-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={styles.shareDialogHeader}>
+          <div>
+            <h2 id="share-report-title">Share report</h2>
+            <p>Invite a platform user from your institute.</p>
+          </div>
+        </div>
+
+        <div className={styles.sharedUsersList}>
+          <div className={styles.sharedUsersHeader}>
+            <Users size={16} />
+            <span>People with access</span>
+          </div>
+          {sharedWith.length ? (
+            <div className={styles.sharedUsers}>
+              {sharedWith.map((sharedEmail) => (
+                <div className={styles.sharedUserRow} key={sharedEmail}>
+                  <span className={styles.sharedUserAvatar}>
+                    <User size={14} />
+                  </span>
+                  <span className={styles.sharedUserEmail}>{sharedEmail}</span>
+                  <select
+                    className={styles.sharedUserRoleSelect}
+                    value={normalizedAccess[String(sharedEmail).toLowerCase()] || 'editor'}
+                    onChange={(event) => onAccessChange(sharedEmail, event.target.value)}
+                    disabled={isSharing}
+                    aria-label={`Access for ${sharedEmail}`}
+                  >
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                  <button
+                    type="button"
+                    className={styles.sharedUserRemoveBtn}
+                    onClick={() => onRemoveAccess(sharedEmail)}
+                    disabled={isSharing}
+                    aria-label={`Remove ${sharedEmail}`}
+                    title="Remove access"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.sharedUsersEmpty}>Only you have access right now.</p>
+          )}
+        </div>
+
+        <label className={styles.inputLabel} htmlFor="share-report-email">Add people</label>
+        <div className={styles.shareInviteRow}>
+          <input
+            id="share-report-email"
+            className={styles.shareEmailInput}
+            type="text"
+            value={email}
+            placeholder="name@institution.edu"
+            onChange={(event) => onEmailChange(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onShare(false);
+            }}
+            autoFocus
+          />
+          <button
+            type="button"
+            className={styles.shareAddBtn}
+            onClick={() => onShare(true)}
+            disabled={isSharing || !email.trim()}
+            aria-label="Add people"
+            title="Add people"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+
+        {error && <p className={styles.shareError}>{error}</p>}
+        {!error && notice && <p className={styles.shareNotice}>{notice}</p>}
+        <p className={styles.fieldHint}>Enter one email, or use + to add multiple emails separated by commas.</p>
+
+        <div className={styles.confirmActions}>
+          <button type="button" className={styles.secondaryBtn} onClick={onClose}>Cancel</button>
+          <button type="button" className={styles.primaryBtn} onClick={() => onShare(false)} disabled={isSharing || !email.trim()}>
+            {isSharing ? 'Checking...' : 'Share'}
           </button>
         </div>
       </div>
@@ -751,19 +775,75 @@ const parseSavedLayoutData = (layoutData) => {
   return null;
 };
 
-const getReportMode = (report) => parseSavedLayoutData(report?.layout_data)?.mode || 'solo';
+const hasSelectionValue = (selections = {}) => Boolean(selections.areaId || selections.buildingId || selections.floorNumber || selections.roomId);
+
+const inferReportModeFromLayout = (savedLayout) => {
+  if (!savedLayout) return 'solo';
+  if (['solo', 'comparison'].includes(savedLayout.mode)) return savedLayout.mode;
+  if (hasSelectionValue(savedLayout.comparisonSelections)) return 'comparison';
+  if ((savedLayout.elements || []).some((element) => (
+    hasSelectionValue(element.comparisonSelections)
+    || (Array.isArray(element.comparisonSelectionList) && element.comparisonSelectionList.some(hasSelectionValue))
+  ))) return 'comparison';
+  return 'solo';
+};
+
+const getReportMode = (report) => inferReportModeFromLayout(parseSavedLayoutData(report?.layout_data));
 
 const getReportSettings = (report) => parseSavedLayoutData(report?.layout_data)?.reportSettings || {};
+
+const getReportSharedEmails = (report) => {
+  if (Array.isArray(report?.shared_with_emails)) return report.shared_with_emails.filter(Boolean);
+  const sharedWith = getReportSettings(report).sharedWith;
+  return Array.isArray(sharedWith) ? sharedWith.filter(Boolean) : [];
+};
+
+const normalizeSharedAccess = (access = {}, sharedEmails = []) => {
+  const entries = access && typeof access === 'object' && !Array.isArray(access) ? access : {};
+  return Object.fromEntries(sharedEmails.map((email) => {
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const role = String(entries[normalizedEmail] || entries[email] || 'editor').toLowerCase();
+    return [normalizedEmail, role === 'viewer' ? 'viewer' : 'editor'];
+  }).filter(([email]) => email));
+};
+
+const parseShareEmails = (value = '') => Array.from(new Set(
+  String(value)
+    .split(/[\s,;]+/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+));
+
+const getReportSharedAccess = (report) => {
+  const sharedEmails = getReportSharedEmails(report);
+  return normalizeSharedAccess(report?.shared_access || getReportSettings(report).sharedAccess, sharedEmails);
+};
 
 const getReportLastSavedDate = (report) => (
   getReportSettings(report).lastSavedAt || report.created_at || report.date || null
 );
+
+const getReportLastSavedBy = (report) => getReportSettings(report).lastSavedBy || '';
 
 const formatReportDate = (value) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString();
+};
+
+const formatReportDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 const sortReportsByLastSaved = (reports = []) => [...reports].sort((a, b) => {
@@ -856,6 +936,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const copiedElementRef = useRef(null);
   const textDraftsRef = useRef({});
   const textSelectionRef = useRef(null);
+  const collaborationChannelRef = useRef(null);
   
   const [isSaved, setIsSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -868,6 +949,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [reportSettings, setReportSettings] = useState(() => getTemplateReportSettings(templateConfig.id));
   const [editingTextId, setEditingTextId] = useState(null);
   const [snapGuides, setSnapGuides] = useState({ vertical: [], horizontal: [] });
+  const [collaborationUser, setCollaborationUser] = useState(null);
+  const [collaborators, setCollaborators] = useState([]);
+  const [remoteLocks, setRemoteLocks] = useState({});
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareError, setShareError] = useState('');
+  const [shareNotice, setShareNotice] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
   
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
@@ -914,8 +1003,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             
             const savedLayout = parseSavedLayoutData(data.layout_data);
             if (savedLayout) {
-              if (savedLayout.mode && savedLayout.mode !== type) {
-                navigate(`/insights-studio/${savedLayout.mode}?id=${reportId}`, { replace: true });
+              const savedReportMode = inferReportModeFromLayout(savedLayout);
+              if (savedReportMode !== type) {
+                navigate(`/insights-studio/${savedReportMode}?id=${reportId}`, { replace: true });
                 return;
               }
 
@@ -923,14 +1013,24 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
               setPageCount(savedLayout.pageCount);
               setSelections(savedLayout.selections);
               setComparisonSelections(savedLayout.comparisonSelections);
-              setReportSettings(savedLayout.reportSettings);
+              const sharedWith = getReportSharedEmails(data);
+              const sharedAccess = getReportSharedAccess(data);
+              setReportSettings({
+                ...savedLayout.reportSettings,
+                sharedWith,
+                sharedAccess,
+              });
               lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
                 mode: type,
                 elements: savedLayout.elements,
                 pageCount: savedLayout.pageCount,
                 selections: savedLayout.selections,
                 comparisonSelections: savedLayout.comparisonSelections,
-                reportSettings: savedLayout.reportSettings,
+                reportSettings: {
+                  ...savedLayout.reportSettings,
+                  sharedWith,
+                  sharedAccess,
+                },
               }));
             }
             setIsDirty(false);
@@ -949,6 +1049,85 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     fetchExistingLayout();
   }, [navigate, reportId, type]);
+
+  useEffect(() => {
+    if (!reportId) {
+      setCollaborators([]);
+      setRemoteLocks({});
+      setCollaborationUser(null);
+      return undefined;
+    }
+
+    let isMounted = true;
+    let channel;
+
+    const setupCollaboration = async () => {
+      const { data: userResult } = await supabase.auth.getUser();
+      if (!isMounted) return;
+
+      const userEmail = userResult?.user?.email || 'Anonymous editor';
+      const userId = userResult?.user?.id || `${userEmail}-${Date.now()}`;
+      const userInfo = {
+        id: userId,
+        email: userEmail,
+        name: userEmail.split('@')[0] || userEmail,
+        joinedAt: new Date().toISOString(),
+      };
+
+      setCollaborationUser(userInfo);
+
+      channel = supabase.channel(`insights-studio-report-${reportId}`, {
+        config: { presence: { key: userId } },
+      });
+      collaborationChannelRef.current = channel;
+
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          const activeUserIds = new Set(Object.values(state).flat().map((presence) => presence.id));
+          const nextCollaborators = Object.values(state)
+            .flat()
+            .filter((presence) => presence.id !== userId);
+          setCollaborators(nextCollaborators);
+          setRemoteLocks((current) => Object.fromEntries(
+            Object.entries(current).filter(([, lock]) => activeUserIds.has(lock.userId)),
+          ));
+        })
+        .on('broadcast', { event: 'widget-lock' }, ({ payload }) => {
+          if (!payload?.elementId || payload.userId === userId) return;
+          setRemoteLocks((current) => ({
+            ...current,
+            [payload.elementId]: payload,
+          }));
+        })
+        .on('broadcast', { event: 'widget-unlock' }, ({ payload }) => {
+          if (!payload?.elementId || payload.userId === userId) return;
+          setRemoteLocks((current) => {
+            const nextLocks = { ...current };
+            delete nextLocks[payload.elementId];
+            return nextLocks;
+          });
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track(userInfo);
+          }
+        });
+    };
+
+    setupCollaboration();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        channel.untrack();
+        supabase.removeChannel(channel);
+      }
+      if (collaborationChannelRef.current === channel) {
+        collaborationChannelRef.current = null;
+      }
+    };
+  }, [reportId]);
 
   // Initial Elements - Resized to fit nicely
   const [elements, setElements] = useState(() => (reportId ? [] : createTemplateElements(templateConfig.id, isComparison)));
@@ -975,6 +1154,50 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const hasActualUnsavedChanges = useCallback((candidateElements = elements) => (
     !lastCleanSnapshotRef.current || getCurrentReportSnapshotString(candidateElements) !== lastCleanSnapshotRef.current
   ), [elements, getCurrentReportSnapshotString]);
+
+  const broadcastWidgetLock = useCallback((elementId) => {
+    if (!elementId || elementId === 'cover' || !collaborationChannelRef.current || !collaborationUser) return;
+    collaborationChannelRef.current.send({
+      type: 'broadcast',
+      event: 'widget-lock',
+      payload: {
+        elementId,
+        userId: collaborationUser.id,
+        userName: collaborationUser.name,
+        userEmail: collaborationUser.email,
+        lockedAt: new Date().toISOString(),
+      },
+    });
+  }, [collaborationUser]);
+
+  const broadcastWidgetUnlock = useCallback((elementId) => {
+    if (!elementId || elementId === 'cover' || !collaborationChannelRef.current || !collaborationUser) return;
+    collaborationChannelRef.current.send({
+      type: 'broadcast',
+      event: 'widget-unlock',
+      payload: {
+        elementId,
+        userId: collaborationUser.id,
+      },
+    });
+  }, [collaborationUser]);
+
+  const selectElement = useCallback((elementId) => {
+    if (elementId && remoteLocks[elementId]) return false;
+    setSelectedElementId((currentId) => {
+      if (currentId && currentId !== elementId) broadcastWidgetUnlock(currentId);
+      if (elementId && elementId !== currentId) broadcastWidgetLock(elementId);
+      return elementId;
+    });
+    return true;
+  }, [broadcastWidgetLock, broadcastWidgetUnlock, remoteLocks]);
+
+  const clearSelectedElement = useCallback(() => {
+    setSelectedElementId((currentId) => {
+      if (currentId) broadcastWidgetUnlock(currentId);
+      return null;
+    });
+  }, [broadcastWidgetUnlock]);
 
   const getRoomsForSelections = (targetSelections) => {
     if (!targetSelections.areaId) return [];
@@ -1281,11 +1504,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     updateElement(id, { comparisonSelectionList: nextList });
   };
 
-  const applyChartPreset = (preset) => {
-    if (!activeElement || activeElement.type !== 'chart') return;
-    updateElement(activeElement.id, preset.updates);
-  };
-
   const copySelectedElement = useCallback(() => {
     if (!activeElement) return;
     copiedElementRef.current = activeElement;
@@ -1432,6 +1650,66 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     markDirty();
   };
 
+  const addAutoInsightForChart = () => {
+    if (!activeElement || activeElement.type !== 'chart') return;
+
+    const chartName = getChartDisplayName(activeElement);
+    const targetLabel = isComparison
+      ? 'the selected corridors'
+      : (primaryTarget.label || 'the selected corridor');
+    const timeframeLabel = reportSettings.timeframe === 'daily'
+      ? '24-hour'
+      : reportSettings.timeframe === 'monthly'
+        ? 'monthly'
+        : reportSettings.timeframe === 'custom'
+          ? 'custom'
+          : 'weekly';
+    const content = `${chartName} highlights ${timeframeLabel} movement for ${targetLabel}. Review peak traffic periods, speed changes, and threshold crossings before sharing this report.`;
+    const newId = `text-${Date.now()}`;
+    const newEl = {
+      id: newId,
+      type: 'text',
+      x: activeElement.x,
+      y: activeElement.y + activeElement.height + GRID_SIZE,
+      width: Math.min(activeElement.width, DEFAULT_REPORT_WIDTH),
+      height: 120,
+      content,
+      zIndex: getNextZIndex(),
+      style: {
+        fontSize: '16px',
+        fontFamily: FONT_FAMILY_OPTIONS[0].value,
+        color: '#334155',
+        background: '#f8fafc',
+        fontWeight: 'normal',
+        textAlign: 'left',
+        borderRadius: '12px',
+      },
+    };
+
+    pushUndoSnapshot();
+    setElements([...elements, newEl]);
+    setSelectedElementId(newId);
+    markDirty();
+  };
+
+  const autoFitActiveChartToPage = () => {
+    if (!activeElement || activeElement.type !== 'chart') return;
+
+    const pageIndex = Math.max(0, Math.floor(activeElement.y / PAGE_HEIGHT));
+    const pageTop = pageIndex * PAGE_HEIGHT;
+    const topPadding = pageIndex === 0 && hasDocumentHeader ? 192 : 48;
+    const footerPadding = reportSettings.showFooter ? 96 : 48;
+    const nextY = pageTop + topPadding;
+    const nextHeight = Math.max(260, PAGE_HEIGHT - topPadding - footerPadding);
+
+    updateElement(activeElement.id, {
+      x: 48,
+      y: nextY,
+      width: DEFAULT_REPORT_WIDTH,
+      height: nextHeight,
+    });
+  };
+
   const addLinkElement = () => {
     const { x, y } = getNewElementPosition();
     const newId = `link-${Date.now()}`;
@@ -1501,10 +1779,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     if (selectedElementId) {
       pushUndoSnapshot();
       setElements(elements.filter(el => el.id !== selectedElementId));
+      broadcastWidgetUnlock(selectedElementId);
       setSelectedElementId(null);
       markDirty();
     }
-  }, [elements, markDirty, pushUndoSnapshot, selectedElementId]);
+  }, [broadcastWidgetUnlock, elements, markDirty, pushUndoSnapshot, selectedElementId]);
 
   const alignSelectedHorizontal = (position) => {
     if (!activeElement) return;
@@ -1541,6 +1820,34 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     markDirty();
   };
 
+  const captureCanvasWithFallbacks = async (node, options) => {
+    const attempts = [
+      { label: 'high-resolution', scale: 2 },
+      { label: 'standard-resolution', scale: 1 },
+      { label: 'foreign-object', scale: 1, foreignObjectRendering: true },
+    ];
+    let lastError;
+
+    for (const attempt of attempts) {
+      try {
+        return await html2canvas(node, {
+          ...options,
+          ...attempt,
+          onclone: (clonedDocument) => {
+            clonedDocument
+              .querySelectorAll('[data-html2canvas-ignore="true"], .recharts-tooltip-wrapper')
+              .forEach((ignoredNode) => ignoredNode.remove());
+          },
+        });
+      } catch (error) {
+        lastError = error;
+        console.warn(`Report capture ${attempt.label} attempt failed:`, error);
+      }
+    }
+
+    throw lastError;
+  };
+
   const captureReportPages = async () => {
     commitTextDrafts();
     const element = reportRef.current;
@@ -1569,37 +1876,74 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         ignoreElements: (node) => node?.classList?.contains?.('recharts-tooltip-wrapper'),
       };
 
-      let reportCanvas;
-      try {
-        reportCanvas = await html2canvas(element, {
-          ...captureOptions,
-          width: PAGE_WIDTH,
-          height: totalRequiredHeight,
-          windowWidth: PAGE_WIDTH,
-          windowHeight: totalRequiredHeight,
-          scale: 2,
-        });
-      } catch (primaryError) {
-        console.warn('High resolution report capture failed, retrying preview capture:', primaryError);
-        reportCanvas = await html2canvas(element, {
-          ...captureOptions,
-          width: PAGE_WIDTH,
-          height: totalRequiredHeight,
-          windowWidth: PAGE_WIDTH,
-          windowHeight: totalRequiredHeight,
-          scale: 1,
-          foreignObjectRendering: true,
-        });
+      const pageCanvases = [];
+      for (let pageIndex = 0; pageIndex < totalVisiblePageCount; pageIndex += 1) {
+        try {
+          const pageCanvas = await captureCanvasWithFallbacks(element, {
+            ...captureOptions,
+            x: 0,
+            y: pageIndex * PAGE_HEIGHT,
+            width: PAGE_WIDTH,
+            height: PAGE_HEIGHT,
+            windowWidth: PAGE_WIDTH,
+            windowHeight: PAGE_HEIGHT,
+            scrollX: 0,
+            scrollY: 0,
+          });
+          pageCanvases.push({ canvas: pageCanvas, pageIndex });
+        } catch (pageError) {
+          console.error(`Failed to capture report page ${pageIndex + 1}:`, pageError);
+        }
       }
 
-      return Array.from({ length: totalVisiblePageCount }, (_, pageIndex) => (
-        createPageImageFromReportCanvas(reportCanvas, pageIndex)
-      ));
+      return pageCanvases.map(({ canvas, pageIndex }) => createPageImageFromCanvas(canvas, pageIndex));
     } catch (error) {
       console.error("Failed to capture report:", error);
       return [];
     } finally {
       element.style.height = originalHeight;
+      setIsDownloading(false);
+    }
+  };
+
+  const capturePreviewPages = async () => {
+    commitTextDrafts();
+    const previewPages = Array.from(document.querySelectorAll('[data-export-capture-page]'));
+    if (!previewPages.length) return [];
+
+    flushSync(() => {
+      setIsDownloading(true);
+    });
+
+    try {
+      await waitForNextPaint();
+      const pageCanvases = [];
+      for (const [index, pageNode] of previewPages.entries()) {
+        try {
+          const pageCanvas = await captureCanvasWithFallbacks(pageNode, {
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            width: PAGE_WIDTH,
+            height: PAGE_HEIGHT,
+            windowWidth: PAGE_WIDTH,
+            windowHeight: PAGE_HEIGHT,
+            scrollX: 0,
+            scrollY: 0,
+            ignoreElements: (node) => node?.classList?.contains?.('recharts-tooltip-wrapper'),
+          });
+          pageCanvases.push({ canvas: pageCanvas, pageIndex: index });
+        } catch (pageError) {
+          console.error(`Failed to capture export preview page ${index + 1}:`, pageError);
+        }
+      }
+
+      return pageCanvases.map(({ canvas, pageIndex }) => createPageImageFromCanvas(canvas, pageIndex));
+    } catch (error) {
+      console.error('Failed to capture export preview:', error);
+      return [];
+    } finally {
       setIsDownloading(false);
     }
   };
@@ -1634,13 +1978,254 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     setExportPreviewImage('standard-page-view');
   };
 
+  const handleOpenShareDialog = async () => {
+    setShareError('');
+    setShareNotice('');
+    let shareReportId = reportId;
+    if (!shareReportId) {
+      const shouldSave = window.confirm('Save this report before sharing it?');
+      if (!shouldSave) return;
+      const savedId = await handleSaveLayout();
+      if (!savedId) return;
+      shareReportId = typeof savedId === 'string' ? savedId : (searchParams.get('id') || reportId);
+    }
+
+    if (!shareReportId) {
+      alert('The report was saved. Please try sharing again.');
+      return;
+    }
+
+    setShareDialogOpen(true);
+  };
+
+  const persistSharedAccess = async (nextSharedWith, nextSharedAccess) => {
+    if (!reportId) {
+      setShareError('Save this report before changing access.');
+      return false;
+    }
+
+    setIsSharing(true);
+    setShareError('');
+    setShareNotice('');
+
+    const committedElements = commitTextDrafts();
+    const normalizedSharedWith = nextSharedWith.map((value) => String(value).trim().toLowerCase()).filter(Boolean);
+    const normalizedSharedAccess = normalizeSharedAccess(nextSharedAccess, normalizedSharedWith);
+    const nextReportSettings = {
+      ...reportSettings,
+      sharedWith: normalizedSharedWith,
+      sharedAccess: normalizedSharedAccess,
+    };
+
+    const { error } = await supabase.rpc('update_saved_report_access', {
+      p_report_id: reportId,
+      p_shared_with_emails: normalizedSharedWith,
+      p_shared_access: normalizedSharedAccess,
+      p_layout_data: getSavedReportState({
+        mode: type,
+        elements: committedElements,
+        pageCount: visiblePageCount,
+        selections,
+        comparisonSelections,
+        reportSettings: nextReportSettings,
+      }),
+    });
+
+    if (error) {
+      console.error('Failed to update report access:', error.message);
+      setShareError('Access could not be updated. Make sure you own this report.');
+      setIsSharing(false);
+      return false;
+    }
+
+    setReportSettings(nextReportSettings);
+    setShareNotice('Access updated.');
+    lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+      mode: type,
+      elements: committedElements,
+      pageCount: visiblePageCount,
+      selections,
+      comparisonSelections,
+      reportSettings: nextReportSettings,
+    }));
+    setIsDirty(false);
+    setIsSharing(false);
+    return true;
+  };
+
+  const handleChangeSharedAccess = async (sharedEmail, role) => {
+    const sharedWith = Array.isArray(reportSettings.sharedWith) ? reportSettings.sharedWith : [];
+    const sharedAccess = normalizeSharedAccess(reportSettings.sharedAccess, sharedWith);
+    const normalizedEmail = String(sharedEmail).trim().toLowerCase();
+    await persistSharedAccess(sharedWith, {
+      ...sharedAccess,
+      [normalizedEmail]: role === 'viewer' ? 'viewer' : 'editor',
+    });
+  };
+
+  const handleRemoveSharedAccess = async (sharedEmail) => {
+    const normalizedEmail = String(sharedEmail).trim().toLowerCase();
+    const confirmRemove = await requestConfirmation({
+      title: 'Remove access?',
+      message: `${normalizedEmail} will no longer be able to open this report.`,
+      actions: [
+        { value: false, label: 'Cancel', variant: 'secondary' },
+        { value: true, label: 'Remove access', variant: 'danger' },
+      ],
+    });
+    if (!confirmRemove) return;
+
+    const sharedWith = (Array.isArray(reportSettings.sharedWith) ? reportSettings.sharedWith : [])
+      .map((value) => String(value).trim().toLowerCase())
+      .filter((value) => value && value !== normalizedEmail);
+    const sharedAccess = normalizeSharedAccess(reportSettings.sharedAccess, sharedWith);
+    delete sharedAccess[normalizedEmail];
+    await persistSharedAccess(sharedWith, sharedAccess);
+  };
+
+  const handleShareReport = async (allowMultiple = false) => {
+    const recipientEmails = parseShareEmails(shareEmail);
+    if (!recipientEmails.length) return;
+    if (!allowMultiple && recipientEmails.length > 1) {
+      setShareError('Add one email with Share, or use the + button to add multiple people.');
+      return;
+    }
+
+    const invalidEmails = recipientEmails.filter((recipientEmail) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail));
+    if (invalidEmails.length) {
+      setShareError(`Check ${invalidEmails.length === 1 ? invalidEmails[0] : `${invalidEmails.length} email addresses`} and try again.`);
+      return;
+    }
+
+    let shareReportId = reportId;
+    if (!shareReportId) {
+      const savedId = await handleSaveLayout();
+      if (!savedId) return;
+      shareReportId = typeof savedId === 'string' ? savedId : (searchParams.get('id') || reportId);
+    }
+
+    if (!shareReportId) {
+      setShareError('Save this report before sharing it.');
+      return;
+    }
+
+    setIsSharing(true);
+    setShareError('');
+    setShareNotice('');
+
+    const { data: userResult } = await supabase.auth.getUser();
+    const currentUser = userResult?.user;
+    if (!currentUser) {
+      setShareError('You must be signed in to share reports.');
+      setIsSharing(false);
+      return;
+    }
+
+    const [{ data: currentProfile, error: currentProfileError }, { data: recipientProfiles, error: recipientError }] = await Promise.all([
+      supabase
+        .from('profile')
+        .select('id,email,assigned_institute')
+        .eq('id', currentUser.id)
+        .maybeSingle(),
+      supabase
+        .from('profile')
+        .select('id,email,assigned_institute')
+        .in('email', recipientEmails),
+    ]);
+
+    if (currentProfileError || recipientError) {
+      setShareError('User lookup failed. Make sure the platform profile table is available.');
+      setIsSharing(false);
+      return;
+    }
+
+    if (!currentProfile?.assigned_institute) {
+      setShareError('Your account is missing an institute assignment.');
+      setIsSharing(false);
+      return;
+    }
+
+    const profilesByEmail = new Map((recipientProfiles || []).map((profile) => [String(profile.email).toLowerCase(), profile]));
+    const missingEmails = recipientEmails.filter((recipientEmail) => !profilesByEmail.has(recipientEmail));
+    if (missingEmails.length) {
+      setShareError(`${missingEmails.length === 1 ? missingEmails[0] : `${missingEmails.length} emails`} not associated with a CheckIt platform user.`);
+      setIsSharing(false);
+      return;
+    }
+
+    const outsideInstitute = recipientEmails.filter((recipientEmail) => profilesByEmail.get(recipientEmail)?.assigned_institute !== currentProfile.assigned_institute);
+    if (outsideInstitute.length) {
+      setShareError('You can only share with users from your institute.');
+      setIsSharing(false);
+      return;
+    }
+
+    const selfEmails = recipientEmails.filter((recipientEmail) => profilesByEmail.get(recipientEmail)?.id === currentUser.id);
+    if (selfEmails.length) {
+      setShareError('You cannot share this report with yourself.');
+      setIsSharing(false);
+      return;
+    }
+
+    const committedElements = commitTextDrafts();
+    const nextSharedWith = Array.from(new Set([
+      ...(Array.isArray(reportSettings.sharedWith) ? reportSettings.sharedWith.map((value) => String(value).trim().toLowerCase()) : []),
+      ...recipientEmails,
+    ]));
+    const nextSharedAccess = {
+      ...normalizeSharedAccess(reportSettings.sharedAccess, nextSharedWith),
+      ...Object.fromEntries(recipientEmails.map((recipientEmail) => [recipientEmail, 'editor'])),
+    };
+    const nextReportSettings = {
+      ...reportSettings,
+      sharedWith: nextSharedWith,
+      sharedAccess: nextSharedAccess,
+    };
+
+    const { error } = await supabase.rpc('update_saved_report_access', {
+      p_report_id: shareReportId,
+      p_shared_with_emails: nextSharedWith,
+      p_shared_access: nextSharedAccess,
+      p_layout_data: getSavedReportState({
+        mode: type,
+        elements: committedElements,
+        pageCount: visiblePageCount,
+        selections,
+        comparisonSelections,
+        reportSettings: nextReportSettings,
+      }),
+    });
+
+    if (error) {
+      console.error('Failed to mark report as shared:', error.message);
+      setShareError('The report was shared, but the local share indicator could not be saved.');
+      setIsSharing(false);
+      return;
+    }
+
+    setReportSettings(nextReportSettings);
+    lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+      mode: type,
+      elements: committedElements,
+      pageCount: visiblePageCount,
+      selections,
+      comparisonSelections,
+      reportSettings: nextReportSettings,
+    }));
+    setIsDirty(false);
+    setShareEmail('');
+    setShareNotice(`Shared with ${recipientEmails.length === 1 ? recipientEmails[0] : `${recipientEmails.length} people`}.`);
+    setIsSharing(false);
+  };
+
   const handleDownloadPDF = async () => {
-    const pages = await captureReportPages();
-    if (!pages.length) {
+    const pages = exportPreviewImage ? await capturePreviewPages() : await captureReportPages();
+    const fallbackPages = pages.length ? pages : await captureReportPages();
+    if (!fallbackPages.length || fallbackPages.length < totalVisiblePageCount) {
       alert('Export could not be generated. Please try again after the charts finish rendering.');
       return;
     }
-    downloadPdfFromPages(pages);
+    downloadPdfFromPages(fallbackPages);
     setExportPreviewImage('');
     setExportPreviewPages([]);
     exportPageCountRef.current = DEFAULT_PAGE_COUNT;
@@ -1655,7 +2240,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     }
 
     const { data: userResult } = await supabase.auth.getUser();
-    const savedBy = userResult?.user?.email || docMeta.author || 'Unknown user';
+    const currentUser = userResult?.user || null;
+    const savedBy = currentUser?.email || docMeta.author || 'Unknown user';
     const nextReportSettings = {
       ...reportSettings,
       lastSavedBy: savedBy,
@@ -1675,10 +2261,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           comparisonSelections,
           reportSettings: nextReportSettings,
         }),
+        ...(currentUser?.id ? { owner_id: currentUser.id } : {}),
     };
 
     try {
       let response;
+      let savedReportId = reportId;
       
       if (reportId) {
         // Update existing report
@@ -1695,6 +2283,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           
         if (!response.error && response.data?.[0]) {
           const newId = response.data[0].id;
+          savedReportId = newId;
           setReportId(newId);
           // Safely updates the URL so React Router knows this is now an existing document
           setSearchParams({ id: newId }); 
@@ -1715,7 +2304,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       setIsSaved(true);
       setIsDirty(false);
       setTimeout(() => setIsSaved(false), 3000);
-      return true;
+      return savedReportId || true;
     } catch (error) {
       console.error('Failed to save layout:', error.message);
       alert('Failed to save layout. Make sure your database table exists!');
@@ -1965,8 +2554,18 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <small>{el.href}</small>
       </a>
     );
-    if (isComparison && !elementHasComparisonTargets) return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', opacity: 0.6 }}>Select two data sources in the sidebar.</div>;
-    if (!isComparison && !elementHasSoloTarget) return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', opacity: 0.6 }}>Select a data source in the sidebar.</div>;
+    if (isComparison && !elementHasComparisonTargets) return (
+      <div className={styles.moduleEmptyState}>
+        <strong>Select comparison corridors</strong>
+        <span>Choose at least two corridors, zones, or sensor groups in the sidebar.</span>
+      </div>
+    );
+    if (!isComparison && !elementHasSoloTarget) return (
+      <div className={styles.moduleEmptyState}>
+        <strong>Select a corridor</strong>
+        <span>Choose a corridor, zone, or sensor group in the sidebar to populate this module.</span>
+      </div>
+    );
 
     if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={reportFilters} timeframe={reportSettings.timeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
     if (el.type === 'summary') return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} timeframe={reportSettings.timeframe} metrics={el.summaryMetrics || DEFAULT_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
@@ -1986,19 +2585,31 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const renderStandardPreviewPage = (pageIndex) => {
     const pageTop = pageIndex * PAGE_HEIGHT;
+    const pageBottom = pageTop + PAGE_HEIGHT;
+    const headerTop = reportContentOffset + 48;
+    const visibleElements = elements.filter((el) => {
+      const elementTop = el.y + reportContentOffset;
+      const elementBottom = elementTop + el.height;
+      return elementBottom > pageTop && elementTop < pageBottom;
+    });
 
     return (
-      <div className={styles.exportPreviewLivePage}>
+      <div className={styles.exportPreviewLivePage} data-export-capture-page={pageIndex}>
         <div
           className={styles.exportPreviewLiveReport}
-          style={{ height: `${totalVisiblePageCount * PAGE_HEIGHT}px`, top: `-${pageTop}px` }}
+          style={{ height: `${PAGE_HEIGHT}px`, top: 0 }}
         >
-          {hasCoverPage && (
+          {hasCoverPage && pageIndex === 0 && (
             <section
               className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
               style={{
                 '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#2f716f'),
                 '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#f7fbfa'),
+                position: 'absolute',
+                inset: 0,
+                width: `${PAGE_WIDTH}px`,
+                height: `${PAGE_HEIGHT}px`,
+                background: getCoverExportBackground(reportSettings),
               }}
             >
               <p
@@ -2060,8 +2671,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             </section>
           )}
 
-          {hasDocumentHeader && (
-            <div className={styles.documentHeader} style={{ position: 'absolute', top: `${reportContentOffset + 48}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
+          {hasDocumentHeader && headerTop >= pageTop && headerTop < pageBottom && (
+            <div className={styles.documentHeader} style={{ position: 'absolute', top: `${headerTop - pageTop}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
               <h1 className={styles.documentTitle}>{docMeta.title}</h1>
               <div className={styles.documentMetaGrid}>
                 <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
@@ -2071,8 +2682,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             </div>
           )}
 
-          {elements.map((el) => {
+          {visibleElements.map((el) => {
             const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
+            const localY = el.y + reportContentOffset - pageTop;
 
             return (
               <div
@@ -2080,7 +2692,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 style={{
                   position: 'absolute',
                   left: `${el.x}px`,
-                  top: `${el.y + reportContentOffset}px`,
+                  top: `${localY}px`,
                   width: `${el.width}px`,
                   height: `${el.height}px`,
                   zIndex: el.zIndex || 1,
@@ -2104,13 +2716,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             );
           })}
 
-          {reportSettings.showFooter && Array.from({ length: totalVisiblePageCount }).map((_, index) => (
-            <footer key={`preview-footer-${index}`} className={styles.reportFooter} style={{ top: `${((index + 1) * PAGE_HEIGHT) - 56}px` }}>
+          {reportSettings.showFooter && (
+            <footer className={styles.reportFooter} style={{ top: `${PAGE_HEIGHT - 56}px` }}>
               <span>CheckIt</span>
               <span>{docMeta.title}</span>
-              <span>Page {index + 1}</span>
+              <span>Page {pageIndex + 1}</span>
             </footer>
-          ))}
+          )}
         </div>
       </div>
     );
@@ -2125,6 +2737,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <div className={styles.navGroup}>
           <button onClick={handleExitRequest} className={styles.backLink}>← Back</button>
           <span className={styles.navTitle}>{title} Builder</span>
+          <span className={styles.collaborationPill} title={collaborators.map((user) => user.email || user.name).join(', ')}>
+            {reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
+          </span>
         </div>
         
         <div className={styles.navGroup}>
@@ -2149,6 +2764,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <div className={styles.navGroup}>
           <button onClick={handleExportPreview} disabled={isDownloading} className={styles.toolbarBtn}>
              <Download size={16} /> Preview Export
+          </button>
+          <button onClick={handleOpenShareDialog} className={styles.toolbarBtn}>
+             <Share2 size={16} /> Share
           </button>
           <button onClick={handleSaveLayout} className={styles.primaryBtn}>
              {isSaved ? 'Saved!' : 'Save Layout'}
@@ -2250,7 +2868,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         </div>
 
         {/* CENTER CANVAS */}
-        <div ref={canvasRef} onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); setSelectedElementId(null); } }} className={styles.canvasArea}>
+        <div ref={canvasRef} onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }} className={styles.canvasArea}>
           {isReportLoading ? (
             <div className={styles.reportLoadingState}>Loading report...</div>
           ) : (
@@ -2258,7 +2876,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             <div
             ref={reportRef}
             className={styles.paperBoundary}
-            onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); setSelectedElementId(null); } }}
+            onMouseDown={(e) => { if(e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }}
             style={{ height: `${totalVisiblePageCount * PAGE_HEIGHT}px`, backgroundColor: '#ffffff' }}
           >
             
@@ -2388,7 +3006,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             )}
 
             {hasDocumentHeader && (
-              <div className={styles.documentHeader} onMouseDown={() => { commitTextDrafts(); setSelectedElementId(null); }} style={{ position: 'absolute', top: `${reportContentOffset + 48}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
+              <div className={styles.documentHeader} onMouseDown={() => { commitTextDrafts(); clearSelectedElement(); }} style={{ position: 'absolute', top: `${reportContentOffset + 48}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
                 <h1 className={styles.documentTitle}>{docMeta.title}</h1>
                 <div className={styles.documentMetaGrid}>
                     <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
@@ -2400,6 +3018,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             
             {elements.map((el) => {
               const isSelected = !isDownloading && selectedElementId === el.id;
+              const lockedBy = remoteLocks[el.id];
               const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
 
               return (
@@ -2419,8 +3038,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     handleDragResizeStop(el.id, position.x, position.y - reportContentOffset, newWidth, newHeight);
                   }}
                   onMouseDown={() => {
+                    if (lockedBy) return;
                     if (editingTextId && editingTextId !== el.id) commitTextDrafts();
-                    setSelectedElementId(el.id);
+                    selectElement(el.id);
                     if (editingTextId && editingTextId !== el.id) setEditingTextId(null);
                     if (el.type === 'text' && selectedElementId === el.id) {
                       setEditingTextId(el.id);
@@ -2430,15 +3050,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     }
                   }}
                   onDoubleClick={(event) => {
-                    setSelectedElementId(el.id);
+                    if (lockedBy) return;
+                    selectElement(el.id);
                     if (el.type === 'text') {
                       setEditingTextId(el.id);
                       setTimeout(() => event.target?.focus?.(), 0);
                     }
                   }}
                   style={{ zIndex: isSelected ? (el.zIndex || 1) + 1000 : (el.zIndex || 1) }}
-                  disableDragging={editingTextId === el.id}
-                  enableResizing={isSelected} 
+                  disableDragging={editingTextId === el.id || Boolean(lockedBy)}
+                  enableResizing={isSelected && !lockedBy} 
                   resizeHandleStyles={{
                     bottomRight: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', right: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
                     bottomLeft: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', left: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
@@ -2446,7 +3067,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     topLeft: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', left: '-6px', top: '-6px', borderRadius: '50%', zIndex: 50 },
                   }}
                 >
-                  <div className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''} ${isSelected ? styles.widgetBoxSelected : ''}`} style={{
+                  <div className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''} ${isSelected ? styles.widgetBoxSelected : ''} ${lockedBy ? styles.widgetBoxLocked : ''}`} style={{
                       backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
                       borderRadius: el.style.borderRadius, 
                       pointerEvents: isSelected || ['text', 'image', 'attachment', 'link'].includes(el.type) ? 'auto' : 'none', 
@@ -2455,6 +3076,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                       border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
                       boxShadow: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined
                   }}>
+                     {lockedBy && <div className={styles.widgetLockBadge}>{lockedBy.userName || 'Teammate'} editing</div>}
                      {renderElementContent(el)}
                   </div>
                 </Rnd>
@@ -2869,6 +3491,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => addNewElement('summary')}>
                     <Layers size={14} /> Add linked summary
                   </button>
+                  <button type="button" className={styles.secondaryBtnFull} onClick={autoFitActiveChartToPage}>
+                    <Maximize2 size={14} /> Auto fit chart to page
+                  </button>
+                  <button type="button" className={styles.secondaryBtnFull} onClick={addAutoInsightForChart}>
+                    <FileText size={14} /> Add auto insight
+                  </button>
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
                     <RefreshCw size={14} /> Refresh snapshot
                   </button>
@@ -3010,16 +3638,41 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         onDownload={handleDownloadPDF}
         isDownloading={isDownloading}
       />
+      <ShareReportModal
+        isOpen={shareDialogOpen}
+        email={shareEmail}
+        error={shareError}
+        notice={shareNotice}
+        isSharing={isSharing}
+        sharedWith={Array.isArray(reportSettings.sharedWith) ? reportSettings.sharedWith : []}
+        sharedAccess={reportSettings.sharedAccess || {}}
+        onEmailChange={(value) => {
+          setShareEmail(value);
+          setShareError('');
+          setShareNotice('');
+        }}
+        onClose={() => {
+          if (isSharing) return;
+          setShareDialogOpen(false);
+          setShareError('');
+          setShareNotice('');
+        }}
+        onShare={handleShareReport}
+        onAccessChange={handleChangeSharedAccess}
+        onRemoveAccess={handleRemoveSharedAccess}
+      />
     </main>
   );
 };
 
 const InsightsStudio = () => {
   const [reports, setReports] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [savedReportsError, setSavedReportsError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [templatePickerMode, setTemplatePickerMode] = useState(null);
+  const [activeReportTab, setActiveReportTab] = useState('owned');
   const confirmResolveRef = useRef(null);
   
 
@@ -3041,7 +3694,24 @@ const InsightsStudio = () => {
     setConfirmDialog(null);
   };
 
-  const handleDeleteReport = async (reportId) => {
+  const isOwnedReport = (report) => {
+    if (!currentUser) return false;
+    if (report?.owner_id) return report.owner_id === currentUser.id;
+
+    const currentEmail = currentUser.email?.toLowerCase();
+    const lastSavedBy = getReportLastSavedBy(report).toLowerCase();
+    return Boolean(currentEmail && lastSavedBy && currentEmail === lastSavedBy);
+  };
+  const ownReports = reports.filter((report) => isOwnedReport(report));
+  const sharedReports = reports.filter((report) => !isOwnedReport(report));
+  const activeReports = activeReportTab === 'owned' ? ownReports : sharedReports;
+
+  const handleDeleteReport = async (report) => {
+    if (!isOwnedReport(report)) {
+      alert('Only the owner can delete this report.');
+      return;
+    }
+
     const confirmDelete = await requestConfirmation({
       title: 'Delete saved report?',
       message: 'This report will be removed from Insights Studio. This cannot be undone.',
@@ -3056,10 +3726,10 @@ const InsightsStudio = () => {
       const { error } = await supabase
         .from('saved_reports')
         .delete()
-        .eq('id', reportId);
+        .eq('id', report.id);
 
       if (error) throw error;
-      setReports(reports.filter(report => report.id !== reportId));
+      setReports((currentReports) => currentReports.filter((savedReport) => savedReport.id !== report.id));
     } catch (err) {
       console.error('Failed to delete report:', err.message);
       alert('Failed to delete report. Please try again.');
@@ -3074,6 +3744,9 @@ const InsightsStudio = () => {
           setReports([]);
           return;
         }
+
+        const { data: userResult } = await supabase.auth.getUser();
+        setCurrentUser(userResult?.user || null);
 
         const { data, error } = await supabase
           .from('saved_reports') 
@@ -3100,6 +3773,82 @@ const InsightsStudio = () => {
 
     fetchSavedReports();
   }, []);
+
+  const renderReportsTable = (reportList, emptyTitle, emptyCopy) => {
+    if (reportList.length === 0) {
+      return (
+        <div className={styles.emptyReportGroup}>
+          <FileText size={28} />
+          <p>{emptyTitle}</p>
+          <span>{emptyCopy}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.savedReportsTable}>
+        <div className={`${styles.savedReportsGrid} ${styles.savedReportsHeader}`}>
+          <div>Document Name</div>
+          <div>Last Saved</div>
+          <div>Generated Date</div>
+          <div>Action</div>
+        </div>
+        
+        {reportList.map((report) => {
+          const owned = isOwnedReport(report);
+          const sharedEmails = getReportSharedEmails(report);
+
+          return (
+            <div key={report.id} className={`${styles.savedReportsGrid} ${styles.savedReportsRow}`}>
+              <div className={styles.savedReportNameCell}>
+                <div
+                  className={styles.savedReportIcon}
+                  title={sharedEmails.length ? `Shared with ${sharedEmails.join(', ')}` : 'Only you'}
+                  aria-label={sharedEmails.length ? 'Shared report' : 'Private report'}
+                >
+                  {sharedEmails.length ? <Users size={18} /> : <User size={18} />}
+                </div>
+                <div className={styles.savedReportTitleBlock}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>{report.title || 'Untitled Snapshot'}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>By {report.author || 'System Agent'}</div>
+                </div>
+              </div>
+              
+              <div className={styles.savedReportPeriodCell}>{formatReportDateTime(getReportLastSavedDate(report))}</div>
+              
+              <div className={styles.savedReportDateCell}>
+                <Calendar size={14} />
+                {formatReportDate(report.created_at || report.date)}
+              </div>
+              
+              <div className={styles.savedReportActions}>
+                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#2f716f', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#275f5e'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2f716f'}>
+                  Open Workspace <ArrowRight size={14} />
+                </Link>
+
+                {owned && (
+                  <button
+                    onClick={() => handleDeleteReport(report)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '34px', height: '34px', borderRadius: '50%',
+                      background: '#fef2f2', border: '1px solid #fee2e2',
+                      color: '#ef4444', cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.transform = 'scale(1)'; }}
+                    title="Delete Report"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <main className={styles.page}>
@@ -3218,57 +3967,35 @@ const InsightsStudio = () => {
               <p style={{ margin: '4px 0 0', fontSize: '13px', opacity: 0.8 }}>Reports generated in the Custom Layout Builder will appear here.</p>
             </div>
           ) : (
-            <div className={styles.savedReportsTable}>
-              <div className={`${styles.savedReportsGrid} ${styles.savedReportsHeader}`}>
-                <div>Document Name</div>
-                <div>Last Saved</div>
-                <div>Generated Date</div>
-                <div>Action</div>
+            <div className={styles.reportTabsPanel}>
+              <div className={styles.reportTabs} role="tablist" aria-label="Saved report ownership">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeReportTab === 'owned'}
+                  className={`${styles.reportTab} ${activeReportTab === 'owned' ? styles.reportTabActive : ''}`}
+                  onClick={() => setActiveReportTab('owned')}
+                >
+                  Your reports
+                  <span>{ownReports.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeReportTab === 'shared'}
+                  className={`${styles.reportTab} ${activeReportTab === 'shared' ? styles.reportTabActive : ''}`}
+                  onClick={() => setActiveReportTab('shared')}
+                >
+                  Shared with you
+                  <span>{sharedReports.length}</span>
+                </button>
               </div>
-              
-              {reports.map((report) => (
-                <div key={report.id} className={`${styles.savedReportsGrid} ${styles.savedReportsRow}`}>
-                  <div className={styles.savedReportNameCell}>
-                    <div className={styles.savedReportIcon}>
-                      <FileText size={18} />
-                    </div>
-                    <div className={styles.savedReportTitleBlock}>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>{report.title || 'Untitled Snapshot'}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>By {report.author || 'System Agent'}</div>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.savedReportPeriodCell}>{formatReportDate(getReportLastSavedDate(report))}</div>
-                  
-                  <div className={styles.savedReportDateCell}>
-                    <Calendar size={14} />
-                    {formatReportDate(report.created_at || report.date)}
-                  </div>
-                  
-                  <div className={styles.savedReportActions}>
-                    
-                    <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#2f716f', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#275f5e'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2f716f'}>
-                      Open Workspace <ArrowRight size={14} />
-                    </Link>
 
-                    <button 
-                      onClick={() => handleDeleteReport(report.id)}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                        width: '34px', height: '34px', borderRadius: '50%', 
-                        background: '#fef2f2', border: '1px solid #fee2e2', 
-                        color: '#ef4444', cursor: 'pointer', transition: 'all 0.2s' 
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.transform = 'scale(1.05)'; }} 
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.transform = 'scale(1)'; }}
-                      title="Delete Report"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-
-                  </div>
-                </div>
-              ))}
+              {renderReportsTable(
+                activeReports,
+                activeReportTab === 'owned' ? 'No reports you own yet.' : 'No shared reports yet.',
+                activeReportTab === 'owned' ? 'Reports you create will appear here.' : 'Reports shared by collaborators will appear here.',
+              )}
             </div>
           )}
         </section>
