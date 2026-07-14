@@ -957,8 +957,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [shareError, setShareError] = useState('');
   const [shareNotice, setShareNotice] = useState('');
   const [isSharing, setIsSharing] = useState(false);
-  const [reportAccessRole, setReportAccessRole] = useState('owner');
-  const isReadOnlyReport = reportAccessRole === 'viewer';
+  const [reportAccessRole, setReportAccessRole] = useState(() => (searchParams.get('id') ? 'loading' : 'owner'));
+  const isReportAccessPending = reportAccessRole === 'loading';
+  const isReadOnlyReport = reportAccessRole === 'viewer' || isReportAccessPending;
+  const canUseBuilderTools = !isReadOnlyReport;
+  const returnReportTab = searchParams.get('fromTab') === 'shared' ? 'shared' : 'owned';
+  const insightsLandingPath = returnReportTab === 'shared' ? '/insights-studio?tab=shared' : '/insights-studio';
   
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
@@ -986,6 +990,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const fetchExistingLayout = async () => {
       if (reportId) { 
         setIsReportLoading(true);
+        setReportAccessRole('loading');
         try {
           const { data, error } = await supabase
             .from('saved_reports')
@@ -2004,7 +2009,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     setShareNotice('');
     let shareReportId = reportId;
     if (!shareReportId) {
-      const shouldSave = window.confirm('Save this report before sharing it?');
+      const shouldSave = await requestConfirmation({
+        title: 'Save before sharing?',
+        message: 'This report needs to be saved before you can invite collaborators.',
+        actions: [
+          { value: false, label: 'Cancel', variant: 'secondary' },
+          { value: true, label: 'Save and continue', variant: 'primary' },
+        ],
+      });
       if (!shouldSave) return;
       const savedId = await handleSaveLayout();
       if (!savedId) return;
@@ -2012,7 +2024,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     }
 
     if (!shareReportId) {
-      alert('The report was saved. Please try sharing again.');
+      await requestConfirmation({
+        title: 'Share is almost ready',
+        message: 'The report was saved, but the share panel needs the saved report id. Please press Share again.',
+        actions: [
+          { value: true, label: 'Got it', variant: 'primary' },
+        ],
+      });
       return;
     }
 
@@ -2253,7 +2271,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const handleSaveLayout = async() => {
-    if (reportAccessRole === 'viewer') {
+    if (isReadOnlyReport) {
       alert('You have viewer access for this report. Ask the owner for editor access to save changes.');
       return null;
     }
@@ -2311,7 +2329,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           savedReportId = newId;
           setReportId(newId);
           // Safely updates the URL so React Router knows this is now an existing document
-          setSearchParams({ id: newId }); 
+          setSearchParams({ id: newId, ...(returnReportTab === 'shared' ? { fromTab: 'shared' } : {}) }); 
         }
       }
 
@@ -2340,13 +2358,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const handleExitRequest = async () => {
     const committedElements = commitTextDrafts();
     if (!isDirty) {
-      navigate('/insights-studio');
+      navigate(insightsLandingPath);
       return;
     }
 
     if (!hasActualUnsavedChanges(committedElements)) {
       setIsDirty(false);
-      navigate('/insights-studio');
+      navigate(insightsLandingPath);
       return;
     }
 
@@ -2362,11 +2380,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     if (exitAction === 'save') {
       const didSave = await handleSaveLayout();
-      if (didSave) navigate('/insights-studio');
+      if (didSave) navigate(insightsLandingPath);
     }
 
     if (exitAction === 'discard') {
-      navigate('/insights-studio');
+      navigate(insightsLandingPath);
     }
   };
 
@@ -2771,12 +2789,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <div className={styles.navGroup}>
           <button onClick={handleExitRequest} className={styles.backLink}>← Back</button>
           <span className={styles.navTitle}>{title} Builder</span>
-          <span className={styles.collaborationPill} title={isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
-            {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
+          <span className={styles.collaborationPill} title={isReportAccessPending ? 'Checking access' : isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
+            {isReportAccessPending ? 'Checking access' : isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
           </span>
         </div>
         
-        {!isReadOnlyReport && <div className={styles.navGroup}>
+        {canUseBuilderTools && <div className={styles.navGroup}>
           <button onClick={() => addNewElement('text')} className={styles.toolbarBtn}><Type size={14} /> Text</button>
           <button onClick={() => addNewElement('chart')} className={styles.toolbarBtn}><BarChart2 size={14} /> Chart</button>
           <button onClick={() => addNewElement('summary')} className={styles.toolbarBtn}><Layers size={14} /> Banner</button>
@@ -2795,7 +2813,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           />
         </div>}
 
-        {!isReadOnlyReport && <div className={styles.navGroup}>
+        {canUseBuilderTools && <div className={styles.navGroup}>
           <button onClick={handleExportPreview} disabled={isDownloading} className={styles.toolbarBtn}>
              <Download size={16} /> Preview Export
           </button>
@@ -2804,7 +2822,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
              <Share2 size={16} /> Share
           </button>
           )}
-          <button onClick={handleSaveLayout} disabled={reportAccessRole === 'viewer'} className={styles.primaryBtn}>
+          <button onClick={handleSaveLayout} disabled={isReadOnlyReport} className={styles.primaryBtn}>
              {isSaved ? 'Saved!' : 'Save Layout'}
           </button>
         </div>}
@@ -2813,7 +2831,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       <div className={`${styles.workspace} ${isReadOnlyReport ? styles.viewerWorkspace : ''}`}>
         
         {/* LEFT SIDEBAR */}
-        {!isReadOnlyReport && <div className={`${styles.sidebarPanel} ${styles.left}`}>
+        {canUseBuilderTools && <div className={`${styles.sidebarPanel} ${styles.left}`}>
           <h3 className={styles.sidebarTitle}>Document Metadata</h3>
           
           <label className={styles.inputLabel}>Report Title</label>
@@ -2924,7 +2942,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 )
             ))}
 
-            {!isDownloading && !isReadOnlyReport && (
+            {!isDownloading && canUseBuilderTools && (
               <div data-html2canvas-ignore="true" className={styles.snapGuideLayer}>
                 {snapGuides.vertical.map((x, index) => (
                   <span key={`snap-v-${index}-${x}`} className={styles.snapGuideVertical} style={{ left: `${x}px` }} />
@@ -3140,7 +3158,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
           </div>
 
-          {!isDownloading && !isReadOnlyReport && pageCount > DEFAULT_PAGE_COUNT && (
+          {!isDownloading && canUseBuilderTools && pageCount > DEFAULT_PAGE_COUNT && (
             <div className={styles.pageControl} data-html2canvas-ignore="true" aria-label="Page controls">
               <button
                 type="button"
@@ -3163,7 +3181,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             </div>
           )}
 
-          {!isDownloading && !isReadOnlyReport && pageCount === DEFAULT_PAGE_COUNT && (
+          {!isDownloading && canUseBuilderTools && pageCount === DEFAULT_PAGE_COUNT && (
             <div className={styles.pageControl} data-html2canvas-ignore="true" aria-label="Page controls">
               <button
                 type="button"
@@ -3181,7 +3199,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         </div>
 
         {/* RIGHT SIDEBAR */}
-        {!isReadOnlyReport && <div className={`${styles.sidebarPanel} ${styles.right}`} data-insights-editor-sidebar="true">
+        {canUseBuilderTools && <div className={`${styles.sidebarPanel} ${styles.right}`} data-insights-editor-sidebar="true">
           <h3 className={styles.sidebarTitle}>Widget Settings</h3>
 
           {!activeElement && !isCoverSelected ? (
@@ -3713,13 +3731,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 };
 
 const InsightsStudio = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [savedReportsError, setSavedReportsError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [templatePickerMode, setTemplatePickerMode] = useState(null);
-  const [activeReportTab, setActiveReportTab] = useState('owned');
+  const [activeReportTab, setActiveReportTab] = useState(() => (searchParams.get('tab') === 'shared' ? 'shared' : 'owned'));
   const confirmResolveRef = useRef(null);
   
 
@@ -3757,6 +3776,12 @@ const InsightsStudio = () => {
   const ownReports = reports.filter((report) => isOwnedReport(report));
   const sharedReports = reports.filter((report) => !isOwnedReport(report));
   const activeReports = activeReportTab === 'owned' ? ownReports : sharedReports;
+  const builderReturnQuery = activeReportTab === 'shared' ? '&fromTab=shared' : '';
+
+  const updateActiveReportTab = (tab) => {
+    setActiveReportTab(tab);
+    setSearchParams(tab === 'shared' ? { tab: 'shared' } : {}, { replace: true });
+  };
 
   const handleDeleteReport = async (report) => {
     if (!isOwnedReport(report)) {
@@ -3787,6 +3812,11 @@ const InsightsStudio = () => {
       alert('Failed to delete report. Please try again.');
     }
   };
+
+  useEffect(() => {
+    const nextTab = searchParams.get('tab') === 'shared' ? 'shared' : 'owned';
+    setActiveReportTab(nextTab);
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchSavedReports = async () => {
@@ -3874,7 +3904,7 @@ const InsightsStudio = () => {
               </div>
               
               <div className={styles.savedReportActions}>
-                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#2f716f', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#275f5e'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2f716f'}>
+                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#2f716f', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#275f5e'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2f716f'}>
                   Open Workspace <ArrowRight size={14} />
                 </Link>
 
@@ -3978,7 +4008,7 @@ const InsightsStudio = () => {
 
               <div className={styles.templateChoiceGrid}>
                 {getTemplateOptions(templatePickerMode).map((option) => (
-                  <Link key={option.id} className={styles.templateChoiceCard} to={`/insights-studio/${templatePickerMode}?template=${option.id}`}>
+                  <Link key={option.id} className={styles.templateChoiceCard} to={`/insights-studio/${templatePickerMode}?template=${option.id}${builderReturnQuery}`}>
                     <div className={`${styles.templatePreviewPage} ${styles[`templatePreview${option.previewClass.charAt(0).toUpperCase()}${option.previewClass.slice(1)}`] || ''}`}>
                       {option.previewClass === 'blank' ? (
                         <span />
@@ -4026,7 +4056,7 @@ const InsightsStudio = () => {
                   role="tab"
                   aria-selected={activeReportTab === 'owned'}
                   className={`${styles.reportTab} ${activeReportTab === 'owned' ? styles.reportTabActive : ''}`}
-                  onClick={() => setActiveReportTab('owned')}
+                  onClick={() => updateActiveReportTab('owned')}
                 >
                   Your reports
                   <span>{ownReports.length}</span>
@@ -4036,7 +4066,7 @@ const InsightsStudio = () => {
                   role="tab"
                   aria-selected={activeReportTab === 'shared'}
                   className={`${styles.reportTab} ${activeReportTab === 'shared' ? styles.reportTabActive : ''}`}
-                  onClick={() => setActiveReportTab('shared')}
+                  onClick={() => updateActiveReportTab('shared')}
                 >
                   Shared with you
                   <span>{sharedReports.length}</span>
