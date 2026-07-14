@@ -231,8 +231,15 @@ as $$
     or (
       report_owner_id is null
       and (
-        lower(coalesce(report_layout_data->'reportSettings'->>'lastSavedBy', '')) = public.current_user_email()
-        or lower(coalesce(report_author, '')) = public.current_user_email()
+        lower(coalesce(report_author, '')) = public.current_user_email()
+        or (
+          lower(coalesce(report_layout_data->'reportSettings'->>'lastSavedBy', '')) = public.current_user_email()
+          and not exists (
+            select 1
+            from jsonb_array_elements_text(coalesce(report_layout_data->'reportSettings'->'sharedWith', '[]'::jsonb)) shared_email
+            where lower(shared_email) = public.current_user_email()
+          )
+        )
       )
     )
 $$;

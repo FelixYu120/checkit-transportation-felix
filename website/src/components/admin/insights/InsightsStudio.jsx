@@ -957,6 +957,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [shareError, setShareError] = useState('');
   const [shareNotice, setShareNotice] = useState('');
   const [isSharing, setIsSharing] = useState(false);
+  const [reportAccessRole, setReportAccessRole] = useState('owner');
   
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
@@ -994,6 +995,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           if (error) throw error;
           
           if (data) {
+            const { data: userResult } = await supabase.auth.getUser();
+            const currentEmail = userResult?.user?.email?.toLowerCase() || '';
+            const sharedAccessForUser = getReportSharedAccess(data)[currentEmail];
+            setReportAccessRole(data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'owner'));
+
             setDocMeta({
               title: data.title || 'Activity & Operations Report',
               author: data.author || 'Transportation Analytics Team',
@@ -1043,6 +1049,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         }
       } else {
         hasLoadedReportRef.current = true;
+        setReportAccessRole('owner');
         setIsReportLoading(false);
       }
     };
@@ -2232,6 +2239,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const handleSaveLayout = async() => {
+    if (reportAccessRole === 'viewer') {
+      alert('You have viewer access for this report. Ask the owner for editor access to save changes.');
+      return null;
+    }
+
     setIsSaved(false);
     const committedElements = commitTextDrafts();
     if (reportRef.current) {
@@ -2261,7 +2273,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           comparisonSelections,
           reportSettings: nextReportSettings,
         }),
-        ...(currentUser?.id ? { owner_id: currentUser.id } : {}),
     };
 
     try {
@@ -2278,7 +2289,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         // Insert brand new report
         response = await supabase
           .from('saved_reports')
-          .insert([payload])
+          .insert([{ ...payload, ...(currentUser?.id ? { owner_id: currentUser.id } : {}) }])
           .select(); 
           
         if (!response.error && response.data?.[0]) {
@@ -2765,10 +2776,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           <button onClick={handleExportPreview} disabled={isDownloading} className={styles.toolbarBtn}>
              <Download size={16} /> Preview Export
           </button>
+          {reportAccessRole === 'owner' && (
           <button onClick={handleOpenShareDialog} className={styles.toolbarBtn}>
              <Share2 size={16} /> Share
           </button>
-          <button onClick={handleSaveLayout} className={styles.primaryBtn}>
+          )}
+          <button onClick={handleSaveLayout} disabled={reportAccessRole === 'viewer'} className={styles.primaryBtn}>
              {isSaved ? 'Saved!' : 'Save Layout'}
           </button>
         </div>
@@ -3699,6 +3712,11 @@ const InsightsStudio = () => {
     if (report?.owner_id) return report.owner_id === currentUser.id;
 
     const currentEmail = currentUser.email?.toLowerCase();
+    const isSharedWithCurrentUser = getReportSharedEmails(report)
+      .map((email) => String(email).trim().toLowerCase())
+      .includes(currentEmail);
+    if (isSharedWithCurrentUser) return false;
+
     const lastSavedBy = getReportLastSavedBy(report).toLowerCase();
     return Boolean(currentEmail && lastSavedBy && currentEmail === lastSavedBy);
   };

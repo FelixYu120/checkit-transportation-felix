@@ -81,6 +81,7 @@ An editor cannot:
 
 - Delete the report
 - Change sharing/access settings
+- Become the report owner by saving edits
 
 ### Viewer
 
@@ -139,8 +140,8 @@ public.current_user_owns_saved_report(owner_id, layout_data, author)
 This treats a report as owned by the current user when:
 
 - `owner_id = auth.uid()`, or
-- `owner_id is null` and `layout_data.reportSettings.lastSavedBy` matches the current user email, or
-- `owner_id is null` and `author` matches the current user email
+- `owner_id is null` and `author` matches the current user email, or
+- `owner_id is null`, `layout_data.reportSettings.lastSavedBy` matches the current user email, and the current user is not listed as a shared collaborator
 
 When the owner updates access, the RPC repairs the report by setting `owner_id`.
 
@@ -239,4 +240,3 @@ Check that:
 - The email exists in `public.profile`
 - The user's `assigned_institute` matches yours
 - The user is not sharing with their own email
-
