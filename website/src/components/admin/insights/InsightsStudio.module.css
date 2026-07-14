@@ -481,6 +481,37 @@
   transition: background-color 0.3s ease;
 }
 
+.builderAccessLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 100vh;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.builderAccessLoading p {
+  margin: 0;
+}
+
+.builderAccessSpinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #dbe4ea;
+  border-top-color: #2f716f;
+  border-radius: 50%;
+  animation: builderAccessSpin 0.8s linear infinite;
+}
+
+@keyframes builderAccessSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .navGroup {
   display: flex;
   align-items: center;

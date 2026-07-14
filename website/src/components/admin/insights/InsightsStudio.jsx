@@ -452,10 +452,11 @@ const ConfirmDialog = ({ dialog, onClose }) => {
     { value: false, label: dialog.cancelLabel || 'Cancel', variant: 'secondary' },
     { value: true, label: dialog.confirmLabel || 'Save', variant: 'primary' },
   ];
+  const dismissValue = actions[0]?.value ?? false;
 
   return createPortal((
-    <div className={`${styles.modalOverlay} ${styles.confirmOverlay}`} role="presentation">
-      <div className={styles.confirmDialog} role="dialog" aria-modal="true" aria-labelledby="insights-confirm-title">
+    <div className={`${styles.modalOverlay} ${styles.confirmOverlay}`} role="presentation" onMouseDown={() => onClose(dismissValue)}>
+      <div className={styles.confirmDialog} role="dialog" aria-modal="true" aria-labelledby="insights-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
         <h2 id="insights-confirm-title">{dialog.title}</h2>
         <p>{dialog.message}</p>
         <div className={styles.confirmActions}>
@@ -485,8 +486,8 @@ const ExportPreviewModal = ({ isOpen, pageCount = 1, renderPage, onClose, onDown
   if (typeof document === 'undefined') return null;
 
   return createPortal((
-    <div className={styles.modalOverlay} role="presentation">
-      <div className={styles.exportPreviewDialog} role="dialog" aria-modal="true" aria-labelledby="export-preview-title">
+    <div className={styles.modalOverlay} role="presentation" onMouseDown={onClose}>
+      <div className={styles.exportPreviewDialog} role="dialog" aria-modal="true" aria-labelledby="export-preview-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className={styles.exportPreviewHeader}>
           <div>
             <h2 id="export-preview-title">Export Preview</h2>
@@ -2780,6 +2781,17 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
   };
 
+  if (isReportAccessPending) {
+    return (
+      <main className={styles.builderPage} data-theme="light">
+        <div className={styles.builderAccessLoading} role="status" aria-live="polite">
+          <span className={styles.builderAccessSpinner} aria-hidden="true" />
+          <p>Loading report...</p>
+        </div>
+      </main>
+    );
+  }
+
   // Ensure app stays strictly in light mode
   return (
     <main className={styles.builderPage} data-theme="light">
@@ -2789,8 +2801,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         <div className={styles.navGroup}>
           <button onClick={handleExitRequest} className={styles.backLink}>← Back</button>
           <span className={styles.navTitle}>{title} Builder</span>
-          <span className={styles.collaborationPill} title={isReportAccessPending ? 'Checking access' : isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
-            {isReportAccessPending ? 'Checking access' : isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
+          <span className={styles.collaborationPill} title={isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
+            {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
           </span>
         </div>
         
