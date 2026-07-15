@@ -86,7 +86,6 @@ const TeamPage = () => {
       <section className={styles.teamHeader}>
         <div>
           <h1>Team</h1>
-          <p>View the members in your institution.</p>
         </div>
         <div className={styles.countPill}>
           <Users size={18} aria-hidden="true" />

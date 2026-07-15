@@ -68,10 +68,11 @@ const formatDateTime = (value) => value
     : 'No data yet';
 
 const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
-    sensor_id: row.sensor_id || sensor?.sensor_id || '',
-    corridor: sensor?.corridor_name || '',
+    scope_type: 'corridor',
+    institute: sensor?.institute_id || '',
     area: sensor?.area_name || '',
-    observed_at: row.observed_at || '',
+    corridor: sensor?.corridor_name || '',
+    observed_at_utc: row.observed_at || '',
     direction: row.direction || '',
     volume: row.volume ?? '',
     avg_speed_mph: row.avg_speed ?? '',

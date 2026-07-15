@@ -57,3 +57,34 @@ Admin pages use this route structure:
 ```
 
 Breadcrumbs are handled by `src/components/admin/layout/AdminBreadcrumb.jsx`. The breadcrumb links let users move back from a corridor to its institute context.
+
+## CSV Exports
+
+Admin transportation exports are generated in the browser from the same filtered rows used by the current corridor dashboard. The export should respect:
+
+- selected institute, area, or corridor
+- start and end dates
+- start and end times
+- weekday/weekend filter
+
+Current user-facing corridor columns:
+
+- `scope_type`
+- `institute`
+- `area`
+- `corridor`
+- `observed_at_utc`
+- `direction`
+- `volume`
+- `avg_speed_mph`
+- `v85_speed_mph`
+- `max_speed_mph`
+
+Future scale TODOs:
+
+- Move CSV generation server-side when exports regularly exceed 50,000 rows or the browser feels slow.
+- Use a Supabase Edge Function or RPC for large exports so the backend can paginate through `ten_minute_summaries`.
+- Stream or chunk large CSV files instead of loading every row into browser memory.
+- Add an export status/loading job if CSV generation takes more than a few seconds.
+- Keep dashboard queries on summary/current-state tables and reserve raw detail exports for explicit downloads.
+- Add retention/archive rules before raw transportation history grows beyond the period needed for operations.
