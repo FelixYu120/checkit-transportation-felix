@@ -5,6 +5,8 @@ import styles from './Login.module.css';
 
 function CreateAccount({ setIsLoggedIn }) {
     const navigate = useNavigate();
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -39,6 +41,16 @@ function CreateAccount({ setIsLoggedIn }) {
         setErrorMessage('');
         setSuccessMessage('');
 
+        const trimmedFirstName = firstName.trim();
+        const trimmedLastName = lastName.trim();
+        const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
+        const normalizedEmail = email.trim();
+
+        if (!trimmedFirstName || !trimmedLastName) {
+            setErrorMessage('Enter your first and last name.');
+            return;
+        }
+
         if (password.length < 8) {
             setErrorMessage('Use at least 8 characters for your password.');
             return;
@@ -50,12 +62,24 @@ function CreateAccount({ setIsLoggedIn }) {
         }
 
         setLoading(true);
-        const { error } = hasInviteSession
-            ? await supabase.auth.updateUser({ password })
+        const { data, error } = hasInviteSession
+            ? await supabase.auth.updateUser({
+                password,
+                data: {
+                    first_name: trimmedFirstName,
+                    last_name: trimmedLastName,
+                    full_name: fullName
+                }
+            })
             : await supabase.auth.signUp({
-                email,
+                email: normalizedEmail,
                 password,
                 options: {
+                    data: {
+                        first_name: trimmedFirstName,
+                        last_name: trimmedLastName,
+                        full_name: fullName
+                    },
                     emailRedirectTo: `${window.location.origin}/login`
                 }
             });
@@ -63,11 +87,34 @@ function CreateAccount({ setIsLoggedIn }) {
         if (error) {
             setErrorMessage(error.message);
         } else if (hasInviteSession) {
+            const userId = data?.user?.id;
+            if (userId) {
+                await supabase
+                    .from('profile')
+                    .upsert({
+                        id: userId,
+                        email: normalizedEmail,
+                        full_name: fullName
+                    });
+            }
+
             setSuccessMessage('Account created. Redirecting to your dashboard...');
             setIsLoggedIn?.(true);
             setTimeout(() => navigate('/map'), 900);
         } else {
+            if (data?.session?.user?.id) {
+                await supabase
+                    .from('profile')
+                    .upsert({
+                        id: data.session.user.id,
+                        email: normalizedEmail,
+                        full_name: fullName
+                    });
+            }
+
             setSuccessMessage('Account request created. Check your email to confirm your account, then log in.');
+            setFirstName('');
+            setLastName('');
             setEmail('');
             setPassword('');
             setConfirmPassword('');
@@ -99,6 +146,38 @@ function CreateAccount({ setIsLoggedIn }) {
                     {successMessage && <div className={styles.successMessage}>{successMessage}</div>}
 
                     <form className={styles.formlayout} onSubmit={handleSubmit} autoComplete="off">
+                        <div className={styles.nameRow}>
+                            <div className={styles.fieldGroup}>
+                                <label className={styles.fieldLabel} htmlFor="signup-first-name">First name</label>
+                                <input
+                                    id="signup-first-name"
+                                    name="new-admin-first-name"
+                                    className={styles.loginemail}
+                                    type="text"
+                                    value={firstName}
+                                    placeholder="First name"
+                                    autoComplete="given-name"
+                                    required
+                                    onChange={(event) => setFirstName(event.target.value)}
+                                />
+                            </div>
+
+                            <div className={styles.fieldGroup}>
+                                <label className={styles.fieldLabel} htmlFor="signup-last-name">Last name</label>
+                                <input
+                                    id="signup-last-name"
+                                    name="new-admin-last-name"
+                                    className={styles.loginemail}
+                                    type="text"
+                                    value={lastName}
+                                    placeholder="Last name"
+                                    autoComplete="family-name"
+                                    required
+                                    onChange={(event) => setLastName(event.target.value)}
+                                />
+                            </div>
+                        </div>
+
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="signup-email">Email address</label>
                             <input

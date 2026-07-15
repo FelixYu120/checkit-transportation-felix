@@ -37,6 +37,18 @@ Saved reports use owner/editor/viewer access.
 
 Sharing only works with platform users from the same institute.
 
+## Team Directory
+
+The Team page reads from `profile` only. It does not query `auth.users` from the frontend.
+
+Expected profile read rule:
+
+- A signed-in user can read their own profile.
+- A signed-in user can read other profiles only when `profile.assigned_institute` matches their own `profile.assigned_institute`.
+- The frontend also filters by `assigned_institute`, but RLS must be the source of truth.
+
+If this ever needs a one-time migration, create a single policy on `public.profile` that uses the current user's profile to compare `assigned_institute`. Avoid policies that recursively query `profile` inside another `profile` policy unless the lookup is wrapped in a security-definer helper function.
+
 ## Institutes And Emails
 
 Use:

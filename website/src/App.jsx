@@ -18,6 +18,7 @@ import AdminLayout from './components/admin/layout/AdminLayout.jsx';
 import { AreaOverview, CollegeOverview } from './components/admin/pages/AdminRoutePages.jsx';
 import FloorDashboard from './components/admin/pages/FloorDashboard.jsx'; 
 import InsightsStudio, { InsightBuilderPage } from './components/admin/insights/InsightsStudio.jsx';
+import TeamPage from './components/admin/team/TeamPage.jsx';
 import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.jsx';
 
 import styles from "./App.module.css";
@@ -97,6 +98,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                     <Route path="/insights-studio" element={isLoggedIn ? <InsightsStudio /> : <Navigate to="/login" replace />} />
                     <Route path="/insights-studio/solo" element={isLoggedIn ? <InsightBuilderPage type="solo" title="Solo Insight" /> : <Navigate to="/login" replace />} />
                     <Route path="/insights-studio/comparison" element={isLoggedIn ? <InsightBuilderPage type="comparison" title="Comparison Insight" /> : <Navigate to="/login" replace />} />
+                    <Route path="/team" element={isLoggedIn ? <TeamPage /> : <Navigate to="/login" replace />} />
 
                     {/* ------------------- STATIC PAGES ------------------- */}
                     <Route path="/resources" element={<div className={styles.centeredPageShell}><Resources/></div>} />

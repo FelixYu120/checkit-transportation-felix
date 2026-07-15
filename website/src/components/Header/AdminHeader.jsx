@@ -32,6 +32,12 @@ function AdminHeader() {
                 >
                     Insights Studio
                 </NavLink>
+                <NavLink
+                    to="/team"
+                    className={({ isActive }) => `${styles.tabLink} ${isActive ? styles.activeTab : ""}`}
+                >
+                    Team
+                </NavLink>
             </nav>
 
             <div className={styles.rightSection}>
