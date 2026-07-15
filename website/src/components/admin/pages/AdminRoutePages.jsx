@@ -12,6 +12,9 @@ import {
 } from '../routing/AdminRouteUtils';
 import { fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
+import AnalyticsFilters from '../controls/AnalyticsFilters';
+import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
+import ExportCsvButton from '../controls/ExportCsvButton';
 
 const groupSensorsByArea = (sensors = []) =>
     sensors.reduce((areas, sensor) => {
@@ -22,6 +25,35 @@ const groupSensorsByArea = (sensors = []) =>
     }, {});
 
 const roundOne = (value) => Math.round((Number(value) || 0) * 10) / 10;
+
+const createCsvFilename = (label) => (
+    `${String(label || 'transportation-export').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
+);
+
+const getTrafficExportRows = (rows = [], sensors = [], scopeType, fallbackInstitute = '') => {
+    const sensorsById = new Map(sensors.map((sensor) => [sensor.sensor_id, sensor]));
+
+    return rows
+        .filter((row) => sensorsById.has(row.sensor_id))
+        .slice()
+        .sort((a, b) => new Date(a.observed_at) - new Date(b.observed_at))
+        .map((row) => {
+            const sensor = sensorsById.get(row.sensor_id) || {};
+
+            return {
+                scope_type: scopeType,
+                institute: sensor.institute_id || fallbackInstitute || '',
+                area: sensor.area_name || '',
+                corridor: sensor.corridor_name || '',
+                observed_at_utc: row.observed_at || '',
+                direction: row.direction || '',
+                volume: row.volume ?? '',
+                avg_speed_mph: row.avg_speed ?? '',
+                v85_speed_mph: row.v85_speed ?? '',
+                max_speed_mph: row.max_speed ?? '',
+            };
+        });
+};
 
 const getTrafficHealth = ({ volume = 0, avgSpeed = 0, maxSpeed = 0, lastSeen }) => {
     if (!lastSeen) return { label: 'No data', tone: 'unknown' };
@@ -344,6 +376,7 @@ export const CollegeOverview = () => {
     const [instituteName, setInstituteName] = useState(normalizedCollegeId || '');
     const [sensors, setSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
+    const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -357,8 +390,9 @@ export const CollegeOverview = () => {
                 );
 
                 const trafficData = await fetchTrafficDirectionRows(supabase, {
+                    filters,
                     type: 'daily',
-                    limit: 5000,
+                    limit: 50000,
                 });
 
                 const instituteData = institutes[0];
@@ -376,7 +410,7 @@ export const CollegeOverview = () => {
         };
 
         if (normalizedCollegeId) fetchInstitute();
-    }, [collegeId, normalizedCollegeId]);
+    }, [collegeId, filters, normalizedCollegeId]);
 
     if (loading) {
         return <div className={styles.loading}>Loading institute corridors...</div>;
@@ -385,6 +419,7 @@ export const CollegeOverview = () => {
     const areas = groupSensorsByArea(sensors);
     const areaCount = Object.keys(areas).length;
     const trafficSummaries = getSensorTrafficSummaries(sensors, trafficRows);
+    const exportRows = getTrafficExportRows(trafficRows, sensors, 'institute', normalizedCollegeId);
 
     const {
         totalVolume,
@@ -407,6 +442,17 @@ export const CollegeOverview = () => {
                 </div>
             ) : (
                 <div className={styles.analyticsStack}>
+                    <section className={styles.topControls} aria-label="Traffic controls">
+                        <div className={styles.exportControl}>
+                            <ExportCsvButton
+                                exportLabel={`${instituteName} traffic`}
+                                filename={createCsvFilename(instituteName)}
+                                rows={exportRows}
+                            />
+                        </div>
+                        <AnalyticsFilters filters={filters} onChange={setFilters} />
+                    </section>
+
                     <section className={styles.placeSummaryBox}>
                         <div className={styles.placeSummaryTop}>
                             <div className={styles.placeSummaryCopy}>
@@ -481,6 +527,7 @@ export const AreaOverview = () => {
     const [areaName, setAreaName] = useState('');
     const [areaSensors, setAreaSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
+    const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -497,8 +544,9 @@ export const AreaOverview = () => {
                     getAreaById(sensorData || [], buildingId) || [];
 
                 const trafficData = await fetchTrafficDirectionRows(supabase, {
+                    filters,
                     type: 'daily',
-                    limit: 5000,
+                    limit: 50000,
                 });
 
                 setInstituteName(institutes?.[0]?.full_name || normalizedCollegeId);
@@ -516,13 +564,14 @@ export const AreaOverview = () => {
         };
 
         if (normalizedCollegeId && buildingId) fetchArea();
-    }, [buildingId, normalizedCollegeId]);
+    }, [buildingId, filters, normalizedCollegeId]);
 
     if (loading) {
         return <div className={styles.loading}>Loading area...</div>;
     }
 
     const trafficSummaries = getSensorTrafficSummaries(areaSensors, trafficRows);
+    const exportRows = getTrafficExportRows(trafficRows, areaSensors, 'area', normalizedCollegeId);
 
     const {
         totalVolume,
@@ -553,6 +602,17 @@ export const AreaOverview = () => {
                 <div className={styles.noData}>Area not found.</div>
             ) : (
                 <div className={styles.analyticsStack}>
+                    <section className={styles.topControls} aria-label="Traffic controls">
+                        <div className={styles.exportControl}>
+                            <ExportCsvButton
+                                exportLabel={`${areaName} traffic`}
+                                filename={createCsvFilename(areaName)}
+                                rows={exportRows}
+                            />
+                        </div>
+                        <AnalyticsFilters filters={filters} onChange={setFilters} />
+                    </section>
+
                     <section className={styles.placeSummaryBox}>
                         <div className={styles.placeSummaryTop}>
                             <div className={styles.placeSummaryCopy}>
