@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import styles from './Login.module.css';
 import supabase from '../helper/SupabaseClients'; 
 
@@ -11,6 +12,7 @@ function Login({ setIsLoggedIn }) {
     
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -68,15 +70,25 @@ function Login({ setIsLoggedIn }) {
 
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="login-password">Password</label>
-                            <input 
-                                id="login-password"
-                                className={styles.loginemail} 
-                                type="password" 
-                                value={password}
-                                placeholder="Enter your password" 
-                                required 
-                                onChange={(e) => setPassword(e.target.value)} 
-                            />
+                            <div className={styles.passwordField}>
+                                <input
+                                    id="login-password"
+                                    className={`${styles.loginemail} ${styles.passwordInput}`}
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    placeholder="Enter your password"
+                                    required
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className={styles.passwordToggle}
+                                    onClick={() => setShowPassword((current) => !current)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
 
                         <div className={styles.navrow}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, ShieldAlert, MapPin, KeyRound } from 'lucide-react';
+import { X, Save, ShieldAlert, MapPin, KeyRound, Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
 
@@ -29,6 +29,8 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     message: '',
     error: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [profile, setProfile] = useState({
     id: '',
@@ -184,22 +186,42 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 {passwordState.message && <div className={styles.successMessage}>{passwordState.message}</div>}
 
                 <label className={styles.label}>New Password</label>
-                <input
-                  type="password"
-                  className={styles.input}
-                  value={passwordState.password}
-                  onChange={(e) => setPasswordState({...passwordState, password: e.target.value})}
-                  placeholder="Use at least 8 characters"
-                />
+                <div className={styles.passwordField}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className={`${styles.input} ${styles.passwordInput}`}
+                    value={passwordState.password}
+                    onChange={(e) => setPasswordState({...passwordState, password: e.target.value})}
+                    placeholder="Use at least 8 characters"
+                  />
+                  <button
+                    type="button"
+                    className={styles.passwordToggle}
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
 
                 <label className={styles.label}>Confirm Password</label>
-                <input
-                  type="password"
-                  className={styles.input}
-                  value={passwordState.confirmPassword}
-                  onChange={(e) => setPasswordState({...passwordState, confirmPassword: e.target.value})}
-                  placeholder="Re-enter your password"
-                />
+                <div className={styles.passwordField}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    className={`${styles.input} ${styles.passwordInput}`}
+                    value={passwordState.confirmPassword}
+                    onChange={(e) => setPasswordState({...passwordState, confirmPassword: e.target.value})}
+                    placeholder="Re-enter your password"
+                  />
+                  <button
+                    type="button"
+                    className={styles.passwordToggle}
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
 
                 <button className={styles.saveBtn} onClick={handlePasswordSave} disabled={saving}>
                   <KeyRound size={16} /> {saving ? 'Saving...' : 'Update Password'}

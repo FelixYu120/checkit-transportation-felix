@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './Login.module.css';
 
@@ -7,6 +8,8 @@ function SetPassword({ setIsLoggedIn }) {
     const navigate = useNavigate();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [message, setMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -89,28 +92,48 @@ function SetPassword({ setIsLoggedIn }) {
                     <form className={styles.formlayout} onSubmit={handleSubmit}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="new-password">New password</label>
-                            <input
-                                id="new-password"
-                                className={styles.loginemail}
-                                type="password"
-                                value={password}
-                                placeholder="Use at least 8 characters"
-                                required
-                                onChange={(event) => setPassword(event.target.value)}
-                            />
+                            <div className={styles.passwordField}>
+                                <input
+                                    id="new-password"
+                                    className={`${styles.loginemail} ${styles.passwordInput}`}
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    placeholder="Use at least 8 characters"
+                                    required
+                                    onChange={(event) => setPassword(event.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className={styles.passwordToggle}
+                                    onClick={() => setShowPassword((current) => !current)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
 
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="confirm-password">Confirm password</label>
-                            <input
-                                id="confirm-password"
-                                className={styles.loginemail}
-                                type="password"
-                                value={confirmPassword}
-                                placeholder="Re-enter your password"
-                                required
-                                onChange={(event) => setConfirmPassword(event.target.value)}
-                            />
+                            <div className={styles.passwordField}>
+                                <input
+                                    id="confirm-password"
+                                    className={`${styles.loginemail} ${styles.passwordInput}`}
+                                    type={showConfirmPassword ? 'text' : 'password'}
+                                    value={confirmPassword}
+                                    placeholder="Re-enter your password"
+                                    required
+                                    onChange={(event) => setConfirmPassword(event.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className={styles.passwordToggle}
+                                    onClick={() => setShowConfirmPassword((current) => !current)}
+                                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
 
                         <div className={styles.navrow} style={{ marginTop: '24px' }}>

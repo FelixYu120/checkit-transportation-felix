@@ -115,6 +115,40 @@
   color: #64748b;
 }
 
+.passwordField {
+  position: relative;
+  width: 100%;
+}
+
+.passwordInput {
+  padding-right: 46px;
+}
+
+.passwordToggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 12px;
+  top: 0;
+  width: 24px;
+}
+
+.passwordToggle:hover {
+  color: #2f716f;
+}
+
+.passwordToggle:focus-visible {
+  outline: 3px solid rgba(47, 113, 111, 0.25);
+  outline-offset: 3px;
+}
+
 .loginTracker {
   font-size: 13px;
   color: #64748b;
