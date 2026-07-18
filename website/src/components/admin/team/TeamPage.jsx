@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Users } from "lucide-react";
+import { Check, Copy, Search, Users } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import { fetchInstitutionTeamMembers } from "./TeamData";
 import styles from "./TeamPage.module.css";
@@ -27,6 +27,28 @@ const sortMembersAlphabetically = (members) =>
     })
   );
 
+const ROLE_GROUPS = [
+  { key: "checkit_admin", label: "CheckIt Admins" },
+  { key: "checkit_field_operator", label: "CheckIt Field Operators" },
+  { key: "admin", label: "Admins" },
+  { key: "field_operator", label: "Field Operators" },
+  { key: "viewer", label: "Viewers" }
+];
+
+const normalizeRole = (role) => {
+  const normalized = String(role || "viewer").trim().toLowerCase();
+  return normalized === "user" ? "viewer" : normalized;
+};
+
+const getRoleLabel = (role) => {
+  const normalized = normalizeRole(role);
+  if (normalized === "checkit_admin") return "CheckIt Admin";
+  if (normalized === "checkit_field_operator") return "CheckIt Field Operator";
+  if (normalized === "admin") return "Admin";
+  if (normalized === "field_operator") return "Field Operator";
+  return "Viewer";
+};
+
 const TeamSkeleton = () => (
   <div className={styles.memberGrid} aria-label="Loading team members">
     {Array.from({ length: 6 }).map((_, index) => (
@@ -43,6 +65,7 @@ const TeamPage = () => {
   const [members, setMembers] = useState([]);
   const [institutionId, setInstitutionId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [copiedEmail, setCopiedEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -78,8 +101,34 @@ const TeamPage = () => {
     () => sortMembersAlphabetically(members.filter((member) => matchesSearch(member, normalizedSearch))),
     [members, normalizedSearch]
   );
+  const groupedMembers = useMemo(
+    () => {
+      const groupedRoleKeys = new Set(ROLE_GROUPS.map((group) => group.key));
+      const knownGroups = ROLE_GROUPS.map((group) => ({
+        ...group,
+        members: filteredMembers.filter((member) => normalizeRole(member.role) === group.key)
+      }));
+      const otherMembers = filteredMembers.filter((member) => !groupedRoleKeys.has(normalizeRole(member.role)));
+      return [
+        ...knownGroups,
+        { key: "other", label: "Other", members: otherMembers }
+      ].filter((group) => group.members.length > 0);
+    },
+    [filteredMembers]
+  );
 
   const memberCountLabel = `${filteredMembers.length} ${filteredMembers.length === 1 ? "member" : "members"}`;
+
+  const copyEmail = async (email) => {
+    if (!email) return;
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedEmail(email);
+      window.setTimeout(() => setCopiedEmail((current) => (current === email ? "" : current)), 1400);
+    } catch {
+      setCopiedEmail("");
+    }
+  };
 
   return (
     <main className={styles.teamShell}>
@@ -130,17 +179,40 @@ const TeamPage = () => {
       )}
 
       {!loading && !error && filteredMembers.length > 0 && (
-        <section className={styles.memberGrid} aria-label="Institution members">
-          {filteredMembers.map((member) => (
-            <article className={styles.memberCard} key={member.id || member.email}>
-              <div className={styles.avatar} aria-hidden="true">
-                {(member.full_name || member.email || "?").trim().charAt(0).toUpperCase()}
+        <section className={styles.roleSections} aria-label="Institution members by role">
+          {groupedMembers.map((group) => (
+            <div className={styles.roleSection} key={group.key}>
+              <div className={styles.roleHeader}>
+                <h2>{group.label}</h2>
+                <span>{group.members.length}</span>
               </div>
-              <div className={styles.memberText}>
-                <h2>{member.full_name || "Unnamed member"}</h2>
-                <p>{member.email || "No email available"}</p>
+              <div className={styles.memberGrid}>
+                {group.members.map((member) => (
+                  <article className={styles.memberCard} key={member.id || member.email}>
+                    <div className={styles.avatar} aria-hidden="true">
+                      {(member.full_name || member.email || "?").trim().charAt(0).toUpperCase()}
+                    </div>
+                    <div className={styles.memberText}>
+                      <h3>{member.full_name || "Unnamed member"}</h3>
+                      <div className={styles.emailRow}>
+                        <p>{member.email || "No email available"}</p>
+                        {member.email ? (
+                          <button
+                            aria-label={`Copy ${member.email}`}
+                            className={styles.copyEmailButton}
+                            onClick={() => copyEmail(member.email)}
+                            type="button"
+                          >
+                            {copiedEmail === member.email ? <Check size={14} /> : <Copy size={14} />}
+                          </button>
+                        ) : null}
+                      </div>
+                      <span>{getRoleLabel(member.role)}</span>
+                    </div>
+                  </article>
+                ))}
               </div>
-            </article>
+            </div>
           ))}
         </section>
       )}

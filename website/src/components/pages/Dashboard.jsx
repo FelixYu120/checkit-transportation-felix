@@ -51,7 +51,7 @@ function Dashboard() {
             const { sensors } = await fetchSensorDirectory(supabase);
             setCampusData(formatData(sensors));
         } catch (error) {
-            console.error("Supabase Fetch error:", error);
+            console.error("Data fetch error:", error);
             setCampusData([]);
             setFetchError(error.message || 'Unable to load corridors.');
         } finally {

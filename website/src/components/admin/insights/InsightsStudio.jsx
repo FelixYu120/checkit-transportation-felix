@@ -1003,9 +1003,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           
           if (data) {
             const { data: userResult } = await supabase.auth.getUser();
+            const { data: currentProfile } = userResult?.user?.id
+              ? await supabase.from('profile').select('role').eq('id', userResult.user.id).maybeSingle()
+              : { data: null };
+            const isCheckItAdmin = String(currentProfile?.role || '').trim().toLowerCase() === 'checkit_admin';
             const currentEmail = userResult?.user?.email?.toLowerCase() || '';
             const sharedAccessForUser = getReportSharedAccess(data)[currentEmail];
-            setReportAccessRole(data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'owner'));
+            setReportAccessRole(isCheckItAdmin || data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'owner'));
 
             setDocMeta({
               title: data.title || 'Activity & Operations Report',
@@ -2164,22 +2168,24 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const [{ data: currentProfile, error: currentProfileError }, { data: recipientProfiles, error: recipientError }] = await Promise.all([
       supabase
         .from('profile')
-        .select('id,email,assigned_institute')
+        .select('id,email,assigned_institute,role')
         .eq('id', currentUser.id)
         .maybeSingle(),
       supabase
         .from('profile')
-        .select('id,email,assigned_institute')
+        .select('id,email,assigned_institute,role')
         .in('email', recipientEmails),
     ]);
 
     if (currentProfileError || recipientError) {
-      setShareError('User lookup failed. Make sure the platform profile table is available.');
+      setShareError('User lookup failed. Please try again or contact an admin.');
       setIsSharing(false);
       return;
     }
 
-    if (!currentProfile?.assigned_institute) {
+    const isCheckItAdmin = String(currentProfile?.role || '').trim().toLowerCase() === 'checkit_admin';
+
+    if (!isCheckItAdmin && !currentProfile?.assigned_institute) {
       setShareError('Your account is missing an institute assignment.');
       setIsSharing(false);
       return;
@@ -2194,7 +2200,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     }
 
     const outsideInstitute = recipientEmails.filter((recipientEmail) => profilesByEmail.get(recipientEmail)?.assigned_institute !== currentProfile.assigned_institute);
-    if (outsideInstitute.length) {
+    if (!isCheckItAdmin && outsideInstitute.length) {
       setShareError('You can only share with users from your institute.');
       setIsSharing(false);
       return;
@@ -2351,7 +2357,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       return savedReportId || true;
     } catch (error) {
       console.error('Failed to save layout:', error.message);
-      alert('Failed to save layout. Make sure your database table exists!');
+      alert('Failed to save layout. Please try again.');
       return false;
     }
   };
@@ -3746,6 +3752,7 @@ const InsightsStudio = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState('viewer');
   const [isLoading, setIsLoading] = useState(true);
   const [savedReportsError, setSavedReportsError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -3774,6 +3781,7 @@ const InsightsStudio = () => {
 
   const isOwnedReport = (report) => {
     if (!currentUser) return false;
+    if (currentUserRole === 'checkit_admin') return true;
     if (report?.owner_id) return report.owner_id === currentUser.id;
 
     const currentEmail = currentUser.email?.toLowerCase();
@@ -3834,13 +3842,23 @@ const InsightsStudio = () => {
     const fetchSavedReports = async () => {
       try {
         if (!supabase) {
-          setSavedReportsError('Supabase is not configured for this environment.');
+          setSavedReportsError('Saved reports are not available in this environment.');
           setReports([]);
           return;
         }
 
         const { data: userResult } = await supabase.auth.getUser();
         setCurrentUser(userResult?.user || null);
+        if (userResult?.user?.id) {
+          const { data: profile } = await supabase
+            .from('profile')
+            .select('role')
+            .eq('id', userResult.user.id)
+            .maybeSingle();
+          setCurrentUserRole(String(profile?.role || 'viewer').trim().toLowerCase());
+        } else {
+          setCurrentUserRole('viewer');
+        }
 
         const { data, error } = await supabase
           .from('saved_reports') 
@@ -3848,7 +3866,7 @@ const InsightsStudio = () => {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.warn('Supabase cache warning:', error.message);
+          console.warn('Saved reports cache warning:', error.message);
           setSavedReportsError(error.message);
           setReports([]); 
           return;

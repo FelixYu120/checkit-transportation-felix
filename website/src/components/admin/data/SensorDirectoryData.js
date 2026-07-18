@@ -168,7 +168,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
       sensors: sensors || [],
     };
   } catch (error) {
-    console.warn("Using summary-derived sensor directory fallback:", getSupabaseErrorContext(error));
+    console.warn("Using generated sensor directory fallback:", getSupabaseErrorContext(error));
     return getDirectoryFromSummaryRows(supabase, normalizedInstituteId);
   }
 };
@@ -195,7 +195,7 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
     if (error) throw error;
     return data || null;
   } catch (error) {
-    console.warn("Using summary-derived sensor fallback:", getSupabaseErrorContext(error));
+    console.warn("Using generated sensor fallback:", getSupabaseErrorContext(error));
     const inferredSensor = await getSensorFromSummaryRows(supabase, normalizedInstituteId, sensorId);
     if (inferredSensor) return inferredSensor;
 

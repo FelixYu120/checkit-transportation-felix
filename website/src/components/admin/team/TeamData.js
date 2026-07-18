@@ -28,9 +28,14 @@ const readProfilesWithFallback = async (supabase, applyFilters) => {
   return readProfiles(supabase, PROFILE_SELECT, applyFilters);
 };
 
+const normalizeRole = (role) => {
+  const normalized = String(role || "viewer").trim().toLowerCase();
+  return normalized === "user" ? "viewer" : normalized;
+};
+
 export const fetchInstitutionTeamMembers = async (supabase) => {
   if (!supabase) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("The team directory is not available right now.");
   }
 
   const { data: userResult, error: authError } = await supabase.auth.getUser();
@@ -49,19 +54,24 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   if (currentProfileResponse.error) throw currentProfileResponse.error;
 
   const institutionId = currentProfileResponse.data?.assigned_institute;
-  if (!institutionId) {
+  const currentRole = normalizeRole(currentProfileResponse.data?.role);
+  const isCheckItAdmin = currentRole === "checkit_admin";
+  if (!institutionId && !isCheckItAdmin) {
     return { institutionId: null, members: [] };
   }
 
   const membersResponse = await readProfilesWithFallback(
     supabase,
-    (query) => query.eq("assigned_institute", institutionId).order("full_name", { ascending: true })
+    (query) => {
+      const scopedQuery = isCheckItAdmin ? query : query.eq("assigned_institute", institutionId);
+      return scopedQuery.order("full_name", { ascending: true });
+    }
   );
 
   if (membersResponse.error) throw membersResponse.error;
 
   return {
-    institutionId,
+    institutionId: isCheckItAdmin ? "all" : institutionId,
     members: membersResponse.data || []
   };
 };

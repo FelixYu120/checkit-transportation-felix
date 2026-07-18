@@ -1,7 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, ShieldAlert, MapPin, KeyRound } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
+
+const normalizeRole = (role) => {
+  const normalized = String(role || 'viewer').trim().toLowerCase();
+  return normalized === 'user' ? 'viewer' : normalized;
+};
+
+const formatRoleLabel = (role) => {
+  const normalized = normalizeRole(role);
+  if (normalized === 'checkit_admin') return 'CheckIt Admin';
+  if (normalized === 'checkit_field_operator') return 'CheckIt Field Operator';
+  if (normalized === 'field_operator') return 'Field Operator';
+  if (normalized === 'admin') return 'Admin';
+  return 'Viewer';
+};
+
+const hasGlobalAccess = (role) => normalizeRole(role) === 'checkit_admin';
 
 const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [loading, setLoading] = useState(true);
@@ -17,7 +34,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     id: '',
     full_name: '',
     email: '',
-    role: 'user',
+    role: 'viewer',
     last_logged_in: '',
     assigned_area: null,
     assigned_building: null,
@@ -55,7 +72,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             id: user.id, // Strictly pulled from secure auth context
             full_name: data?.full_name || '',
             email: user.email,
-            role: data?.role || 'user',
+            role: normalizeRole(data?.role),
             last_logged_in: data?.last_logged_in || new Date().toISOString(),
             assigned_area: data?.assigned_area || null,
             assigned_building: data?.assigned_building || null,
@@ -90,7 +107,6 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             id: profile.id,
             email: profile.email,
             full_name: profile.full_name,
-            role: profile.role,
             last_logged_in: profile.last_logged_in
             // Note: We don't update assignments here; an admin should do that elsewhere
         });
@@ -136,7 +152,8 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
 
   // Helper function to determine the user's primary access level
   const renderAccessLevel = () => {
-    if (profile.role === 'admin') return { level: 'Global Access', detail: 'All Transportation Areas & Systems' };
+    if (hasGlobalAccess(profile.role)) return { level: 'Global Access', detail: 'All Transportation Areas & Systems' };
+    if (normalizeRole(profile.role) === 'admin') return { level: 'Institution Admin Access', detail: 'Assigned Institution' };
     if (profile.assigned_room) return { level: 'Corridor Access', detail: 'Assigned corridor' };
     if (profile.assigned_floor) return { level: 'Corridor Access', detail: `Corridor ${profile.assigned_floor}` };
     if (profile.assigned_building) return { level: 'Area Access', detail: profile.building_name };
@@ -148,7 +165,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
 
   const access = renderAccessLevel();
 
-  return (
+  return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         
@@ -191,9 +208,9 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             ) : (
               <>
             
-            {profile.role === 'admin' && (
+            {hasGlobalAccess(profile.role) && (
                <div className={styles.adminBadge}>
-                 <ShieldAlert size={16} /> Admin Override Active
+                 <ShieldAlert size={16} /> CheckIt Admin Override Active
                </div>
             )}
 
@@ -219,6 +236,9 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             <label className={styles.label}>Email Address (Read Only)</label>
             <input type="text" className={styles.input} value={profile.email} disabled />
 
+            <label className={styles.label}>Role</label>
+            <input type="text" className={styles.input} value={formatRoleLabel(profile.role)} disabled />
+
             <div className={styles.loginTracker}>
               <strong>Last Logged In:</strong> {new Date(profile.last_logged_in).toLocaleString()}
             </div>
@@ -233,7 +253,8 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

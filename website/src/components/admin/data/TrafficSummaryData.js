@@ -171,7 +171,7 @@ export const fetchTrafficSummaryRows = async (supabase, {
 
     return applyAnalyticsFilters(combineDirectionRows(data), filters);
   } catch (error) {
-    console.warn("Using local 10-minute summary fallback:", getSupabaseErrorContext(error));
+    console.warn("Using local traffic summary fallback:", getSupabaseErrorContext(error));
     const localRows = getFallbackSummaryRows(sensorId);
 
     return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
@@ -206,7 +206,7 @@ export const fetchTrafficDirectionRows = async (supabase, {
     if (error) throw error;
 
     if (!data?.length) {
-      console.warn("Using local directional traffic fallback: Supabase returned no rows");
+      console.warn("Using local directional traffic fallback: remote source returned no rows");
       return applyFallbackDirectionRows(sensorId, filters);
     }
 

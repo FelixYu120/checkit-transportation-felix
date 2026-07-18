@@ -24,6 +24,19 @@ import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.
 import styles from "./App.module.css";
 import supabase from "./components/helper/SupabaseClients.jsx";
 
+const ANALYTICS_ALLOWED_ROLES = new Set([
+  'viewer',
+  'field_operator',
+  'admin',
+  'checkit_field_operator',
+  'checkit_admin',
+]);
+
+const normalizeAnalyticsRole = (role) => {
+    const normalized = String(role || 'viewer').trim().toLowerCase();
+    return normalized === 'user' ? 'viewer' : normalized;
+};
+
 const getSupabaseAuthRedirectPath = () => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const searchParams = new URLSearchParams(window.location.search);
@@ -47,7 +60,81 @@ const getSupabaseAuthRedirectPath = () => {
     return null;
 };
 
+function AnalyticsAccessRoute({ isLoggedIn, children }) {
+    const [accessReady, setAccessReady] = useState(false);
+    const [allowed, setAllowed] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+
+        const verifyAccess = async () => {
+            if (!isLoggedIn) {
+                setAccessReady(true);
+                setAllowed(false);
+                return;
+            }
+
+            try {
+                const { data: userResult, error: authError } = await supabase.auth.getUser();
+                if (authError) throw authError;
+
+                const userId = userResult?.user?.id;
+                if (!userId) {
+                    if (active) {
+                        setAllowed(false);
+                        setAccessReady(true);
+                    }
+                    return;
+                }
+
+                const { data, error } = await supabase
+                    .from('profile')
+                    .select('role')
+                    .eq('id', userId)
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                const role = normalizeAnalyticsRole(data?.role);
+                if (active) {
+                    setAllowed(ANALYTICS_ALLOWED_ROLES.has(role));
+                    setAccessReady(true);
+                }
+            } catch {
+                if (active) {
+                    setAllowed(false);
+                    setAccessReady(true);
+                }
+            }
+        };
+
+        verifyAccess();
+
+        return () => {
+            active = false;
+        };
+    }, [isLoggedIn]);
+
+    if (!isLoggedIn) return <Navigate to="/login" replace />;
+    if (!accessReady) return <div className={styles.appLayout} />;
+    if (!allowed) {
+        return (
+            <div className={styles.centeredPageShell}>
+                <h1>Access unavailable</h1>
+            </div>
+        );
+    }
+
+    return children;
+}
+
 function AppShell({ isLoggedIn, setIsLoggedIn }) {
+    const requireAnalyticsAccess = (element) => (
+        <AnalyticsAccessRoute isLoggedIn={isLoggedIn}>
+            {element}
+        </AnalyticsAccessRoute>
+    );
+
     return (
         <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             
@@ -63,7 +150,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                     <Route path="/dashboard/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
 
                     {/* ------------------- ADMIN DASHBOARD ROUTES ------------------- */}
-                    <Route path="/dashboard/institute/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                    <Route path="/dashboard/institute/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="corridors/:floorId" element={<FloorDashboard />} />
                         <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
@@ -73,7 +160,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/dashboard/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                    <Route path="/dashboard/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="corridors/:floorId" element={<FloorDashboard />} />
                         <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
@@ -83,7 +170,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path=":floorId/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/dashboard/college/:collegeId" element={isLoggedIn ? <AdminLayout /> : <Navigate to="/login" replace />}>
+                    <Route path="/dashboard/college/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="floor/:floorId" element={<FloorDashboard />} />
                         <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
@@ -95,10 +182,10 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/insights-studio" element={isLoggedIn ? <InsightsStudio /> : <Navigate to="/login" replace />} />
-                    <Route path="/insights-studio/solo" element={isLoggedIn ? <InsightBuilderPage type="solo" title="Solo Insight" /> : <Navigate to="/login" replace />} />
-                    <Route path="/insights-studio/comparison" element={isLoggedIn ? <InsightBuilderPage type="comparison" title="Comparison Insight" /> : <Navigate to="/login" replace />} />
-                    <Route path="/team" element={isLoggedIn ? <TeamPage /> : <Navigate to="/login" replace />} />
+                    <Route path="/insights-studio" element={requireAnalyticsAccess(<InsightsStudio />)} />
+                    <Route path="/insights-studio/solo" element={requireAnalyticsAccess(<InsightBuilderPage type="solo" title="Solo Insight" />)} />
+                    <Route path="/insights-studio/comparison" element={requireAnalyticsAccess(<InsightBuilderPage type="comparison" title="Comparison Insight" />)} />
+                    <Route path="/team" element={requireAnalyticsAccess(<TeamPage />)} />
 
                     {/* ------------------- STATIC PAGES ------------------- */}
                     <Route path="/resources" element={<div className={styles.centeredPageShell}><Resources/></div>} />
