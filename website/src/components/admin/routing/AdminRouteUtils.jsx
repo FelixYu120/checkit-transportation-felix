@@ -8,16 +8,12 @@ export const slugifyAdminPathSegment = (text) => {
   if (!text) return "unknown";
   return String(text)
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 };
 
-<<<<<<< HEAD
-export const normalizeAdminPathSegment = (text) => slugifyAdminPathSegment(text);
 
-=======
->>>>>>> 1a59479c5580b46af7c1fcf55cc14383e5fc07f4
 export const getFloorRouteSegment = (floorId) => {
   const value = String(floorId || "").trim();
   if (!value) return "corridors";
