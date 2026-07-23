@@ -959,8 +959,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [shareNotice, setShareNotice] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [reportAccessRole, setReportAccessRole] = useState(() => (searchParams.get('id') ? 'loading' : 'owner'));
-  const isReportAccessPending = reportAccessRole === 'loading';
-  const isReadOnlyReport = reportAccessRole === 'viewer' || isReportAccessPending;
+  const [currentProfileRole, setCurrentProfileRole] = useState('viewer');
+  const [isProfileRoleLoading, setIsProfileRoleLoading] = useState(true);
+  const isViewerProfile = currentProfileRole === 'viewer';
+  const isReportAccessPending = reportAccessRole === 'loading' || (!reportId && isProfileRoleLoading);
+  const isReadOnlyReport = reportAccessRole === 'viewer' || isReportAccessPending || isViewerProfile;
   const canUseBuilderTools = !isReadOnlyReport;
   const returnReportTab = searchParams.get('fromTab') === 'shared' ? 'shared' : 'owned';
   const insightsLandingPath = returnReportTab === 'shared' ? '/insights-studio?tab=shared' : '/insights-studio';
@@ -977,6 +980,45 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [allRooms, setAllRooms] = useState([]);
   const [selections, setSelections] = useState(EMPTY_TARGET_SELECTION);
   const [comparisonSelections, setComparisonSelections] = useState(EMPTY_TARGET_SELECTION);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchCurrentRole = async () => {
+      try {
+        const { data: userResult } = await supabase.auth.getUser();
+        const userId = userResult?.user?.id;
+        if (!userId) {
+          if (isMounted) setCurrentProfileRole('viewer');
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (isMounted) setCurrentProfileRole(String(profile?.role || 'viewer').trim().toLowerCase());
+      } catch (error) {
+        if (isMounted) setCurrentProfileRole('viewer');
+      } finally {
+        if (isMounted) setIsProfileRoleLoading(false);
+      }
+    };
+
+    fetchCurrentRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isProfileRoleLoading && isViewerProfile && (!reportId || reportAccessRole === 'owner')) {
+      navigate('/insights-studio?tab=shared', { replace: true });
+    }
+  }, [isProfileRoleLoading, isViewerProfile, navigate, reportAccessRole, reportId]);
 
   useEffect(() => {
     fetchSensorDirectory(supabase).then(({ institutes }) => setAreas((institutes || []).map((institute) => ({
@@ -3798,10 +3840,13 @@ const InsightsStudio = () => {
   };
   const ownReports = reports.filter((report) => isOwnedReport(report));
   const sharedReports = reports.filter((report) => isSharedWithCurrentUser(report));
-  const activeReports = activeReportTab === 'owned' ? ownReports : sharedReports;
+  const isViewerRole = currentUserRole === 'viewer';
+  const visibleReportTab = isViewerRole ? 'shared' : activeReportTab;
+  const activeReports = visibleReportTab === 'owned' ? ownReports : sharedReports;
   const builderReturnQuery = activeReportTab === 'shared' ? '&fromTab=shared' : '';
 
   const updateActiveReportTab = (tab) => {
+    if (isViewerRole && tab !== 'shared') return;
     setActiveReportTab(tab);
     setSearchParams(tab === 'shared' ? { tab: 'shared' } : {}, { replace: true });
   };
@@ -3838,8 +3883,14 @@ const InsightsStudio = () => {
 
   useEffect(() => {
     const nextTab = searchParams.get('tab') === 'shared' ? 'shared' : 'owned';
-    setActiveReportTab(nextTab);
-  }, [searchParams]);
+    setActiveReportTab(isViewerRole ? 'shared' : nextTab);
+  }, [isViewerRole, searchParams]);
+
+  useEffect(() => {
+    if (isViewerRole && searchParams.get('tab') !== 'shared') {
+      setSearchParams({ tab: 'shared' }, { replace: true });
+    }
+  }, [isViewerRole, searchParams, setSearchParams]);
 
   useEffect(() => {
     const fetchSavedReports = async () => {
@@ -3977,7 +4028,7 @@ const InsightsStudio = () => {
         </header>
 
         {/* INSIGHT CREATION CARDS */}
-        <section className={styles.cardGrid}>
+        {!isViewerRole && <section className={styles.cardGrid}>
           <article className={styles.insightCard}>
             <div className={styles.cardCopy}>
               <h2>Solo Insight</h2>
@@ -4026,9 +4077,9 @@ const InsightsStudio = () => {
               Create Comparison Insight
             </button>
           </article>
-        </section>
+        </section>}
 
-        {templatePickerMode && (
+        {!isViewerRole && templatePickerMode && (
           <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setTemplatePickerMode(null)}>
             <div className={styles.templateChoiceDialog} role="dialog" aria-modal="true" aria-labelledby="template-choice-title" onMouseDown={(event) => event.stopPropagation()}>
               <div className={styles.templateChoiceHeader}>
@@ -4084,21 +4135,21 @@ const InsightsStudio = () => {
           ) : (
             <div className={styles.reportTabsPanel}>
               <div className={styles.reportTabs} role="tablist" aria-label="Saved report ownership">
-                <button
+                {!isViewerRole && <button
                   type="button"
                   role="tab"
-                  aria-selected={activeReportTab === 'owned'}
-                  className={`${styles.reportTab} ${activeReportTab === 'owned' ? styles.reportTabActive : ''}`}
+                  aria-selected={visibleReportTab === 'owned'}
+                  className={`${styles.reportTab} ${visibleReportTab === 'owned' ? styles.reportTabActive : ''}`}
                   onClick={() => updateActiveReportTab('owned')}
                 >
                   Your reports
                   <span>{ownReports.length}</span>
-                </button>
+                </button>}
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={activeReportTab === 'shared'}
-                  className={`${styles.reportTab} ${activeReportTab === 'shared' ? styles.reportTabActive : ''}`}
+                  aria-selected={visibleReportTab === 'shared'}
+                  className={`${styles.reportTab} ${visibleReportTab === 'shared' ? styles.reportTabActive : ''}`}
                   onClick={() => updateActiveReportTab('shared')}
                 >
                   Shared with you
@@ -4108,8 +4159,8 @@ const InsightsStudio = () => {
 
               {renderReportsTable(
                 activeReports,
-                activeReportTab === 'owned' ? 'No reports you own yet.' : 'No shared reports yet.',
-                activeReportTab === 'owned' ? 'Reports you create will appear here.' : 'Reports shared by collaborators will appear here.',
+                visibleReportTab === 'owned' ? 'No reports you own yet.' : 'No shared reports yet.',
+                visibleReportTab === 'owned' ? 'Reports you create will appear here.' : 'Reports shared by collaborators will appear here.',
               )}
             </div>
           )}
