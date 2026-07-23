@@ -72,6 +72,27 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
 
   return {
     institutionId: isCheckItAdmin ? "all" : institutionId,
+    currentUserId: user.id,
+    currentUserRole: currentRole,
     members: membersResponse.data || []
   };
+};
+
+export const updateTeamMemberRole = async (supabase, memberId, role) => {
+  const { data, error } = await supabase.rpc("update_team_member_role", {
+    target_profile_id: memberId,
+    new_role: role
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const removeTeamMember = async (supabase, memberId) => {
+  const { data, error } = await supabase.rpc("remove_team_member", {
+    target_profile_id: memberId
+  });
+
+  if (error) throw error;
+  return data;
 };

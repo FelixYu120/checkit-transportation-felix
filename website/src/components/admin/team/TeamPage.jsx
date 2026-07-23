@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Search, Users } from "lucide-react";
+import { Check, Copy, Search, Trash2, UserCog, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
-import { fetchInstitutionTeamMembers } from "./TeamData";
+import { fetchInstitutionTeamMembers, removeTeamMember, updateTeamMemberRole } from "./TeamData";
 import styles from "./TeamPage.module.css";
 
 const matchesSearch = (member, query) => {
@@ -49,6 +49,39 @@ const getRoleLabel = (role) => {
   return "Viewer";
 };
 
+const ALL_ROLE_OPTIONS = [
+  { value: "checkit_admin", label: "System Admin" },
+  { value: "checkit_field_operator", label: "System Field Operator" },
+  { value: "admin", label: "Institution Admin" },
+  { value: "field_operator", label: "Institution Field Operator" },
+  { value: "viewer", label: "Viewer" }
+];
+
+const INSTITUTION_ADMIN_ROLE_OPTIONS = [
+  { value: "field_operator", label: "Institution Field Operator" },
+  { value: "viewer", label: "Viewer" }
+];
+
+const INSTITUTION_ADMIN_MANAGEABLE_ROLES = new Set(["field_operator", "viewer", "user"]);
+
+const getRoleOptionsForManager = (currentUserRole) =>
+  normalizeRole(currentUserRole) === "checkit_admin" ? ALL_ROLE_OPTIONS : INSTITUTION_ADMIN_ROLE_OPTIONS;
+
+const canManageMember = (currentUserRole, currentUserId, member) => {
+  const normalizedCurrentRole = normalizeRole(currentUserRole);
+  const normalizedMemberRole = normalizeRole(member?.role);
+  if (normalizedCurrentRole === "checkit_admin") {
+    return Boolean(member?.id && member.id !== currentUserId);
+  }
+
+  return Boolean(
+    normalizedCurrentRole === "admin" &&
+    member?.id &&
+    member.id !== currentUserId &&
+    INSTITUTION_ADMIN_MANAGEABLE_ROLES.has(normalizedMemberRole)
+  );
+};
+
 const TeamSkeleton = () => (
   <div className={styles.memberGrid} aria-label="Loading team members">
     {Array.from({ length: 6 }).map((_, index) => (
@@ -64,8 +97,15 @@ const TeamSkeleton = () => (
 const TeamPage = () => {
   const [members, setMembers] = useState([]);
   const [institutionId, setInstitutionId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState("viewer");
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedEmail, setCopiedEmail] = useState("");
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedRole, setSelectedRole] = useState("viewer");
+  const [confirmationName, setConfirmationName] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [savingAction, setSavingAction] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -81,6 +121,8 @@ const TeamPage = () => {
         if (!isMounted) return;
         setMembers(result.members);
         setInstitutionId(result.institutionId);
+        setCurrentUserId(result.currentUserId || "");
+        setCurrentUserRole(result.currentUserRole || "viewer");
       } catch (err) {
         if (!isMounted) return;
         setError(err.message || "Team members could not be loaded.");
@@ -118,6 +160,9 @@ const TeamPage = () => {
   );
 
   const memberCountLabel = `${filteredMembers.length} ${filteredMembers.length === 1 ? "member" : "members"}`;
+  const selectedMemberName = selectedMember?.full_name || selectedMember?.email || "this member";
+  const canEditSelectedMember = canManageMember(currentUserRole, currentUserId, selectedMember);
+  const availableRoleOptions = getRoleOptionsForManager(currentUserRole);
 
   const copyEmail = async (email) => {
     if (!email) return;
@@ -127,6 +172,72 @@ const TeamPage = () => {
       window.setTimeout(() => setCopiedEmail((current) => (current === email ? "" : current)), 1400);
     } catch {
       setCopiedEmail("");
+    }
+  };
+
+  const openMemberActions = (member) => {
+    setSelectedMember(member);
+    const normalizedMemberRole = normalizeRole(member.role);
+    const roleOptions = getRoleOptionsForManager(currentUserRole);
+    setSelectedRole(
+      roleOptions.some((option) => option.value === normalizedMemberRole)
+        ? normalizedMemberRole
+        : roleOptions[0].value
+    );
+    setConfirmationName("");
+    setActionError("");
+    setSavingAction("");
+  };
+
+  const closeMemberActions = () => {
+    if (savingAction) return;
+    setSelectedMember(null);
+    setConfirmationName("");
+    setActionError("");
+  };
+
+  const refreshMembers = async () => {
+    const result = await fetchInstitutionTeamMembers(supabase);
+    setMembers(result.members);
+    setInstitutionId(result.institutionId);
+    setCurrentUserId(result.currentUserId || "");
+    setCurrentUserRole(result.currentUserRole || "viewer");
+  };
+
+  const saveRole = async () => {
+    if (!selectedMember?.id || !canEditSelectedMember) return;
+    setSavingAction("role");
+    setActionError("");
+
+    try {
+      await updateTeamMemberRole(supabase, selectedMember.id, selectedRole);
+      await refreshMembers();
+      closeMemberActions();
+    } catch (err) {
+      setActionError(err.message || "Role could not be updated.");
+    } finally {
+      setSavingAction("");
+    }
+  };
+
+  const removeMember = async () => {
+    if (!selectedMember?.id || !canEditSelectedMember) return;
+    if (confirmationName !== selectedMemberName) {
+      setActionError("Type the member name exactly before removing them.");
+      return;
+    }
+
+    setSavingAction("remove");
+    setActionError("");
+
+    try {
+      await removeTeamMember(supabase, selectedMember.id);
+      await refreshMembers();
+      closeMemberActions();
+    } catch (err) {
+      setActionError(err.message || "Member could not be removed.");
+    } finally {
+      setSavingAction("");
     }
   };
 
@@ -188,7 +299,16 @@ const TeamPage = () => {
               </div>
               <div className={styles.memberGrid}>
                 {group.members.map((member) => (
-                  <article className={styles.memberCard} key={member.id || member.email}>
+                  <article
+                    className={`${styles.memberCard} ${canManageMember(currentUserRole, currentUserId, member) ? styles.manageableCard : ""}`}
+                    key={member.id || member.email}
+                    onClick={() => openMemberActions(member)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") openMemberActions(member);
+                    }}
+                  >
                     <div className={styles.avatar} aria-hidden="true">
                       {(member.full_name || member.email || "?").trim().charAt(0).toUpperCase()}
                     </div>
@@ -200,7 +320,10 @@ const TeamPage = () => {
                           <button
                             aria-label={`Copy ${member.email}`}
                             className={styles.copyEmailButton}
-                            onClick={() => copyEmail(member.email)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              copyEmail(member.email);
+                            }}
                             type="button"
                           >
                             {copiedEmail === member.email ? <Check size={14} /> : <Copy size={14} />}
@@ -209,6 +332,9 @@ const TeamPage = () => {
                       </div>
                       <span>{getRoleLabel(member.role)}</span>
                     </div>
+                    {canManageMember(currentUserRole, currentUserId, member) ? (
+                      <UserCog className={styles.manageIcon} size={18} aria-hidden="true" />
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -216,6 +342,75 @@ const TeamPage = () => {
           ))}
         </section>
       )}
+
+      {selectedMember ? (
+        <div className={styles.modalBackdrop} onClick={closeMemberActions}>
+          <section
+            className={styles.memberModal}
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="team-member-actions-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h2 id="team-member-actions-title">{selectedMemberName}</h2>
+                <p>{selectedMember.email}</p>
+              </div>
+              <button className={styles.iconButton} type="button" onClick={closeMemberActions} aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+
+            {!canEditSelectedMember ? (
+              <div className={styles.readOnlyNotice}>
+                This member cannot be managed from your account.
+              </div>
+            ) : (
+              <>
+                <label className={styles.fieldLabel} htmlFor="team-role-select">Role</label>
+                <select
+                  id="team-role-select"
+                  className={styles.select}
+                  value={selectedRole}
+                  onChange={(event) => setSelectedRole(event.target.value)}
+                >
+                  {availableRoleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <button className={styles.primaryButton} type="button" onClick={saveRole} disabled={savingAction === "role"}>
+                  {savingAction === "role" ? "Saving..." : "Save role"}
+                </button>
+
+                <div className={styles.dangerZone}>
+                  <div>
+                    <h3>Remove from team</h3>
+                    <p>Type <strong>{selectedMemberName}</strong> exactly to confirm.</p>
+                  </div>
+                  <input
+                    className={styles.input}
+                    value={confirmationName}
+                    onChange={(event) => setConfirmationName(event.target.value)}
+                    placeholder={selectedMemberName}
+                  />
+                  <button
+                    className={styles.dangerButton}
+                    type="button"
+                    onClick={removeMember}
+                    disabled={savingAction === "remove" || confirmationName !== selectedMemberName}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    {savingAction === "remove" ? "Removing..." : "Remove member"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {actionError ? <div className={styles.actionError}>{actionError}</div> : null}
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 };
