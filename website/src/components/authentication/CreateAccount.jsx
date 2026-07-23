@@ -140,8 +140,8 @@ function CreateAccount({ setIsLoggedIn }) {
                         <h1 className={styles.logintitle}>CREATE ACCOUNT</h1>
                         <p className={styles.helperText}>
                             {hasInviteSession
-                                ? 'Choose a password for your invited CheckIt administrator account.'
-                                : 'Use the email approved for administrator access.'}
+                                ? 'Add your name and choose a password.'
+                                : 'Use the email approved for platform access.'}
                         </p>
                     </div>
 

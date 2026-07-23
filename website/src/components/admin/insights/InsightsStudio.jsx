@@ -1003,13 +1003,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           
           if (data) {
             const { data: userResult } = await supabase.auth.getUser();
-            const { data: currentProfile } = userResult?.user?.id
-              ? await supabase.from('profile').select('role').eq('id', userResult.user.id).maybeSingle()
-              : { data: null };
-            const isCheckItAdmin = String(currentProfile?.role || '').trim().toLowerCase() === 'checkit_admin';
             const currentEmail = userResult?.user?.email?.toLowerCase() || '';
             const sharedAccessForUser = getReportSharedAccess(data)[currentEmail];
-            setReportAccessRole(isCheckItAdmin || data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'owner'));
+            setReportAccessRole(data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'viewer'));
 
             setDocMeta({
               title: data.title || 'Activity & Operations Report',
@@ -3781,7 +3777,6 @@ const InsightsStudio = () => {
 
   const isOwnedReport = (report) => {
     if (!currentUser) return false;
-    if (currentUserRole === 'checkit_admin') return true;
     if (report?.owner_id) return report.owner_id === currentUser.id;
 
     const currentEmail = currentUser.email?.toLowerCase();
@@ -3793,8 +3788,16 @@ const InsightsStudio = () => {
     const lastSavedBy = getReportLastSavedBy(report).toLowerCase();
     return Boolean(currentEmail && lastSavedBy && currentEmail === lastSavedBy);
   };
+  const isSharedWithCurrentUser = (report) => {
+    const currentEmail = currentUser?.email?.toLowerCase();
+    if (!currentEmail || isOwnedReport(report)) return false;
+
+    return getReportSharedEmails(report)
+      .map((email) => String(email).trim().toLowerCase())
+      .includes(currentEmail);
+  };
   const ownReports = reports.filter((report) => isOwnedReport(report));
-  const sharedReports = reports.filter((report) => !isOwnedReport(report));
+  const sharedReports = reports.filter((report) => isSharedWithCurrentUser(report));
   const activeReports = activeReportTab === 'owned' ? ownReports : sharedReports;
   const builderReturnQuery = activeReportTab === 'shared' ? '&fromTab=shared' : '';
 
