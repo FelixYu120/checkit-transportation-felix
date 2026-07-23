@@ -2,16 +2,17 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
   width: 100%;
   max-width: 100%;
   padding-bottom: 12px;
   border-bottom: 1px solid #dce5ea;
 }
 
-.exportRow {
+.controlsRow {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
 }
 
@@ -19,5 +20,10 @@
   .controlBar {
     width: 100%;
     align-items: stretch;
+  }
+
+  .controlsRow {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

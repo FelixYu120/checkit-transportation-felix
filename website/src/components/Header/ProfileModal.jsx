@@ -11,10 +11,10 @@ const normalizeRole = (role) => {
 
 const formatRoleLabel = (role) => {
   const normalized = normalizeRole(role);
-  if (normalized === 'checkit_admin') return 'CheckIt Admin';
-  if (normalized === 'checkit_field_operator') return 'CheckIt Field Operator';
-  if (normalized === 'field_operator') return 'Field Operator';
-  if (normalized === 'admin') return 'Admin';
+  if (normalized === 'checkit_admin') return 'System Admin';
+  if (normalized === 'checkit_field_operator') return 'System Field Operator';
+  if (normalized === 'field_operator') return 'Institution Field Operator';
+  if (normalized === 'admin') return 'Institution Admin';
   return 'Viewer';
 };
 
@@ -232,7 +232,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             
             {hasGlobalAccess(profile.role) && (
                <div className={styles.adminBadge}>
-                 <ShieldAlert size={16} /> CheckIt Admin Override Active
+                 <ShieldAlert size={16} /> System Admin Override Active
                </div>
             )}
 

@@ -170,5 +170,5 @@ export const slugifyBuildingName = (value) =>
   String(value || "")
     .toLowerCase()
     .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");

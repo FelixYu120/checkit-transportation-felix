@@ -21,7 +21,18 @@ const buildCsv = (rows = []) => {
     return lines.join('\n');
 };
 
-const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename }) => {
+const createFilename = (exportLabel) => (
+    `${String(exportLabel || 'export')
+        .trim()
+        .replace(/['’]/g, '')
+        .replace(/[_\s]+/g, '-')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'export'}.csv`
+);
+
+const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename, loading = false }) => {
     const handleExport = () => {
         const csv = buildCsv(rows);
         if (!csv) return;
@@ -31,7 +42,7 @@ const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename }) => 
         const link = document.createElement('a');
 
         link.href = url;
-        link.download = filename || `${exportLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'export'}.csv`;
+        link.download = filename || createFilename(exportLabel);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -43,11 +54,11 @@ const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename }) => 
             onClick={handleExport}
             className={styles.exportButton}
             type="button"
-            disabled={!rows.length}
+            disabled={loading || !rows.length}
             title={rows.length ? `Export ${exportLabel}` : 'No rows to export'}
         >
-            Export as CSV
             <Download size={16} strokeWidth={2} />
+            <span>Export</span>
         </button>
     );
 };

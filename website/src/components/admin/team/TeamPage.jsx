@@ -28,10 +28,10 @@ const sortMembersAlphabetically = (members) =>
   );
 
 const ROLE_GROUPS = [
-  { key: "checkit_admin", label: "CheckIt Admins" },
-  { key: "checkit_field_operator", label: "CheckIt Field Operators" },
-  { key: "admin", label: "Admins" },
-  { key: "field_operator", label: "Field Operators" },
+  { key: "checkit_admin", label: "System Admins" },
+  { key: "checkit_field_operator", label: "System Field Operators" },
+  { key: "admin", label: "Institution Admins" },
+  { key: "field_operator", label: "Institution Field Operators" },
   { key: "viewer", label: "Viewers" }
 ];
 
@@ -42,10 +42,10 @@ const normalizeRole = (role) => {
 
 const getRoleLabel = (role) => {
   const normalized = normalizeRole(role);
-  if (normalized === "checkit_admin") return "CheckIt Admin";
-  if (normalized === "checkit_field_operator") return "CheckIt Field Operator";
-  if (normalized === "admin") return "Admin";
-  if (normalized === "field_operator") return "Field Operator";
+  if (normalized === "checkit_admin") return "System Admin";
+  if (normalized === "checkit_field_operator") return "System Field Operator";
+  if (normalized === "admin") return "Institution Admin";
+  if (normalized === "field_operator") return "Institution Field Operator";
   return "Viewer";
 };
 

@@ -13,9 +13,8 @@ import {
 } from '../routing/AdminRouteUtils';
 import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
-import AnalyticsFilters from '../controls/AnalyticsFilters';
+import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
-import ExportCsvButton from '../controls/ExportCsvButton';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
 
 const roundOne = (value) => Math.round(value * 10) / 10;
@@ -79,6 +78,17 @@ const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
     v85_speed_mph: row.v85_speed ?? '',
     max_speed_mph: row.max_speed ?? '',
 }));
+
+const createCsvFilename = (label) => (
+    `${String(label || 'transportation-export')
+        .trim()
+        .replace(/['’]/g, '')
+        .replace(/[_\s]+/g, '-')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
+);
 
 const SENSOR_STATUS_OPTIONS = ['active', 'down', 'offline'];
 const TRAFFIC_TIMEFRAMES = [
@@ -237,16 +247,14 @@ const FloorDashboard = () => {
                         </div>
                     </section>
 
-                    <section className={styles.topControls} aria-label="Traffic controls">
-                        <div className={styles.exportControl}>
-                            <ExportCsvButton
-                                exportLabel={`${corridorName} traffic`}
-                                filename={`${corridorId}-traffic.csv`}
-                                rows={exportRows}
-                            />
-                        </div>
-                        <AnalyticsFilters filters={filters} onChange={setFilters} />
-                    </section>
+                    <AnalyticsControlBar
+                        filters={filters}
+                        onFilterChange={setFilters}
+                        exportLabel={`${corridorName} traffic`}
+                        exportFilename={createCsvFilename(corridorName)}
+                        exportRows={exportRows}
+                        exportLoading={loading}
+                    />
 
                     <section className={styles.insightGrid}>
                         {insightCards.map((card) => (

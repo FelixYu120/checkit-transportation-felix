@@ -8,13 +8,13 @@ import {
     getAdminAreaPath,
     getAdminCollegePath,
     getAdminFloorPath,
+    normalizeAdminPathSegment,
     slugifyAdminPathSegment,
 } from '../routing/AdminRouteUtils';
 import { fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
-import AnalyticsFilters from '../controls/AnalyticsFilters';
+import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
-import ExportCsvButton from '../controls/ExportCsvButton';
 
 const groupSensorsByArea = (sensors = []) =>
     sensors.reduce((areas, sensor) => {
@@ -27,18 +27,25 @@ const groupSensorsByArea = (sensors = []) =>
 const roundOne = (value) => Math.round((Number(value) || 0) * 10) / 10;
 
 const createCsvFilename = (label) => (
-    `${String(label || 'transportation-export').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
+    `${String(label || 'transportation-export')
+        .trim()
+        .replace(/['’]/g, '')
+        .replace(/[_\s]+/g, '-')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
 );
 
 const getTrafficExportRows = (rows = [], sensors = [], scopeType, fallbackInstitute = '') => {
     const sensorsById = new Map(sensors.map((sensor) => [sensor.sensor_id, sensor]));
 
     return rows
-        .filter((row) => sensorsById.has(row.sensor_id))
         .slice()
         .sort((a, b) => new Date(a.observed_at) - new Date(b.observed_at))
         .map((row) => {
             const sensor = sensorsById.get(row.sensor_id) || {};
+            if (sensorsById.size > 0 && row.sensor_id && !sensor.sensor_id) return null;
 
             return {
                 scope_type: scopeType,
@@ -52,7 +59,8 @@ const getTrafficExportRows = (rows = [], sensors = [], scopeType, fallbackInstit
                 v85_speed_mph: row.v85_speed ?? '',
                 max_speed_mph: row.max_speed ?? '',
             };
-        });
+        })
+        .filter(Boolean);
 };
 
 const getTrafficHealth = ({ volume = 0, avgSpeed = 0, maxSpeed = 0, lastSeen }) => {
@@ -149,9 +157,10 @@ const getSensorTrafficSummaries = (sensors = [], rows = []) => {
 
 const getAreaById = (sensors = [], areaId) => {
     const areas = groupSensorsByArea(sensors);
+    const normalizedAreaId = normalizeAdminPathSegment(areaId);
 
     return Object.entries(areas).find(
-        ([areaName]) => slugifyAdminPathSegment(areaName) === areaId
+        ([areaName]) => slugifyAdminPathSegment(areaName) === normalizedAreaId
     );
 };
 
@@ -389,13 +398,16 @@ export const CollegeOverview = () => {
                     normalizedCollegeId
                 );
 
-                const trafficData = await fetchTrafficDirectionRows(supabase, {
-                    filters,
-                    type: 'daily',
-                    limit: 50000,
-                });
-
                 const instituteData = institutes[0];
+                const sensorIds = (sensorData || []).map((sensor) => sensor.sensor_id).filter(Boolean);
+                const trafficData = sensorIds.length
+                    ? await fetchTrafficDirectionRows(supabase, {
+                        sensorIds,
+                        filters,
+                        type: 'daily',
+                        limit: 50000,
+                    })
+                    : [];
 
                 setInstituteName(instituteData?.full_name || normalizedCollegeId);
                 setSensors(sensorData || []);
@@ -442,16 +454,14 @@ export const CollegeOverview = () => {
                 </div>
             ) : (
                 <div className={styles.analyticsStack}>
-                    <section className={styles.topControls} aria-label="Traffic controls">
-                        <div className={styles.exportControl}>
-                            <ExportCsvButton
-                                exportLabel={`${instituteName} traffic`}
-                                filename={createCsvFilename(instituteName)}
-                                rows={exportRows}
-                            />
-                        </div>
-                        <AnalyticsFilters filters={filters} onChange={setFilters} />
-                    </section>
+                    <AnalyticsControlBar
+                        filters={filters}
+                        onFilterChange={setFilters}
+                        exportLabel={`${instituteName} traffic`}
+                        exportFilename={createCsvFilename(instituteName)}
+                        exportRows={exportRows}
+                        exportLoading={loading}
+                    />
 
                     <section className={styles.placeSummaryBox}>
                         <div className={styles.placeSummaryTop}>
@@ -543,11 +553,15 @@ export const AreaOverview = () => {
                 const [matchedAreaName, matchedSensors] =
                     getAreaById(sensorData || [], buildingId) || [];
 
-                const trafficData = await fetchTrafficDirectionRows(supabase, {
-                    filters,
-                    type: 'daily',
-                    limit: 50000,
-                });
+                const sensorIds = (matchedSensors || []).map((sensor) => sensor.sensor_id).filter(Boolean);
+                const trafficData = sensorIds.length
+                    ? await fetchTrafficDirectionRows(supabase, {
+                        sensorIds,
+                        filters,
+                        type: 'daily',
+                        limit: 50000,
+                    })
+                    : [];
 
                 setInstituteName(institutes?.[0]?.full_name || normalizedCollegeId);
                 setAreaName(matchedAreaName || '');
@@ -602,16 +616,14 @@ export const AreaOverview = () => {
                 <div className={styles.noData}>Area not found.</div>
             ) : (
                 <div className={styles.analyticsStack}>
-                    <section className={styles.topControls} aria-label="Traffic controls">
-                        <div className={styles.exportControl}>
-                            <ExportCsvButton
-                                exportLabel={`${areaName} traffic`}
-                                filename={createCsvFilename(areaName)}
-                                rows={exportRows}
-                            />
-                        </div>
-                        <AnalyticsFilters filters={filters} onChange={setFilters} />
-                    </section>
+                    <AnalyticsControlBar
+                        filters={filters}
+                        onFilterChange={setFilters}
+                        exportLabel={`${areaName} traffic`}
+                        exportFilename={createCsvFilename(areaName)}
+                        exportRows={exportRows}
+                        exportLoading={loading}
+                    />
 
                     <section className={styles.placeSummaryBox}>
                         <div className={styles.placeSummaryTop}>
