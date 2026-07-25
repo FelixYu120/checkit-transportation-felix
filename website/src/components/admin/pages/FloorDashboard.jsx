@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, Timer } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -16,6 +15,7 @@ import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
+import SummaryMetrics from '../summaries/SummaryMetrics';
 
 const roundOne = (value) => Math.round(value * 10) / 10;
 
@@ -102,6 +102,23 @@ const TRAFFIC_VIEW_PRESETS = [
     { value: 'direction', label: 'Direction' },
 ];
 
+const getFilterRangeDays = (filters = {}) => {
+    if (!filters.startDate && !filters.endDate) return 1;
+    const startValue = filters.startDate || filters.endDate;
+    const endValue = filters.endDate || filters.startDate;
+    const startDate = new Date(`${startValue}T00:00:00`);
+    const endDate = new Date(`${endValue}T00:00:00`);
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return 1;
+    return Math.max(1, Math.round((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1);
+};
+
+const getTimeframeForFilters = (filters = {}) => {
+    const rangeDays = getFilterRangeDays(filters);
+    if (rangeDays <= 1) return 'daily';
+    if (rangeDays <= 14) return 'weekly';
+    return 'monthly';
+};
+
 const getChartTitleLabel = (preset) => (
     preset?.value === 'combined' ? 'Flow' : preset?.label || 'Flow'
 );
@@ -112,7 +129,6 @@ const FloorDashboard = () => {
     const corridorId = getFloorNumberFromRouteSegment(floorId);
     const [instituteName, setInstituteName] = useState('');
     const [sensor, setSensor] = useState(null);
-    const [trafficRows, setTrafficRows] = useState([]);
     const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
     const [loading, setLoading] = useState(true);
     const [trendViews, setTrendViews] = useState({
@@ -120,7 +136,8 @@ const FloorDashboard = () => {
         weekly: 'combined',
         monthly: 'combined',
     });
-    const [activeInsight, setActiveInsight] = useState(null);
+    const [activeTrafficTimeframe, setActiveTrafficTimeframe] = useState('daily');
+    const [activeChartData, setActiveChartData] = useState(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -129,7 +146,6 @@ const FloorDashboard = () => {
             try {
                 setLoading(true);
                 setSensor(null);
-                setTrafficRows([]);
 
                 const [data, directory] = await Promise.all([
                     fetchSensorById(supabase, normalizedCollegeId, corridorId),
@@ -143,7 +159,6 @@ const FloorDashboard = () => {
                 if (!isMounted) return;
                 console.error('Corridor fetch error:', err);
                 setSensor(null);
-                setTrafficRows([]);
                 setInstituteName(formatAdminRouteLabel(normalizedCollegeId));
             } finally {
                 if (isMounted) setLoading(false);
@@ -158,31 +173,20 @@ const FloorDashboard = () => {
     }, [corridorId, normalizedCollegeId]);
 
     useEffect(() => {
-        let isMounted = true;
+        setActiveChartData(null);
+        setActiveTrafficTimeframe(getTimeframeForFilters(filters));
+    }, [filters]);
 
-        const fetchFilteredTraffic = async () => {
-            try {
-                const rows = await fetchTrafficDirectionRows(supabase, {
-                    sensorId: corridorId,
-                    filters,
-                    type: 'daily',
-                    limit: 5000,
-                });
+    const getCorridorExportRows = useCallback(async () => {
+        const rows = await fetchTrafficDirectionRows(supabase, {
+            sensorId: corridorId,
+            filters,
+            type: activeTrafficTimeframe,
+            limit: 50000,
+        });
 
-                if (isMounted) setTrafficRows(rows || []);
-            } catch (err) {
-                if (!isMounted) return;
-                console.error('Corridor traffic fetch error:', err);
-                setTrafficRows([]);
-            }
-        };
-
-        if (normalizedCollegeId && corridorId) fetchFilteredTraffic();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [corridorId, filters, normalizedCollegeId]);
+        return getTrafficExportRows(rows || [], sensor);
+    }, [activeTrafficTimeframe, corridorId, filters, sensor]);
 
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
@@ -190,30 +194,15 @@ const FloorDashboard = () => {
     const instituteLabel = instituteName || formatAdminRouteLabel(normalizedCollegeId);
     const areaName = sensor?.area_name || 'Unassigned Area';
     const areaPath = getAdminAreaPath(normalizedCollegeId, slugifyAdminPathSegment(areaName));
-    const summary = summarizeTraffic(trafficRows);
-    const exportRows = getTrafficExportRows(trafficRows, sensor);
-    const insightCards = [
-        {
-            key: 'peak',
-            icon: <Timer size={18} />,
-            label: 'Peak bucket',
-            value: summary.peakRow ? formatDateTime(summary.peakRow.observed_at) : 'No data',
-            description: 'Time period with the highest traffic volume for the selected range.',
-        },
-        {
-            key: 'safety',
-            icon: <AlertTriangle size={18} />,
-            label: 'Safety signal',
-            value: `${summary.maxSpeed} mph max`,
-            description: 'Maximum vehicle speed recorded for the selected range.',
-        },
-    ];
     const updateTrendView = (timeframe, view) => {
         setTrendViews((current) => ({
             ...current,
             [timeframe]: view,
         }));
     };
+    const activeView = trendViews[activeTrafficTimeframe] || 'combined';
+    const activeTimeframe = TRAFFIC_TIMEFRAMES.find((timeframe) => timeframe.value === activeTrafficTimeframe) || TRAFFIC_TIMEFRAMES[0];
+    const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView) || TRAFFIC_VIEW_PRESETS[0];
 
     return (
         <div className={styles.container}>
@@ -252,91 +241,68 @@ const FloorDashboard = () => {
                         onFilterChange={setFilters}
                         exportLabel={`${corridorName} traffic`}
                         exportFilename={createCsvFilename(corridorName)}
-                        exportRows={exportRows}
                         exportLoading={loading}
+                        getExportRows={getCorridorExportRows}
                     />
 
-                    <section className={styles.insightGrid}>
-                        {insightCards.map((card) => (
-                            <button
-                                key={card.key}
-                                type="button"
-                                className={styles.insightCard}
-                                onClick={() => setActiveInsight(card)}
-                                aria-label={`${card.label} details`}
-                            >
-                                {card.icon}
-                                <span>{card.label}</span>
-                                <strong>{card.value}</strong>
-                            </button>
-                        ))}
-                    </section>
+                    <SummaryMetrics
+                        level="floor"
+                        id={sensor.sensor_id}
+                        filters={filters}
+                        timeframe={activeTrafficTimeframe}
+                        sourceChartData={activeChartData}
+                        preferSourceChartData
+                    />
                 </>
-            )}
-
-            {activeInsight && (
-                <div
-                    className={styles.insightModalOverlay}
-                    role="presentation"
-                    onMouseDown={() => setActiveInsight(null)}
-                >
-                    <div
-                        className={styles.insightModal}
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="corridor-insight-title"
-                        onMouseDown={(event) => event.stopPropagation()}
-                    >
-                        <h2 id="corridor-insight-title">{activeInsight.label}</h2>
-                        <p>{activeInsight.description}</p>
-                        <strong>Value: {activeInsight.value}</strong>
-                        <button
-                            type="button"
-                            className={styles.insightModalClose}
-                            onClick={() => setActiveInsight(null)}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
             )}
 
             {sensor && (
                 <div className={styles.analyticsStack}>
-                    {TRAFFIC_TIMEFRAMES.map((timeframe) => {
-                        const activeView = trendViews[timeframe.value] || 'combined';
-                        const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView);
-
-                        return (
-                            <section className={styles.chartSection} key={timeframe.value}>
-                                <div className={styles.trendToolbar}>
-                                    <div className={styles.trendCopy}>
-                                        <span>{timeframe.label} chart</span>
-                                        <strong>{activePreset?.label || 'Flow'}</strong>
-                                    </div>
-                                    <div className={styles.timeframeSegment} aria-label={`${timeframe.label} traffic chart view`}>
-                                        {TRAFFIC_VIEW_PRESETS.map((preset) => (
-                                            <button
-                                                key={preset.value}
-                                                type="button"
-                                                className={`${styles.timeframeButton} ${activeView === preset.value ? styles.activeTimeframe : ''}`}
-                                                onClick={() => updateTrendView(timeframe.value, preset.value)}
-                                            >
-                                                {preset.label}
-                                            </button>
-                                        ))}
-                                    </div>
+                    <section className={styles.chartSection}>
+                        <div className={styles.trendToolbar}>
+                            <div className={styles.trendCopy}>
+                                <span>{activeTimeframe.label} chart</span>
+                                <strong>{activePreset.label}</strong>
+                            </div>
+                            <div className={styles.chartControls}>
+                                <div className={styles.timeframeSegment} aria-label="Traffic chart timeframe">
+                                    {TRAFFIC_TIMEFRAMES.map((timeframe) => (
+                                        <button
+                                            key={timeframe.value}
+                                            type="button"
+                                            className={`${styles.timeframeButton} ${activeTrafficTimeframe === timeframe.value ? styles.activeTimeframe : ''}`}
+                                            onClick={() => {
+                                                setActiveChartData(null);
+                                                setActiveTrafficTimeframe(timeframe.value);
+                                            }}
+                                        >
+                                            {timeframe.label}
+                                        </button>
+                                    ))}
                                 </div>
-                                <TrafficTrendChart
-                                    sensorId={sensor.sensor_id}
-                                    filters={filters}
-                                    type={timeframe.value}
-                                    mode={activeView}
-                                    title={`${timeframe.label} ${getChartTitleLabel(activePreset)}`}
-                                />
-                            </section>
-                        );
-                    })}
+                                <div className={styles.timeframeSegment} aria-label={`${activeTimeframe.label} traffic chart view`}>
+                                    {TRAFFIC_VIEW_PRESETS.map((preset) => (
+                                        <button
+                                            key={preset.value}
+                                            type="button"
+                                            className={`${styles.timeframeButton} ${activeView === preset.value ? styles.activeTimeframe : ''}`}
+                                            onClick={() => updateTrendView(activeTrafficTimeframe, preset.value)}
+                                        >
+                                            {preset.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <TrafficTrendChart
+                            sensorId={sensor.sensor_id}
+                            filters={filters}
+                            type={activeTrafficTimeframe}
+                            mode={activeView}
+                            title={`${activeTimeframe.label} ${getChartTitleLabel(activePreset)}`}
+                            onSnapshotData={setActiveChartData}
+                        />
+                    </section>
                 </div>
             )}
         </div>

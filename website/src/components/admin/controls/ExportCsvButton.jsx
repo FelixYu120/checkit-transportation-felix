@@ -32,9 +32,20 @@ const createFilename = (exportLabel) => (
         .replace(/(^-|-$)/g, '') || 'export'}.csv`
 );
 
-const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename, loading = false }) => {
-    const handleExport = () => {
-        const csv = buildCsv(rows);
+const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename, loading = false, getRows }) => {
+    const [isExporting, setIsExporting] = React.useState(false);
+
+    const handleExport = async () => {
+        if (isExporting) return;
+
+        let csv = '';
+        try {
+            setIsExporting(true);
+            const exportRows = getRows ? await getRows() : rows;
+            csv = buildCsv(exportRows);
+        } finally {
+            setIsExporting(false);
+        }
         if (!csv) return;
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -54,11 +65,11 @@ const ExportCsvButton = ({ exportLabel = 'this view', rows = [], filename, loadi
             onClick={handleExport}
             className={styles.exportButton}
             type="button"
-            disabled={loading || !rows.length}
-            title={rows.length ? `Export ${exportLabel}` : 'No rows to export'}
+            disabled={loading || isExporting || (!getRows && !rows.length)}
+            title={(getRows || rows.length) ? `Export ${exportLabel}` : 'No rows to export'}
         >
             <Download size={16} strokeWidth={2} />
-            <span>Export</span>
+            <span>{isExporting ? 'Exporting' : 'Export'}</span>
         </button>
     );
 };

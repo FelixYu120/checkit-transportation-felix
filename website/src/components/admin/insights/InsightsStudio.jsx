@@ -97,7 +97,8 @@ const FONT_FAMILY_OPTIONS = [
   { value: '"Courier New", Courier, monospace', label: 'Courier New' },
 ];
 
-const DEFAULT_SUMMARY_METRICS = ['total', 'peak', 'averageSpeed', 'busiestTime'];
+const DEFAULT_SUMMARY_METRICS = ['total', 'current', 'peak', 'busiestDay'];
+const DAILY_SUMMARY_METRICS = ['total', 'current', 'peak', 'busiestTime'];
 const SUMMARY_METRIC_OPTIONS = [
   { value: 'total', label: 'Total Traffic Volume' },
   { value: 'peak', label: 'Peak Traffic Volume' },
@@ -128,6 +129,17 @@ const getSummaryMetricCount = (element, isComparisonReport) => {
     ? element.summaryMetrics
     : fallbackMetrics;
   return Math.max(metrics.length, 1);
+};
+
+const getSummaryMetricsForTimeframe = (metrics, timeframe) => {
+  const fallbackMetrics = timeframe === 'daily' ? DAILY_SUMMARY_METRICS : DEFAULT_SUMMARY_METRICS;
+  const sourceMetrics = Array.isArray(metrics) && metrics.length > 0 ? metrics : fallbackMetrics;
+  const nextMetrics = sourceMetrics.filter((metric) => (
+    timeframe === 'daily'
+      ? metric !== 'busiestDay'
+      : metric !== 'busiestTime'
+  ));
+  return nextMetrics.length > 0 ? nextMetrics : fallbackMetrics;
 };
 
 const getAutoSummaryHeight = (element, isComparisonReport, width = element?.width || DEFAULT_REPORT_WIDTH) => {
@@ -1410,11 +1422,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId'].some((key) => key in updates);
     setElements(elements.map((el) => {
       if (el.id !== id) return el;
-      const nextElement = { ...el, ...(shouldRefreshSnapshot ? { snapshotData: undefined, snapshotKey: undefined } : {}), ...updates };
-      if (nextElement.type === 'summary' && ('summaryMetrics' in updates || 'width' in updates)) {
-        nextElement.height = Math.max(nextElement.height || 0, getAutoSummaryHeight(nextElement, isComparison, nextElement.width));
-      }
-      return nextElement;
+      return { ...el, ...(shouldRefreshSnapshot ? { snapshotData: undefined, snapshotKey: undefined } : {}), ...updates };
     }));
     markDirty();
   };
@@ -1627,9 +1635,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         newX,
         newY
       );
-      const finalHeight = resizedElement?.type === 'summary'
-        ? Math.max(newHeight, getAutoSummaryHeight({ ...resizedElement, width: newWidth }, isComparison, newWidth))
-        : newHeight;
+      const finalHeight = newHeight;
       const finalX = snappedPosition.x;
       let finalY = snappedPosition.y;
       const startPage = Math.floor(finalY / PAGE_HEIGHT);
@@ -2665,7 +2671,18 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
 
     if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={reportFilters} timeframe={reportSettings.timeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
-    if (el.type === 'summary') return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} timeframe={reportSettings.timeframe} metrics={el.summaryMetrics || DEFAULT_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    if (el.type === 'summary') {
+      const attachedChart = getAttachedChart(el);
+      const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
+        mode: type,
+        target: getTargetFromSelections(getElementPrimarySelections(attachedChart), ''),
+        secondaryTarget: getTargetFromSelections(getElementComparisonSelections(attachedChart), ''),
+        filters: reportFilters,
+        timeframe: reportSettings.timeframe,
+      }) : '';
+      const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
+      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} timeframe={reportSettings.timeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, reportSettings.timeframe)} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    }
     if (el.type === 'chart' && isComparison) return (
       <ChartFrame title={getChartDisplayName(el)}>
         <ComparisonAggregateChart targets={elementComparisonTargets} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />

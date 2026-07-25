@@ -233,6 +233,17 @@
   overflow-wrap: normal;
 }
 
+.modalEmailRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.modalEmailRow p {
+  min-width: 0;
+}
+
 .copyEmailButton {
   display: inline-grid;
   place-items: center;

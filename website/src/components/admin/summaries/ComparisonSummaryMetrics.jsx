@@ -36,8 +36,8 @@ const METRIC_COPY = {
     current: {
         primaryLabel: 'Latest',
         secondaryLabel: 'Latest',
-        differenceLabel: 'Latest Point Difference',
-        leaderLabel: 'Higher Latest Point',
+        differenceLabel: 'Live Status Difference',
+        leaderLabel: 'Higher Live Status',
         field: 'current',
         signed: false,
         unit: 'movements',
@@ -109,7 +109,7 @@ const METRIC_COPY = {
 
 const getWindowLabel = (timeframe) => {
     if (timeframe === 'daily') return '24h';
-    if (timeframe === 'monthly') return '30-day';
+    if (timeframe === 'monthly') return 'Monthly';
     return '7-day';
 };
 
@@ -257,9 +257,7 @@ const ComparisonSummaryMetrics = ({ targets = [], filters, timeframe = 'weekly',
         };
     }, [hasTargets, renderableTargets, targetSignature, timeframe, effectiveFilters, snapshotData, onSnapshotData]);
 
-    if (isMetricsLoading) return <div data-report-loading="true" style={{ height: '100%' }} />;
-
-    if (!hasTargets || !metrics) {
+    if (!hasTargets) {
         return (
             <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#888', fontStyle: 'italic' }}>
                 Select at least two data sources to compare.
@@ -293,17 +291,31 @@ const ComparisonSummaryMetrics = ({ targets = [], filters, timeframe = 'weekly',
     const labelStyle = { fontSize: 'clamp(0.62rem, 0.66vw, 0.74rem)', color: '#888', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' };
     const valueStyle = { fontSize: 'clamp(1rem, 1.25vw, 1.42rem)', fontWeight: '700', color: '#333', margin: 0, lineHeight: 1.1 };
     const unitStyle = { fontSize: 'clamp(0.68rem, 0.76vw, 0.82rem)', color: '#aaa', fontWeight: '400' };
+    const gridStyle = {
+        display: 'grid',
+        gridTemplateColumns: `repeat(${Math.min(Math.max(cards.length, 1), 4)}, minmax(0, 1fr))`,
+        gap: 'clamp(8px, 1vw, 12px)',
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
+        minWidth: 0,
+    };
+
+    if (isMetricsLoading) {
+        return (
+            <div data-report-loading="true" style={gridStyle}>
+                {cards.map((card) => (
+                    <div key={card.key} style={{ ...cardStyle, gap: '12px' }}>
+                        <span style={{ height: 12, width: '58%', borderRadius: 999, background: '#e8eef4', display: 'block' }} />
+                        <span style={{ height: 26, width: '42%', borderRadius: 999, background: '#dbe5ec', display: 'block' }} />
+                    </div>
+                ))}
+            </div>
+        );
+    }
 
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${Math.min(Math.max(cards.length, 1), 4)}, minmax(0, 1fr))`,
-            gap: 'clamp(8px, 1vw, 12px)',
-            width: '100%',
-            height: '100%',
-            boxSizing: 'border-box',
-            minWidth: 0,
-        }}>
+        <div style={gridStyle}>
             {cards.map((card) => (
                 <div key={card.key} style={cardStyle}>
                     <span style={labelStyle}>{card.label}</span>

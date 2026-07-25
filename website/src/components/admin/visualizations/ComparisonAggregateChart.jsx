@@ -246,6 +246,69 @@ const buildWeeklyData = (rawData, filters) => {
         }));
 };
 
+const createWeeklyDay = (date) => {
+    const weekday = date.toLocaleDateString([], { weekday: 'short' });
+    const dateLabel = date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+
+    return {
+        sortDate: getLocalDateKey(date),
+        sortKey: getLocalDateKey(date),
+        time: weekday,
+        axisLabel: `${weekday} ${dateLabel}`,
+        dateLabel,
+        peopleSum: 0,
+        occupancySum: 0,
+        count: 0,
+    };
+};
+
+const buildMonthlyData = (rawData, filters) => {
+    const anchorDate = getWeeklyAnchorDate(rawData, filters);
+    const startDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+    const endDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    const dayGroups = [];
+    const cursor = new Date(startDate);
+
+    while (cursor <= endDate) {
+        dayGroups.push(createWeeklyDay(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const groupsByDate = dayGroups.reduce((acc, group) => {
+        acc[group.sortDate] = group;
+        return acc;
+    }, {});
+
+    rawData.forEach((row) => {
+        const dateKey = getLocalDateKey(new Date(row.observed_at));
+        const group = groupsByDate[dateKey];
+        if (!group) return;
+
+        const people = row.people_count ?? row.total_people ?? 0;
+        const capacity = row.total_capacity ?? 0;
+        const occupancy = normalizeOccupancy(row.density, people, capacity);
+
+        group.peopleSum += people;
+        group.occupancySum += occupancy;
+        group.count += 1;
+    });
+
+    return dayGroups
+        .filter((group) => matchesDayPreset(new Date(`${group.sortDate}T00:00:00`), filters))
+        .map((group) => ({
+            sortKey: group.sortDate,
+            time: group.time,
+            axisLabel: group.axisLabel,
+            dateLabel: group.dateLabel,
+            hasData: group.count > 0,
+            occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
+            total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
+        }));
+};
+
 const buildDailyData = (rawData, filters) => {
     const hourlyTimeline = createHourlyTimeline(rawData, filters, 'daily');
     const hourGroups = hourlyTimeline.reduce((acc, group) => {
@@ -387,6 +450,7 @@ const fetchTargetData = async ({ target, type, filters }) => {
     });
 
     if (type === 'weekly') return buildWeeklyData(rawData, filters);
+    if (type === 'monthly') return buildMonthlyData(rawData, filters);
 
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const hasTimeFilters = hasActiveTimeFilter(filters);

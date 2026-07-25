@@ -355,7 +355,19 @@ const TeamPage = () => {
             <div className={styles.modalHeader}>
               <div>
                 <h2 id="team-member-actions-title">{selectedMemberName}</h2>
-                <p>{selectedMember.email}</p>
+                <div className={styles.modalEmailRow}>
+                  <p>{selectedMember.email}</p>
+                  {selectedMember.email ? (
+                    <button
+                      aria-label={`Copy ${selectedMember.email}`}
+                      className={styles.copyEmailButton}
+                      onClick={() => copyEmail(selectedMember.email)}
+                      type="button"
+                    >
+                      {copiedEmail === selectedMember.email ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <button className={styles.iconButton} type="button" onClick={closeMemberActions} aria-label="Close">
                 <X size={20} />

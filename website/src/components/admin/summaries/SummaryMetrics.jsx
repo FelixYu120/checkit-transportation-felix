@@ -29,24 +29,79 @@ const getBestAverageGroup = (groups) => {
     });
 };
 
-const METRIC_CONFIG = {
-    total: { label: 'Total Traffic Volume', unit: 'movements' },
-    current: { label: 'Latest Period Point', unit: 'movements' },
-    peak: { label: 'Peak Traffic Volume', unit: 'movements' },
-    averageSpeed: { label: 'Avg Speed', unit: 'mph' },
-    v85Speed: { label: '85th Speed', unit: 'mph' },
-    maxSpeed: { label: 'Max Speed', unit: 'mph' },
-    approachShare: { label: 'Approach Share', unit: '%' },
-    busiestDay: { label: 'Highest Volume Day', unit: '' },
-    busiestTime: { label: 'Highest Volume Time', unit: '' },
+const getTimeframeLabel = (timeframe) => {
+    if (timeframe === 'daily') return '24h';
+    if (timeframe === 'monthly') return 'Monthly';
+    if (timeframe === 'custom') return 'filtered';
+    return '7-day';
 };
 
-const DEFAULT_VISIBLE_METRICS = ['total', 'peak', 'averageSpeed', 'busiestTime'];
+const getMetricConfig = (timeframe) => {
+    const windowLabel = getTimeframeLabel(timeframe);
 
-const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: visibleMetrics = DEFAULT_VISIBLE_METRICS, snapshotData, onSnapshotData }) => {
+    return {
+        total: { label: `${windowLabel} Volume`, unit: 'movements' },
+        current: { label: 'Live Status', unit: 'movements' },
+        peak: { label: `Peak ${windowLabel} Avg`, unit: 'movements' },
+        averageSpeed: { label: `${windowLabel} Avg Speed`, unit: 'mph' },
+        v85Speed: { label: `${windowLabel} 85th Speed`, unit: 'mph' },
+        maxSpeed: { label: `${windowLabel} Max Speed`, unit: 'mph' },
+        approachShare: { label: `${windowLabel} Approach Share`, unit: '%' },
+        busiestDay: { label: `Highest ${windowLabel} Day`, unit: '' },
+        busiestTime: { label: `Highest ${windowLabel} Time`, unit: '' },
+    };
+};
+
+const getDefaultVisibleMetrics = (timeframe) => {
+    if (timeframe === 'daily') return ['total', 'current', 'peak', 'busiestTime'];
+    return ['total', 'current', 'peak', 'averageSpeed'];
+};
+
+const DEFAULT_VISIBLE_METRICS = getDefaultVisibleMetrics('weekly');
+
+const getPointLabel = (point) => point?.dateLabel || point?.axisLabel || point?.time || '-';
+
+const getChartMetrics = (sourceChartData, timeframe) => {
+    const dataPoints = (sourceChartData || []).filter((point) => point && point.hasData !== false);
+    if (!dataPoints.length) return null;
+
+    const getVolume = (point) => Number(point.volume ?? point.total_people ?? point.people_count ?? 0);
+    const getSpeed = (point) => Number(point.avgSpeed ?? point.avg_speed ?? point.occupancy ?? point.density ?? 0);
+    const latestPoint = dataPoints[dataPoints.length - 1];
+    const peakPoint = dataPoints.reduce((best, point) => (
+        getVolume(point) > getVolume(best) ? point : best
+    ), dataPoints[0]);
+    const speedWeight = dataPoints.reduce((sum, point) => sum + Math.max(getVolume(point), 1), 0);
+    const averageSpeed = speedWeight
+        ? dataPoints.reduce((sum, point) => sum + (getSpeed(point) * Math.max(getVolume(point), 1)), 0) / speedWeight
+        : 0;
+    const v85Speed = speedWeight
+        ? dataPoints.reduce((sum, point) => sum + ((Number(point.v85Speed ?? point.v85_speed) || 0) * Math.max(getVolume(point), 1)), 0) / speedWeight
+        : 0;
+    const maxSpeed = Math.max(0, ...dataPoints.map((point) => Number(point.maxSpeed ?? point.max_speed) || 0));
+    const approachVolume = dataPoints.reduce((sum, point) => sum + (Number(point.approach ?? point.approach_volume) || 0), 0);
+    const awayVolume = dataPoints.reduce((sum, point) => sum + (Number(point.away ?? point.away_volume) || 0), 0);
+    const approachShare = approachVolume + awayVolume > 0
+        ? Math.round((approachVolume / (approachVolume + awayVolume)) * 100)
+        : 0;
+
+    return {
+        total: Math.round(dataPoints.reduce((sum, point) => sum + getVolume(point), 0)),
+        current: Math.round(getVolume(latestPoint)),
+        peak: Math.round(getVolume(peakPoint)),
+        averageSpeed: Math.round(averageSpeed * 10) / 10,
+        v85Speed: Math.round(v85Speed * 10) / 10,
+        maxSpeed,
+        approachShare,
+        busiestDay: getPointLabel(peakPoint),
+        ...(timeframe === 'daily' || timeframe === 'custom' ? { busiestTime: getPointLabel(peakPoint) } : {}),
+    };
+};
+
+const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: visibleMetrics, snapshotData, onSnapshotData, sourceChartData, preferSourceChartData = false }) => {
     const normalizedVisibleMetrics = Array.isArray(visibleMetrics) && visibleMetrics.length > 0
         ? visibleMetrics
-        : DEFAULT_VISIBLE_METRICS;
+        : getDefaultVisibleMetrics(timeframe);
     const [liveMetrics, setLiveMetrics] = useState({
         total: 0,
         current: 0,
@@ -71,11 +126,22 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         endTime,
         dayPreset,
     }), [startDate, endDate, startTime, endTime, dayPreset]);
-    const metrics = snapshotData || liveMetrics;
-    const isMetricsLoading = !snapshotData && loading;
+    const chartMetrics = useMemo(() => getChartMetrics(sourceChartData, timeframe), [sourceChartData, timeframe]);
+    const metrics = chartMetrics || snapshotData || liveMetrics;
+    const isWaitingForSourceChartData = preferSourceChartData && sourceChartData == null;
+    const isMetricsLoading = isWaitingForSourceChartData || (!chartMetrics && !snapshotData && loading);
+    const metricConfig = useMemo(() => getMetricConfig(timeframe), [timeframe]);
 
     useEffect(() => {
         if (snapshotData) {
+            return undefined;
+        }
+        if (chartMetrics) {
+            setLoading(false);
+            return undefined;
+        }
+        if (preferSourceChartData) {
+            setLoading(false);
             return undefined;
         }
 
@@ -196,7 +262,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         return () => {
             isMounted = false;
         };
-    }, [level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData]);
+    }, [chartMetrics, level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData, preferSourceChartData]);
 
     // Reusable styles for the cards
     const cardStyle = {
@@ -215,33 +281,55 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     const valueStyle = { fontSize: 'clamp(1.2rem, 1.45vw, 1.55rem)', fontWeight: '700', color: '#333', margin: 0, lineHeight: 1.1 };
     const unitStyle = { fontSize: 'clamp(0.72rem, 0.8vw, 0.86rem)', color: '#aaa', fontWeight: '400' };
 
+    const selectedVisibleMetrics = normalizedVisibleMetrics.filter((metric) => (
+        metricConfig[metric] &&
+        !(timeframe === 'daily' && metric === 'busiestDay') &&
+        !(timeframe !== 'daily' && metric === 'busiestTime')
+    ));
+    const gridStyle = {
+        display: 'grid',
+        gridTemplateColumns: `repeat(${Math.max(selectedVisibleMetrics.length, 1)}, minmax(150px, 1fr))`,
+        alignContent: 'start',
+        gap: 'clamp(8px, 1vw, 12px)',
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
+        minWidth: 0,
+        overflowX: 'auto',
+    };
+
     if (isMetricsLoading) {
         return (
-            <div data-report-loading="true" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                Loading summary...
+            <div data-report-loading="true" style={gridStyle}>
+                {selectedVisibleMetrics.map((metricKey) => (
+                    <div key={metricKey} style={{ ...cardStyle, gap: '12px' }}>
+                        <span style={{ height: 12, width: '58%', borderRadius: 999, background: '#e8eef4', display: 'block' }} />
+                        <span style={{ height: 26, width: '42%', borderRadius: 999, background: '#dbe5ec', display: 'block' }} />
+                    </div>
+                ))}
             </div>
         );
     }
 
-    const safeVisibleMetrics = normalizedVisibleMetrics.filter((metric) => METRIC_CONFIG[metric]);
+    const safeVisibleMetrics = selectedVisibleMetrics.filter((metric) => {
+        const value = metrics[metric];
+        return value !== undefined && value !== null && value !== '' && value !== '-';
+    });
+    const renderedMetrics = safeVisibleMetrics.length ? safeVisibleMetrics : selectedVisibleMetrics;
 
     return (
         <div style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${Math.max(safeVisibleMetrics.length, 1)}, minmax(0, 1fr))`,
-            gap: 'clamp(8px, 1vw, 12px)',
-            width: '100%',
-            height: '100%',
-            boxSizing: 'border-box',
-            minWidth: 0
+            ...gridStyle,
+            gridTemplateColumns: `repeat(${Math.max(renderedMetrics.length, 1)}, minmax(150px, 1fr))`,
         }}>
-            {safeVisibleMetrics.map((metricKey) => {
-                const config = METRIC_CONFIG[metricKey];
+            {renderedMetrics.map((metricKey) => {
+                const config = metricConfig[metricKey];
+                const value = metrics[metricKey] ?? (config.unit ? 0 : '-');
                 return (
                     <div key={metricKey} style={cardStyle}>
                         <span style={labelStyle}>{config.label}</span>
                         <p style={valueStyle}>
-                            {metrics[metricKey]} {config.unit && <span style={unitStyle}>{config.unit}</span>}
+                            {value} {config.unit && <span style={unitStyle}>{config.unit}</span>}
                         </p>
                     </div>
                 );

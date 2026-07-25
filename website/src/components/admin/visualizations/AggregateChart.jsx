@@ -54,6 +54,17 @@ const getLocalDateKey = (date) => {
 
 const getLocalHourKey = (date) => `${getLocalDateKey(date)}-${date.getHours()}`;
 
+const getLocalMonthKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+};
+
+const getMonthLabel = (monthKey) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString([], { month: 'short', year: 'numeric' });
+};
+
 const getHourOfDayKey = (date) => String(date.getHours()).padStart(2, '0');
 
 const createWeeklyDay = (date) => {
@@ -103,10 +114,15 @@ const groupToTrafficPoint = (group) => ({
     away_volume: group.count > 0 ? Math.round(group.awaySum / group.count) : 0,
 });
 
+const getLatestObservedDate = (rows = []) => rows.reduce((latest, row) => {
+    const date = new Date(row.observed_at);
+    if (!Number.isFinite(date.getTime())) return latest;
+    return !latest || date > latest ? date : latest;
+}, null);
+
 const getWeeklyAnchorDate = (rawData, filters) => {
     if (filters?.endDate) return new Date(`${filters.endDate}T00:00:00`);
-    if (filters?.startDate && rawData.length) return new Date(rawData[rawData.length - 1].observed_at);
-    return new Date();
+    return getLatestObservedDate(rawData) || new Date();
 };
 
 const matchesDayPreset = (date, filters) => {
@@ -160,6 +176,45 @@ const getDateRangeSlots = (filters) => {
     while (cursor <= end && slots.length < maxDays) {
         slots.push(createDailySlot(cursor));
         cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return slots;
+};
+
+const getFilterRangeDays = (filters) => {
+    const { start, end } = getDateBounds(filters);
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    return Math.max(1, Math.round((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1);
+};
+
+const shouldUseMonthBuckets = (filters) => Boolean(filters?.startDate || filters?.endDate) && getFilterRangeDays(filters) > 62;
+
+const createMonthSlot = (monthKey) => ({
+    key: monthKey,
+    sortKey: monthKey,
+    time: getMonthLabel(monthKey),
+    dateLabel: getMonthLabel(monthKey),
+    peopleSum: 0,
+    occupancySum: 0,
+    v85Sum: 0,
+    maxSpeed: 0,
+    approachSum: 0,
+    awaySum: 0,
+    count: 0,
+});
+
+const getMonthRangeSlots = (filters) => {
+    const { start, end } = getDateBounds(filters);
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+    const slots = [];
+
+    while (cursor <= endMonth && slots.length < 36) {
+        slots.push(createMonthSlot(getLocalMonthKey(cursor)));
+        cursor.setMonth(cursor.getMonth() + 1);
     }
 
     return slots;
@@ -284,6 +339,23 @@ const buildDateAggregateData = (rawData, filters) => {
     return dayTimeline.map(groupToTrafficPoint);
 };
 
+const buildMonthAggregateData = (rawData, filters) => {
+    const monthTimeline = getMonthRangeSlots(filters);
+    const groupsByMonth = monthTimeline.reduce((acc, group) => {
+        acc[group.key] = group;
+        return acc;
+    }, {});
+
+    rawData.forEach((row) => {
+        const group = groupsByMonth[getLocalMonthKey(new Date(row.observed_at))];
+        if (!group) return;
+
+        addTrafficRowToGroup(group, row);
+    });
+
+    return monthTimeline.map(groupToTrafficPoint);
+};
+
 const buildHourOfDayAggregateData = (rawData, filters) => {
     const hourlyTimeline = createHourOfDayTimeline(filters);
     const groupsByHour = hourlyTimeline.reduce((acc, group) => {
@@ -340,6 +412,39 @@ const buildWeeklyAggregateData = (rawData, filters) => {
         const dateKey = getLocalDateKey(new Date(row.observed_at));
         const group = groupsByDate[dateKey];
 
+        if (!group) return;
+
+        addTrafficRowToGroup(group, row);
+    });
+
+    return dayGroups
+        .filter((group) => matchesDayPreset(new Date(`${group.sortDate}T00:00:00`), filters))
+        .map(groupToTrafficPoint);
+};
+
+const buildMonthlyAggregateData = (rawData, filters) => {
+    const anchorDate = getWeeklyAnchorDate(rawData, filters);
+    const startDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+    const endDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    const dayGroups = [];
+    const cursor = new Date(startDate);
+
+    while (cursor <= endDate) {
+        dayGroups.push(createWeeklyDay(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const groupsByDate = dayGroups.reduce((acc, group) => {
+        acc[group.sortDate] = group;
+        return acc;
+    }, {});
+
+    rawData.forEach((row) => {
+        const dateKey = getLocalDateKey(new Date(row.observed_at));
+        const group = groupsByDate[dateKey];
         if (!group) return;
 
         addTrafficRowToGroup(group, row);
@@ -450,8 +555,13 @@ const AggregateChart = ({
                 let processedData = [];
 
                 if (type === 'weekly') {
-                    processedData = buildWeeklyAggregateData(rawData, effectiveFilters);
-
+                    processedData = shouldUseMonthBuckets(effectiveFilters)
+                        ? buildMonthAggregateData(rawData, effectiveFilters)
+                        : buildWeeklyAggregateData(rawData, effectiveFilters);
+                } else if (type === 'monthly') {
+                    processedData = shouldUseMonthBuckets(effectiveFilters)
+                        ? buildMonthAggregateData(rawData, effectiveFilters)
+                        : buildMonthlyAggregateData(rawData, effectiveFilters);
                 } else {
                     const hasDateFilters = effectiveFilters.startDate || effectiveFilters.endDate;
                     const hasTimeFilters = hasActiveTimeFilter(effectiveFilters);
@@ -459,7 +569,9 @@ const AggregateChart = ({
                     if (hasDateFilters && isSingleDateFilter(effectiveFilters)) {
                         processedData = buildSingleDateHourlyAggregateData(rawData, effectiveFilters);
                     } else if (hasDateFilters) {
-                        processedData = buildDateAggregateData(rawData, effectiveFilters);
+                        processedData = shouldUseMonthBuckets(effectiveFilters)
+                            ? buildMonthAggregateData(rawData, effectiveFilters)
+                            : buildDateAggregateData(rawData, effectiveFilters);
                     } else if (hasTimeFilters) {
                         processedData = buildHourOfDayAggregateData(rawData, effectiveFilters);
                     } else {
@@ -497,14 +609,15 @@ const AggregateChart = ({
         };
     }, [level, id, type, effectiveFilters, snapshotData, onSnapshotData]);
 
-    const xAxisKey = type === 'weekly' ? 'dateLabel' : 'sortKey';
-    const tickInterval = type === 'weekly' ? 0 : 2;
+    const isPeriodAxis = type === 'weekly' || type === 'monthly';
+    const xAxisKey = isPeriodAxis ? 'dateLabel' : 'sortKey';
+    const tickInterval = type === 'weekly' ? 0 : type === 'monthly' ? 0 : 2;
     const xAxisTickLabels = useMemo(() => (
         new Map(chartData.map((point) => [
             String(point[xAxisKey]),
-            type === 'weekly' ? point.dateLabel || point.time : point.time,
+            isPeriodAxis ? point.dateLabel || point.time : point.time,
         ]))
-    ), [chartData, type, xAxisKey]);
+    ), [chartData, isPeriodAxis, xAxisKey]);
 
     const renderTooltip = ({ active, payload, label }) => {
         if (!active || !payload?.length) return null;

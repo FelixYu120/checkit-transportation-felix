@@ -3,7 +3,7 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: clamp(14px, 1.5vw, 22px);
+  gap: clamp(12px, 1.2vw, 18px);
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -13,8 +13,8 @@
 .analyticsStack {
   display: flex;
   flex-direction: column;
-  gap: clamp(16px, 1.8vw, 24px);
-  margin-top: clamp(12px, 1.4vw, 24px);
+  gap: clamp(12px, 1.4vw, 20px);
+  margin-top: clamp(8px, 1vw, 16px);
   padding-bottom: 100px;
   width: 100%;
   box-sizing: border-box;
@@ -24,11 +24,11 @@
 .chartSection {
   min-width: 0;
   border: 1px solid #dce5ea;
-  border-radius: 20px;
+  border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
     #ffffff;
-  box-shadow: 0 14px 32px rgba(148, 163, 184, 0.14);
+  box-shadow: 0 10px 24px rgba(148, 163, 184, 0.12);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -37,8 +37,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px clamp(16px, 1.6vw, 22px);
+  gap: 10px;
+  padding: 10px clamp(14px, 1.3vw, 18px);
   border-bottom: 1px solid #e5edf2;
   background: #fbfdfe;
 }
@@ -64,9 +64,17 @@
   line-height: 1.2;
 }
 
+.chartControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .timeframeSegment {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(68px, 1fr));
+  grid-template-columns: repeat(3, minmax(62px, 1fr));
   gap: 4px;
   flex-shrink: 0;
   padding: 4px;
@@ -77,7 +85,7 @@
 
 .timeframeButton {
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -774,6 +782,10 @@
   .trendToolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .chartControls {
+    width: 100%;
   }
 
   .timeframeSegment {

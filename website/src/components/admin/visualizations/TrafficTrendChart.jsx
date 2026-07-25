@@ -17,11 +17,11 @@ import styles from './TrafficTrendChart.module.css';
 const PACIFIC_TIME_ZONE = 'America/Los_Angeles';
 const HOUR_MS = 60 * 60 * 1000;
 const TRAFFIC_COLORS = {
-  volume: '#0f766e',
-  approach: '#0f766e',
-  away: '#2563eb',
-  avgSpeed: '#f97316',
-  v85Speed: '#475569',
+  volume: '#4f9f98',
+  approach: '#4f9f98',
+  away: '#6b8fcb',
+  avgSpeed: '#d97706',
+  v85Speed: '#64748b',
 };
 
 const timeFormatter = new Intl.DateTimeFormat([], {
@@ -112,15 +112,25 @@ const addCalendarDays = (dateKey, days) => {
   return getDateKeyFromParts(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 };
 
-const getMonthBounds = (dateKey) => {
-  const [year, month] = dateKey.split('-').map(Number);
-  const start = new Date(Date.UTC(year, month - 1, 1));
-  const end = new Date(Date.UTC(year, month, 0));
+const getMonthKey = (date = new Date()) => {
+  const dateKey = getLocalDateKey(date);
+  return dateKey.slice(0, 7);
+};
 
-  return {
-    startKey: getDateKeyFromParts(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
-    endKey: getDateKeyFromParts(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()),
-  };
+const getMonthLabel = (monthKey) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString([], {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+};
+
+const addCalendarMonths = (monthKey, months) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
 const getRowDate = (row) => toFiniteDate(row.observed_at || row.time_bucket);
@@ -218,6 +228,36 @@ const getDailyRange = (startKey, endKey, labelType = 'day') => {
   return buckets;
 };
 
+const getMonthlyRange = (startKey, endKey) => {
+  const buckets = [];
+  let currentKey = startKey.slice(0, 7);
+  const finalKey = endKey.slice(0, 7);
+
+  while (currentKey <= finalKey) {
+    buckets.push({
+      key: currentKey,
+      time: getMonthLabel(currentKey),
+      fullTime: getMonthLabel(currentKey),
+    });
+    currentKey = addCalendarMonths(currentKey, 1);
+  }
+
+  return buckets;
+};
+
+const getFilterRangeDays = (filters = {}) => {
+  if (!filters.startDate && !filters.endDate) return 1;
+  const startKey = filters.startDate || filters.endDate;
+  const endKey = filters.endDate || filters.startDate;
+  const start = getCalendarDate(startKey);
+  const end = getCalendarDate(endKey);
+  return Math.max(1, Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1);
+};
+
+const shouldUseMonthlyBuckets = (type, filters = {}) => (
+  type === 'monthly' && Boolean(filters.startDate || filters.endDate) && getFilterRangeDays(filters) > 62
+);
+
 const getWeeklyBuckets = (rows = [], filters = {}) => {
   const endKey = getLocalDateKey(getAnchorDate(rows, filters));
   const startKey = addCalendarDays(endKey, -6);
@@ -226,11 +266,17 @@ const getWeeklyBuckets = (rows = [], filters = {}) => {
 
 const getMonthDateRange = (rows = [], filters = {}) => {
   const anchorKey = getLocalDateKey(getAnchorDate(rows, filters));
-  const { startKey, endKey } = getMonthBounds(anchorKey);
+  const endKey = anchorKey;
+  const startKey = addCalendarDays(endKey, -29);
   return getDailyRange(startKey, endKey, 'monthDay');
 };
 
 const getChartBuckets = (type, rows, filters) => {
+  if (shouldUseMonthlyBuckets(type, filters)) {
+    const startKey = filters.startDate || filters.endDate;
+    const endKey = filters.endDate || filters.startDate;
+    return getMonthlyRange(startKey, endKey);
+  }
   if (type === 'monthly') return getMonthDateRange(rows, filters);
   if (type === 'weekly') return getWeeklyBuckets(rows, filters);
   return getHourlyBuckets(rows, filters);
@@ -239,7 +285,7 @@ const getChartBuckets = (type, rows, filters) => {
 const hasDateFilter = (filters) => Boolean(filters?.startDate || filters?.endDate);
 
 const getWindowHours = (type) => {
-  if (type === 'monthly') return 31 * 24;
+  if (type === 'monthly') return 30 * 24;
   if (type === 'weekly') return 7 * 24;
   return 24;
 };
@@ -247,8 +293,9 @@ const getWindowHours = (type) => {
 const getWindowedRows = (rows, type, filters) => {
   if (!rows.length || hasDateFilter(filters)) return rows;
 
-  const latestTime = getLatestRowDate(rows)?.getTime() || 0;
-  if (!latestTime) return rows;
+  const latestDate = getLatestRowDate(rows);
+  const latestTime = latestDate?.getTime() || 0;
+  if (!latestDate || !latestTime) return rows;
 
   const windowStart = latestTime - (getWindowHours(type) * HOUR_MS);
   return rows.filter((row) => {
@@ -266,6 +313,7 @@ const createEmptyAggregate = (bucket) => ({
   approach: 0,
   away: 0,
   volume: 0,
+  sampleCount: 0,
   speedWeightedSum: 0,
   v85WeightedSum: 0,
   speedWeight: 0,
@@ -291,6 +339,7 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
 
     group[directionKey] += volume;
     group.volume += volume;
+    group.sampleCount += 1;
     if (volume > 0) {
       group.speedWeightedSum += (Number(row.avg_speed) || 0) * volume;
       group.v85WeightedSum += (Number(row.v85_speed) || 0) * volume;
@@ -309,6 +358,7 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
       approach: group.approach,
       away: group.away,
       volume: group.volume,
+      sampleCount: group.sampleCount,
       avgSpeed: weightedAverageSpeed(group.speedWeightedSum, group.speedWeight),
       v85Speed: weightedAverageSpeed(group.v85WeightedSum, group.speedWeight),
       maxSpeed: roundOne(group.maxSpeed),
@@ -317,7 +367,14 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
 
 const buildChartData = (rows, type, filters) => {
   const buckets = getChartBuckets(type, rows, filters);
-  const getBucketKey = type === 'daily' ? getHourlyBucketKey : getDayBucketKey;
+  const getBucketKey = shouldUseMonthlyBuckets(type, filters)
+    ? (value) => {
+      const date = toFiniteDate(value);
+      return date ? getMonthKey(date) : '';
+    }
+    : type === 'daily'
+      ? getHourlyBucketKey
+      : getDayBucketKey;
 
   // Ten-minute summaries arrive as one row per direction. Chart buckets first
   // create the expected time range, then merge both directions into that range.
@@ -461,7 +518,7 @@ const getMetricSet = (mode, stats) => {
         detail: 'Weighted average traffic speed across the chart window.',
       },
       {
-        label: '85th speed',
+        label: '85th percentile speed',
         value: `${stats.v85Speed} mph`,
         detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
       },
@@ -490,7 +547,7 @@ const getMetricSet = (mode, stats) => {
       detail: 'Weighted average traffic speed across the chart window.',
     },
     {
-      label: '85th speed',
+      label: '85th percentile speed',
       value: `${stats.v85Speed} mph`,
       detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
     },
@@ -512,14 +569,14 @@ const getLegendItems = (mode) => {
 
   if (mode === 'volume') {
     return [
-      { label: 'Avg speed', color: TRAFFIC_COLORS.avgSpeed },
-      { label: '85th speed', color: TRAFFIC_COLORS.v85Speed },
+      { label: 'Low', color: '#d9efec' },
+      { label: 'High', color: '#4f9f98' },
     ];
   }
 
   return [
     { label: 'Total volume', color: TRAFFIC_COLORS.volume, bar: true },
-    { label: 'Avg speed', color: TRAFFIC_COLORS.avgSpeed },
+    { label: 'Speed', color: TRAFFIC_COLORS.avgSpeed },
   ];
 };
 
@@ -530,10 +587,141 @@ const TooltipRow = ({ label, value }) => (
   </span>
 );
 
-const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title }) => {
+const TooltipSection = ({ title, children }) => (
+  <div className={styles.tooltipSection}>
+    <span className={styles.tooltipSectionTitle}>{title}</span>
+    {children}
+  </div>
+);
+
+const getHeatmapMetric = (point, mode) => {
+  if (mode === 'direction') return Math.max(Number(point.approach) || 0, Number(point.away) || 0);
+  if (mode === 'volume') return Number(point.avgSpeed) || 0;
+  return Number(point.volume) || 0;
+};
+
+const getHeatmapLabel = (mode) => {
+  if (mode === 'direction') return 'direction volume';
+  if (mode === 'volume') return 'avg speed';
+  return 'traffic volume';
+};
+
+const getHeatmapColor = (value, maxValue) => {
+  if (!value || !maxValue) return '#f1f5f9';
+  const intensity = value / maxValue;
+  if (intensity >= 0.8) return '#4f9f98';
+  if (intensity >= 0.6) return '#6bb5ad';
+  if (intensity >= 0.4) return '#8ecac3';
+  if (intensity >= 0.2) return '#bfe3df';
+  return '#e5f5f3';
+};
+
+const getHeatmapTextColor = (value, maxValue) => {
+  if (!value || !maxValue) return '#64748b';
+  return value / maxValue >= 0.72 ? '#ffffff' : '#172033';
+};
+
+const MonthlyTooltipContent = ({ cell, mode }) => {
+  if (mode === 'direction') {
+    return (
+      <TooltipSection title="Movement">
+        <span>Total volume: {cell.volume || 0}</span>
+        <span>Approach: {cell.approach || 0}</span>
+        <span>Away: {cell.away || 0}</span>
+      </TooltipSection>
+    );
+  }
+
+  if (mode === 'volume') {
+    return (
+      <TooltipSection title="Speed">
+        <span>Average: {getDisplaySpeed(cell.avgSpeed)}</span>
+        <span>85th percentile: {getDisplaySpeed(cell.v85Speed)}</span>
+        <span>Max: {getDisplaySpeed(cell.maxSpeed)}</span>
+      </TooltipSection>
+    );
+  }
+
+  return (
+    <>
+      <TooltipSection title="Movement">
+        <span>Total volume: {cell.volume || 0}</span>
+        <span>Approach: {cell.approach || 0}</span>
+        <span>Away: {cell.away || 0}</span>
+      </TooltipSection>
+      <TooltipSection title="Speed">
+        <span>Average: {getDisplaySpeed(cell.avgSpeed)}</span>
+        <span>85th percentile: {getDisplaySpeed(cell.v85Speed)}</span>
+        <span>Max: {getDisplaySpeed(cell.maxSpeed)}</span>
+      </TooltipSection>
+    </>
+  );
+};
+
+const MonthlyTrafficHeatmap = ({ data, mode }) => {
+  const [activeCell, setActiveCell] = useState(null);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const firstDate = data.length ? getCalendarDate(data[0].key) : null;
+  const leadingBlanks = firstDate && Number.isFinite(firstDate.getTime()) ? firstDate.getUTCDay() : 0;
+  const maxValue = Math.max(0, ...data.map((point) => getHeatmapMetric(point, mode)));
+  const label = getHeatmapLabel(mode);
+  const cells = [
+    ...Array.from({ length: leadingBlanks }, (_, index) => ({ key: `blank-${index}`, blank: true })),
+    ...data,
+  ];
+
+  return (
+    <div className={styles.heatmap}>
+      <div className={styles.heatmapWeekdays}>
+        {days.map((day) => <span key={day}>{day}</span>)}
+      </div>
+      <div className={styles.heatmapGrid}>
+        {cells.map((cell) => {
+          if (cell.blank) return <div key={cell.key} aria-hidden="true" />;
+          const date = getCalendarDate(cell.key);
+          const value = getHeatmapMetric(cell, mode);
+          const dayNumber = date.getUTCDate();
+          return (
+            <div
+              key={cell.key}
+              className={styles.heatmapCell}
+              style={{
+                '--heatmap-color': getHeatmapColor(value, maxValue),
+                '--heatmap-text-color': getHeatmapTextColor(value, maxValue),
+              }}
+              title={`${cell.fullTime || cell.time}: ${label} ${mode === 'volume' ? getDisplaySpeed(value) : value}`}
+              onMouseEnter={() => setActiveCell(cell)}
+              onMouseLeave={() => setActiveCell(null)}
+              onFocus={() => setActiveCell(cell)}
+              onBlur={() => setActiveCell(null)}
+              tabIndex={0}
+            >
+              <strong>{dayNumber}</strong>
+              <span>{mode === 'volume' ? getDisplaySpeed(value) : value || '-'}</span>
+              {activeCell?.key === cell.key && (
+                <div className={styles.heatmapTooltip}>
+                  <strong>{cell.fullTime || cell.time}</strong>
+                  <MonthlyTooltipContent cell={cell} mode={mode} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className={styles.heatmapLegend}>
+        <span>Low</span>
+        {[0.15, 0.35, 0.55, 0.75, 0.95].map((ratio) => (
+          <i key={ratio} style={{ '--heatmap-color': getHeatmapColor(maxValue * ratio, maxValue) }} />
+        ))}
+        <span>High</span>
+      </div>
+    </div>
+  );
+};
+
+const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeMetric, setActiveMetric] = useState(null);
   const effectiveFilters = useMemo(() => ({
     startDate: filters?.startDate || '',
     endDate: filters?.endDate || '',
@@ -550,8 +738,6 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
     () => buildChartData(windowedRows, type, effectiveFilters),
     [windowedRows, type, effectiveFilters]
   );
-  const chartStats = useMemo(() => buildChartStats(chartData), [chartData]);
-  const metricSet = useMemo(() => getMetricSet(mode, chartStats), [mode, chartStats]);
   const legendItems = useMemo(() => getLegendItems(mode), [mode]);
   const xAxisInterval = getXAxisInterval(type);
   const chartMargin = useMemo(() => getChartMargin(mode), [mode]);
@@ -575,6 +761,10 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
   const speedAxisMax = useMemo(() => getNiceCeiling(Math.max(...chartData.map((point) => (
     Number(point.maxSpeed) || Number(point.v85Speed) || Number(point.avgSpeed) || 0
   )), 10)), [chartData]);
+
+  useEffect(() => {
+    if (!loading) onSnapshotData?.(chartData);
+  }, [chartData, loading, onSnapshotData]);
 
   useEffect(() => {
     const loadRows = async () => {
@@ -624,22 +814,10 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
         </div>
       </div>
 
-      <div className={styles.metricStrip}>
-        {metricSet.map((metric) => (
-          <button
-            key={metric.label}
-            type="button"
-            className={styles.metric}
-            onClick={() => setActiveMetric(metric)}
-            aria-label={`${metric.label} details`}
-          >
-            <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
-          </button>
-        ))}
-      </div>
-
       <div className={styles.canvas}>
+        {type === 'monthly' ? (
+          <MonthlyTrafficHeatmap data={chartData} mode={mode} />
+        ) : (
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={chartMargin}>
             <CartesianGrid stroke="#eef3f6" vertical={false} />
@@ -699,12 +877,20 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
                       {tooltipDateTime.date}
                       <span>{tooltipDateTime.time}</span>
                     </strong>
-                    {mode !== 'volume' && <TooltipRow label="Total volume" value={point.volume} />}
-                    {mode === 'direction' && <TooltipRow label="Approach" value={point.approach} />}
-                    {mode === 'direction' && <TooltipRow label="Away" value={point.away} />}
-                    {mode !== 'direction' && <TooltipRow label="Avg speed" value={getDisplaySpeed(point.avgSpeed)} />}
-                    {mode !== 'direction' && <TooltipRow label="85th speed" value={getDisplaySpeed(point.v85Speed)} />}
-                    {mode !== 'direction' && <TooltipRow label="Max speed" value={`${point.maxSpeed} mph`} />}
+                    {mode !== 'volume' && (
+                      <TooltipSection title="Movement">
+                        <TooltipRow label="Total volume" value={point.volume} />
+                        <TooltipRow label="Approach" value={point.approach} />
+                        <TooltipRow label="Away" value={point.away} />
+                      </TooltipSection>
+                    )}
+                    {mode !== 'direction' && (
+                      <TooltipSection title="Speed">
+                        <TooltipRow label="Average" value={getDisplaySpeed(point.avgSpeed)} />
+                        <TooltipRow label="85th percentile" value={getDisplaySpeed(point.v85Speed)} />
+                        <TooltipRow label="Max" value={`${point.maxSpeed} mph`} />
+                      </TooltipSection>
+                    )}
                   </div>
                 );
               }}
@@ -717,7 +903,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             ) : mode === 'volume' ? (
               <>
                 <Line yAxisId="speed" type="monotone" dataKey="avgSpeed" name="Avg speed" stroke={TRAFFIC_COLORS.avgSpeed} strokeWidth={3} dot={{ r: 3, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
-                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th speed" stroke={TRAFFIC_COLORS.v85Speed} strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 2.5, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
+                <Line yAxisId="speed" type="monotone" dataKey="v85Speed" name="85th percentile speed" stroke={TRAFFIC_COLORS.v85Speed} strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 2.5, strokeWidth: 1, fill: '#ffffff' }} activeDot={{ r: 5 }} />
               </>
             ) : (
               <>
@@ -727,6 +913,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             )}
           </ComposedChart>
         </ResponsiveContainer>
+        )}
       </div>
 
       <div className={styles.legend} aria-label="Chart legend">
@@ -742,32 +929,6 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
         ))}
       </div>
 
-      {activeMetric && (
-        <div
-          className={styles.metricModalOverlay}
-          role="presentation"
-          onMouseDown={() => setActiveMetric(null)}
-        >
-          <div
-            className={styles.metricModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="traffic-metric-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <h4 id="traffic-metric-title">{activeMetric.label}</h4>
-            <strong>{activeMetric.value}</strong>
-            <p>{activeMetric.detail}</p>
-            <button
-              type="button"
-              className={styles.metricModalClose}
-              onClick={() => setActiveMetric(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

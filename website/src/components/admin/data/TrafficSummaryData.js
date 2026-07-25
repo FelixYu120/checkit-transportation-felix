@@ -6,6 +6,8 @@ import {
 import { getSupabaseErrorContext, shouldUseLocalData } from "../../helper/SupabaseClients.jsx";
 
 const USE_LOCAL_SUMMARIES = shouldUseLocalData;
+const TRAFFIC_ROWS_CACHE_TTL_MS = 30 * 1000;
+const trafficRowsCache = new Map();
 
 const FALLBACK_TEN_MINUTE_SUMMARIES = [
   { id: "03ffd455-bb24-4757-8481-75837af37de5", sensor_id: "peppercanyon1", time_bucket: "2026-06-25 23:50:00+00", direction: "away", volume: 10, avg_speed: 8, v85_speed: 10, max_speed: 10 },
@@ -110,6 +112,66 @@ const applyTimeBucketBounds = (query, filters) => {
   return nextQuery;
 };
 
+const getPeriodBoundsFromAnchor = (type, anchorValue) => {
+  const anchorDate = new Date(anchorValue);
+  if (!Number.isFinite(anchorDate.getTime())) return null;
+
+  if (type === "monthly") {
+    const end = new Date(anchorDate);
+    const start = new Date(end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    start.setDate(start.getDate() - 29);
+    return { start, end };
+  }
+
+  const end = new Date(anchorDate);
+  end.setHours(23, 59, 59, 999);
+
+  const start = new Date(end);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 6);
+
+  return { start, end };
+};
+
+const applySensorFilter = (query, sensorId, sensorIds = []) => {
+  if (sensorId) return query.eq("sensor_id", sensorId);
+  if (sensorIds.length) return query.in("sensor_id", sensorIds);
+  return query;
+};
+
+const getDefaultPeriodBounds = async (supabase, {
+  sensorId,
+  sensorIds = [],
+  type,
+  filters,
+} = {}) => {
+  const isPeriodChart = type === "weekly" || type === "monthly";
+  const hasDateOrTimeFilters = Boolean(filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters));
+  if (!isPeriodChart || hasDateOrTimeFilters) return null;
+
+  let latestQuery = supabase
+    .from("ten_minute_summaries")
+    .select("time_bucket")
+    .order("time_bucket", { ascending: false })
+    .limit(1);
+
+  latestQuery = applySensorFilter(latestQuery, sensorId, sensorIds);
+
+  const { data, error } = await latestQuery;
+  if (error) throw error;
+
+  return getPeriodBoundsFromAnchor(type, data?.[0]?.time_bucket);
+};
+
+const applyDefaultPeriodBounds = (query, periodBounds) => {
+  if (!periodBounds) return query;
+  return query
+    .gte("time_bucket", periodBounds.start.toISOString())
+    .lte("time_bucket", periodBounds.end.toISOString());
+};
+
 const normalizeTrafficSummaryRow = (row) => ({
   ...row,
   observed_at: toIsoTimestamp(row.time_bucket),
@@ -123,6 +185,38 @@ const normalizeSensorIds = (sensorIds = []) => (
   Array.from(new Set(sensorIds.filter(Boolean)))
 );
 
+const getTrafficRowsCacheKey = ({ sensorId, sensorIds = [], filters, type, limit, rowType }) => JSON.stringify({
+  rowType,
+  sensorId: sensorId || "",
+  sensorIds: normalizeSensorIds(sensorIds).sort(),
+  filters: {
+    startDate: filters?.startDate || "",
+    endDate: filters?.endDate || "",
+    startTime: filters?.startTime || "",
+    endTime: filters?.endTime || "",
+    dayPreset: filters?.dayPreset || "all",
+  },
+  type: type || "daily",
+  limit: limit || "",
+});
+
+const getCachedTrafficRows = (key) => {
+  const cached = trafficRowsCache.get(key);
+  if (!cached) return null;
+
+  if (Date.now() - cached.timestamp > TRAFFIC_ROWS_CACHE_TTL_MS) {
+    trafficRowsCache.delete(key);
+    return null;
+  }
+
+  return cached.rows;
+};
+
+const setCachedTrafficRows = (key, rows) => {
+  trafficRowsCache.set(key, { rows, timestamp: Date.now() });
+  return rows;
+};
+
 const getFallbackSummaryRows = (sensorId, sensorIds = []) => {
   const normalizedSensorIds = normalizeSensorIds(sensorIds);
   if (sensorId) return FALLBACK_TEN_MINUTE_SUMMARIES.filter((row) => row.sensor_id === sensorId);
@@ -135,6 +229,13 @@ const getFallbackSummaryRows = (sensorId, sensorIds = []) => {
 
 const applyFallbackDirectionRows = (sensorId, sensorIds, filters) =>
   applyAnalyticsFilters(getFallbackSummaryRows(sensorId, sensorIds).map(normalizeTrafficSummaryRow), filters);
+
+const getDefaultTrafficRowLimit = (type, filters) => {
+  if (filters?.startDate || filters?.endDate) return 50000;
+  if (type === "monthly") return 10000;
+  if (type === "weekly") return 3000;
+  return 600;
+};
 
 export const getLatestTrafficSummaryDate = (rows = []) => {
   if (!rows.length) return null;
@@ -152,41 +253,52 @@ export const fetchTrafficSummaryRows = async (supabase, {
   limit,
 } = {}) => {
   const normalizedSensorIds = normalizeSensorIds(sensorIds);
+  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters, type, limit, rowType: "summary" });
+  const cachedRows = getCachedTrafficRows(cacheKey);
+  if (cachedRows) return cachedRows;
 
   if (USE_LOCAL_SUMMARIES) {
     const localRows = getFallbackSummaryRows(sensorId, normalizedSensorIds);
 
-    return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), filters));
   }
 
   try {
-    const rowLimit = limit || (filters?.startDate || filters?.endDate ? 50000 : type === "weekly" || type === "monthly" ? 10000 : 1000);
+    const rowLimit = limit || getDefaultTrafficRowLimit(type, filters);
+    const periodBounds = await getDefaultPeriodBounds(supabase, {
+      sensorId,
+      sensorIds: normalizedSensorIds,
+      type,
+      filters,
+    });
+
     let query = supabase
       .from("ten_minute_summaries")
       .select("sensor_id, time_bucket, direction, volume, avg_speed, v85_speed, max_speed")
       .order("time_bucket", { ascending: false })
       .limit(rowLimit);
 
-    if (sensorId) query = query.eq("sensor_id", sensorId);
-    else if (normalizedSensorIds.length) query = query.in("sensor_id", normalizedSensorIds);
+    query = applySensorFilter(query, sensorId, normalizedSensorIds);
 
     if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
       query = applyTimeBucketBounds(query, filters);
+    } else {
+      query = applyDefaultPeriodBounds(query, periodBounds);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
     if (!data?.length) {
-      return applyAnalyticsFilters(combineDirectionRows(getFallbackSummaryRows(sensorId, normalizedSensorIds)), filters);
+      return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(getFallbackSummaryRows(sensorId, normalizedSensorIds)), filters));
     }
 
-    return applyAnalyticsFilters(combineDirectionRows(data), filters);
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(data), filters));
   } catch (error) {
     console.warn("Using local traffic summary fallback:", getSupabaseErrorContext(error));
     const localRows = getFallbackSummaryRows(sensorId, normalizedSensorIds);
 
-    return applyAnalyticsFilters(combineDirectionRows(localRows), filters);
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), filters));
   }
 };
 
@@ -198,24 +310,35 @@ export const fetchTrafficDirectionRows = async (supabase, {
   limit,
 } = {}) => {
   const normalizedSensorIds = normalizeSensorIds(sensorIds);
+  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters, type, limit, rowType: "direction" });
+  const cachedRows = getCachedTrafficRows(cacheKey);
+  if (cachedRows) return cachedRows;
 
   if (USE_LOCAL_SUMMARIES || !supabase) {
-    return applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters);
+    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
   }
 
   try {
-    const rowLimit = limit || (filters?.startDate || filters?.endDate ? 50000 : type === "weekly" || type === "monthly" ? 10000 : 1000);
+    const rowLimit = limit || getDefaultTrafficRowLimit(type, filters);
+    const periodBounds = await getDefaultPeriodBounds(supabase, {
+      sensorId,
+      sensorIds: normalizedSensorIds,
+      type,
+      filters,
+    });
+
     let query = supabase
       .from("ten_minute_summaries")
       .select("sensor_id, time_bucket, direction, volume, avg_speed, v85_speed, max_speed, created_at")
       .order("time_bucket", { ascending: false })
       .limit(rowLimit);
 
-    if (sensorId) query = query.eq("sensor_id", sensorId);
-    else if (normalizedSensorIds.length) query = query.in("sensor_id", normalizedSensorIds);
+    query = applySensorFilter(query, sensorId, normalizedSensorIds);
 
     if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
       query = applyTimeBucketBounds(query, filters);
+    } else {
+      query = applyDefaultPeriodBounds(query, periodBounds);
     }
 
     const { data, error } = await query;
@@ -223,12 +346,12 @@ export const fetchTrafficDirectionRows = async (supabase, {
 
     if (!data?.length) {
       console.warn("Using local directional traffic fallback: remote source returned no rows");
-      return applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters);
+      return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
     }
 
-    return applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), filters);
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), filters));
   } catch (error) {
     console.warn("Using local directional traffic fallback:", getSupabaseErrorContext(error));
-    return applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters);
+    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
   }
 };
