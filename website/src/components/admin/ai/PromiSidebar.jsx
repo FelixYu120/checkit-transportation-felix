@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Send } from 'lucide-react'; 
 import styles from './PromiSidebar.module.css';
 
+
 const PromiSidebar = ({ floorId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
