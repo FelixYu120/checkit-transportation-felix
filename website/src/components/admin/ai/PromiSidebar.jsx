@@ -1,12 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Send } from 'lucide-react'; 
+import supabase from '../../helper/SupabaseClients';
 import styles from './PromiSidebar.module.css';
 
+const normalizeRole = (role) => {
+  const normalized = String(role || 'viewer').trim().toLowerCase();
+  return normalized === 'user' ? 'viewer' : normalized;
+};
 
 const PromiSidebar = ({ floorId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [canUsePromi, setCanUsePromi] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
   const chatEndRef = useRef(null);
 
   const [chatHistory, setChatHistory] = useState([
@@ -16,12 +23,56 @@ const PromiSidebar = ({ floorId }) => {
   const toggleSidebar = () => setIsOpen(!isOpen);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadPromiAccess = async () => {
+      try {
+        if (!supabase) {
+          if (isMounted) setCanUsePromi(false);
+          return;
+        }
+
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData?.session?.user?.id;
+        if (!userId) {
+          if (isMounted) setCanUsePromi(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (isMounted) setCanUsePromi(normalizeRole(profile?.role) !== 'viewer');
+      } catch {
+        if (isMounted) setCanUsePromi(false);
+      } finally {
+        if (isMounted) setAccessChecked(true);
+      }
+    };
+
+    loadPromiAccess();
+
+    const { data: authListener } = supabase?.auth.onAuthStateChange(() => {
+      setAccessChecked(false);
+      loadPromiAccess();
+    }) || {};
+
+    return () => {
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, loading]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!canUsePromi || !inputText.trim()) return;
 
     const userMessage = { role: 'user', content: inputText };
     const contextHistory = [
@@ -60,6 +111,8 @@ const PromiSidebar = ({ floorId }) => {
         setLoading(false);
     }
   };
+
+  if (!accessChecked || !canUsePromi) return null;
 
   return (
     <div className={`${styles.sidebarWrapper} ${isOpen ? styles.open : styles.closed}`}>
