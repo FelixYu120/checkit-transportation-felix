@@ -16,7 +16,6 @@ export const hasActiveTimeFilter = (filters) => (
 export const isSingleDateFilter = (filters) => {
   if (!filters?.startDate && !filters?.endDate) return false;
 
-  
   const startDate = filters.startDate || filters.endDate;
   const endDate = filters.endDate || filters.startDate;
   return startDate === endDate;
