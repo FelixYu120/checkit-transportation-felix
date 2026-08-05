@@ -66,6 +66,13 @@ const formatDateTime = (value) => value
     ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : 'No data yet';
 
+const formatSensorDownTime = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+};
+
 const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
     scope_type: 'corridor',
     institute: sensor?.institute_id || '',
@@ -233,6 +240,11 @@ const FloorDashboard = () => {
                                     {formatAdminRouteLabel(status)}
                                 </span>
                             ))}
+                            {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at || sensor.updated_at) ? (
+                                <em title={formatDateTime(sensor.last_seen_at || sensor.updated_at)}>
+                                    Down at {formatSensorDownTime(sensor.last_seen_at || sensor.updated_at)}
+                                </em>
+                            ) : null}
                         </div>
                     </section>
 

@@ -158,11 +158,14 @@
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 18px;
   width: fit-content;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid rgba(47, 122, 119, 0.34);
+  border-radius: 999px;
+  background: rgba(47, 122, 119, 0.04);
+  box-shadow: 0 3px 10px rgba(47, 122, 119, 0.08);
   color: #6b7280;
   font-size: 12px;
   font-weight: 500;
@@ -181,13 +184,21 @@
   gap: 6px;
 }
 
+.sensorStatusLegend em {
+  color: #b91c1c;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .sensorStatusLegend .currentStatus {
   color: #374151;
 }
 
 .statusDot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid #e5e7eb;
   background: #9ca3af;
@@ -200,11 +211,16 @@
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
-.statusDot.down,
+.statusDot.down {
+  background: #ef4444;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
 .statusDot.offline {
-  background: #9ca3af;
-  border-color: #9ca3af;
-  box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.2);
+  background: #6b7280;
+  border-color: #6b7280;
+  box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
 }
 
 .topControls {

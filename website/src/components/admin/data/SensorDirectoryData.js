@@ -19,7 +19,9 @@ export const FALLBACK_SENSORS = [
     corridor_name: "Pepper Canyon Corridor",
     latitude: 32.8801,
     longitude: -117.234,
-    status: "active",
+  status: "active",
+  last_seen_at: null,
+  updated_at: null,
   },
 ];
 
@@ -134,7 +136,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
       .select("institute_id, full_name");
     const sensorQuery = supabase
       .from("sensors")
-      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status")
+      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at")
       .order("area_name")
       .order("corridor_name");
 
@@ -187,7 +189,7 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
   try {
     const { data, error } = await supabase
       .from("sensors")
-      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status")
+      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at")
       .eq("institute_id", normalizedInstituteId)
       .eq("sensor_id", sensorId)
       .maybeSingle();
