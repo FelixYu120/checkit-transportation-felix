@@ -153,6 +153,18 @@
   z-index: 30;
 }
 
+.drillableHeatmapCell {
+  cursor: pointer;
+}
+
+.drillableHeatmapCell:hover,
+.drillableHeatmapCell:focus-visible {
+  border-color: #a7cfc9;
+  box-shadow: 0 10px 22px rgba(47, 113, 111, 0.14);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .heatmapTooltip {
   position: absolute;
   bottom: calc(100% + 8px);

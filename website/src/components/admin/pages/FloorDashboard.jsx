@@ -109,23 +109,6 @@ const TRAFFIC_VIEW_PRESETS = [
     { value: 'direction', label: 'Direction' },
 ];
 
-const getFilterRangeDays = (filters = {}) => {
-    if (!filters.startDate && !filters.endDate) return 1;
-    const startValue = filters.startDate || filters.endDate;
-    const endValue = filters.endDate || filters.startDate;
-    const startDate = new Date(`${startValue}T00:00:00`);
-    const endDate = new Date(`${endValue}T00:00:00`);
-    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return 1;
-    return Math.max(1, Math.round((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1);
-};
-
-const getTimeframeForFilters = (filters = {}) => {
-    const rangeDays = getFilterRangeDays(filters);
-    if (rangeDays <= 1) return 'daily';
-    if (rangeDays <= 14) return 'weekly';
-    return 'monthly';
-};
-
 const getChartTitleLabel = (preset) => (
     preset?.value === 'combined' ? 'Flow' : preset?.label || 'Flow'
 );
@@ -181,7 +164,6 @@ const FloorDashboard = () => {
 
     useEffect(() => {
         setActiveChartData(null);
-        setActiveTrafficTimeframe(getTimeframeForFilters(filters));
     }, [filters]);
 
     const getCorridorExportRows = useCallback(async () => {
@@ -194,6 +176,16 @@ const FloorDashboard = () => {
 
         return getTrafficExportRows(rows || [], sensor);
     }, [activeTrafficTimeframe, corridorId, filters, sensor]);
+
+    const handleHeatmapDayClick = useCallback((selectedDay) => {
+        setActiveChartData(null);
+        setFilters((currentFilters) => ({
+            ...currentFilters,
+            startDate: selectedDay,
+            endDate: selectedDay,
+        }));
+        setActiveTrafficTimeframe('daily');
+    }, []);
 
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
@@ -284,6 +276,7 @@ const FloorDashboard = () => {
                                             type="button"
                                             className={`${styles.timeframeButton} ${activeTrafficTimeframe === timeframe.value ? styles.activeTimeframe : ''}`}
                                             onClick={() => {
+                                                if (activeTrafficTimeframe === timeframe.value) return;
                                                 setActiveChartData(null);
                                                 setActiveTrafficTimeframe(timeframe.value);
                                             }}
@@ -313,6 +306,7 @@ const FloorDashboard = () => {
                             mode={activeView}
                             title={`${activeTimeframe.label} ${getChartTitleLabel(activePreset)}`}
                             onSnapshotData={setActiveChartData}
+                            onHeatmapDayClick={handleHeatmapDayClick}
                         />
                     </section>
                 </div>

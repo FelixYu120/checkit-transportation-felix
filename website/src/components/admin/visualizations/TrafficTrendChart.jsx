@@ -601,13 +601,13 @@ const TooltipSection = ({ title, children }) => (
 );
 
 const getHeatmapMetric = (point, mode) => {
-  if (mode === 'direction') return Math.max(Number(point.approach) || 0, Number(point.away) || 0);
+  if (mode === 'direction') return Number(point.volume) || 0;
   if (mode === 'volume') return Number(point.avgSpeed) || 0;
   return Number(point.volume) || 0;
 };
 
 const getHeatmapLabel = (mode) => {
-  if (mode === 'direction') return 'direction volume';
+  if (mode === 'direction') return 'total direction volume';
   if (mode === 'volume') return 'avg speed';
   return 'traffic volume';
 };
@@ -664,7 +664,9 @@ const MonthlyTooltipContent = ({ cell, mode }) => {
   );
 };
 
-const MonthlyTrafficHeatmap = ({ data, mode }) => {
+const isDateKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+
+const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
   const [activeCell, setActiveCell] = useState(null);
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const firstDate = data.length ? getCalendarDate(data[0].key) : null;
@@ -690,10 +692,22 @@ const MonthlyTrafficHeatmap = ({ data, mode }) => {
             ? numericMonthDayFormatter.format(date)
             : cell.time;
           const rowIndex = Math.floor(index / 7);
+          const canDrill = Boolean(onDayClick && isDateKey(cell.key));
+          const handleClick = () => {
+            if (!canDrill) return;
+            onDayClick(cell.key);
+          };
+          const handleKeyDown = (event) => {
+            if (!canDrill) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onDayClick(cell.key);
+            }
+          };
           return (
             <div
               key={cell.key}
-              className={`${styles.heatmapCell} ${rowIndex <= 1 ? styles.topRowHeatmapCell : ''}`}
+              className={`${styles.heatmapCell} ${rowIndex <= 1 ? styles.topRowHeatmapCell : ''} ${canDrill ? styles.drillableHeatmapCell : ''}`}
               style={{
                 '--heatmap-color': getHeatmapColor(value, maxValue),
                 '--heatmap-text-color': getHeatmapTextColor(value, maxValue),
@@ -703,7 +717,10 @@ const MonthlyTrafficHeatmap = ({ data, mode }) => {
               onMouseLeave={() => setActiveCell(null)}
               onFocus={() => setActiveCell(cell)}
               onBlur={() => setActiveCell(null)}
+              onClick={handleClick}
+              onKeyDown={handleKeyDown}
               tabIndex={0}
+              role={canDrill ? 'button' : undefined}
             >
               <strong>{dateLabel}</strong>
               <span>{mode === 'volume' ? getDisplaySpeed(value) : value || '-'}</span>
@@ -728,7 +745,7 @@ const MonthlyTrafficHeatmap = ({ data, mode }) => {
   );
 };
 
-const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData }) => {
+const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData, onHeatmapDayClick }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const effectiveFilters = useMemo(() => ({
@@ -825,7 +842,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
 
       <div className={`${styles.canvas} ${type === 'monthly' ? styles.monthlyCanvas : ''}`}>
         {type === 'monthly' ? (
-          <MonthlyTrafficHeatmap data={chartData} mode={mode} />
+          <MonthlyTrafficHeatmap data={chartData} mode={mode} onDayClick={onHeatmapDayClick} />
         ) : (
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={chartMargin}>
