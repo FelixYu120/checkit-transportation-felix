@@ -182,15 +182,15 @@ function CreateAccount({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="signup-email">Email address</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-signup-email">Email address</label>
                             <input
-                                id="signup-email"
-                                name="new-admin-account-email"
+                                id="transportation-signup-email"
+                                name="checkit-transportation-new-account-email"
                                 className={styles.loginemail}
                                 type="email"
                                 value={email}
                                 placeholder="you@organization.edu"
-                                autoComplete="off"
+                                autoComplete="section-checkit-transportation email"
                                 disabled={hasInviteSession}
                                 required
                                 onChange={(event) => setEmail(event.target.value)}
@@ -198,16 +198,16 @@ function CreateAccount({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="signup-password">Password</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-signup-password">Password</label>
                             <div className={styles.passwordField}>
                                 <input
-                                    id="signup-password"
-                                    name="new-admin-account-password"
+                                    id="transportation-signup-password"
+                                    name="checkit-transportation-new-account-password"
                                     className={`${styles.loginemail} ${styles.passwordInput}`}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     placeholder="Use at least 8 characters"
-                                    autoComplete="new-password"
+                                    autoComplete="section-checkit-transportation new-password"
                                     required
                                     onChange={(event) => setPassword(event.target.value)}
                                 />
@@ -223,16 +223,16 @@ function CreateAccount({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="signup-confirm-password">Confirm password</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-signup-confirm-password">Confirm password</label>
                             <div className={styles.passwordField}>
                                 <input
-                                    id="signup-confirm-password"
-                                    name="new-admin-account-confirm-password"
+                                    id="transportation-signup-confirm-password"
+                                    name="checkit-transportation-new-account-confirm-password"
                                     className={`${styles.loginemail} ${styles.passwordInput}`}
                                     type={showConfirmPassword ? 'text' : 'password'}
                                     value={confirmPassword}
                                     placeholder="Re-enter your password"
-                                    autoComplete="new-password"
+                                    autoComplete="section-checkit-transportation new-password"
                                     required
                                     onChange={(event) => setConfirmPassword(event.target.value)}
                                 />

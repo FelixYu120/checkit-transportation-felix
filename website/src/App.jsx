@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // --- Public Components & Pages ---
 import Header from "./components/Header/Header.jsx";
@@ -129,6 +129,11 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
 }
 
 function AppShell({ isLoggedIn, setIsLoggedIn }) {
+    const location = useLocation();
+    const isAdminRoute =
+        location.pathname.startsWith('/dashboard') ||
+        location.pathname.startsWith('/insights-studio') ||
+        location.pathname.startsWith('/team');
     const requireAnalyticsAccess = (element) => (
         <AnalyticsAccessRoute isLoggedIn={isLoggedIn}>
             {element}
@@ -138,7 +143,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
     return (
         <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             
-            {isLoggedIn ? <AdminHeader /> : <Header />}
+            {isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />}
             
             <div className={styles.mainContent} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                 <Routes>

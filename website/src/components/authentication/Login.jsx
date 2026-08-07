@@ -56,27 +56,31 @@ function Login({ setIsLoggedIn }) {
                     
                     <form className={styles.formlayout} onSubmit={handleSubmit}>
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="login-email">Email address</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-login-email">Email address</label>
                             <input 
-                                id="login-email"
+                                id="transportation-login-email"
+                                name="checkit-transportation-email"
                                 className={styles.loginemail} 
                                 type="email" 
                                 value={email}
                                 placeholder="you@organization.edu" 
+                                autoComplete="section-checkit-transportation username"
                                 required 
                                 onChange={(e) => setEmail(e.target.value)} 
                             />
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="login-password">Password</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-login-password">Password</label>
                             <div className={styles.passwordField}>
                                 <input
-                                    id="login-password"
+                                    id="transportation-login-password"
+                                    name="checkit-transportation-password"
                                     className={`${styles.loginemail} ${styles.passwordInput}`}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     placeholder="Enter your password"
+                                    autoComplete="section-checkit-transportation current-password"
                                     required
                                     onChange={(e) => setPassword(e.target.value)}
                                 />

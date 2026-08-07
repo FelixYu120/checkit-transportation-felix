@@ -91,14 +91,16 @@ function SetPassword({ setIsLoggedIn }) {
 
                     <form className={styles.formlayout} onSubmit={handleSubmit}>
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="new-password">New password</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-new-password">New password</label>
                             <div className={styles.passwordField}>
                                 <input
-                                    id="new-password"
+                                    id="transportation-new-password"
+                                    name="checkit-transportation-set-password"
                                     className={`${styles.loginemail} ${styles.passwordInput}`}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     placeholder="Use at least 8 characters"
+                                    autoComplete="section-checkit-transportation new-password"
                                     required
                                     onChange={(event) => setPassword(event.target.value)}
                                 />
@@ -114,14 +116,16 @@ function SetPassword({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="confirm-password">Confirm password</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-confirm-password">Confirm password</label>
                             <div className={styles.passwordField}>
                                 <input
-                                    id="confirm-password"
+                                    id="transportation-confirm-password"
+                                    name="checkit-transportation-set-confirm-password"
                                     className={`${styles.loginemail} ${styles.passwordInput}`}
                                     type={showConfirmPassword ? 'text' : 'password'}
                                     value={confirmPassword}
                                     placeholder="Re-enter your password"
+                                    autoComplete="section-checkit-transportation new-password"
                                     required
                                     onChange={(event) => setConfirmPassword(event.target.value)}
                                 />

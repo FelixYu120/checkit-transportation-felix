@@ -28,7 +28,11 @@ export const getSupabaseErrorContext = (error) => {
 }
 
 const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        storageKey: 'checkit.transportation.web.auth',
+      },
+    })
   : null
 
 export default supabase;

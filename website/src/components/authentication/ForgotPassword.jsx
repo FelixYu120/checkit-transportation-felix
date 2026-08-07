@@ -51,13 +51,15 @@ function ForgotPassword() {
 
                     <form className={styles.formlayout} onSubmit={handleSubmit}>
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="reset-email">Email address</label>
+                            <label className={styles.fieldLabel} htmlFor="transportation-reset-email">Email address</label>
                             <input
-                                id="reset-email"
+                                id="transportation-reset-email"
+                                name="checkit-transportation-reset-email"
                                 className={styles.loginemail}
                                 type="email"
                                 value={email}
                                 placeholder="you@organization.edu"
+                                autoComplete="section-checkit-transportation username"
                                 required
                                 onChange={(event) => setEmail(event.target.value)}
                             />
