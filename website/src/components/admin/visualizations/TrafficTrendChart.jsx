@@ -50,6 +50,12 @@ const tooltipTimeFormatter = new Intl.DateTimeFormat([], {
   timeZone: PACIFIC_TIME_ZONE,
 });
 
+const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
 const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
   month: '2-digit',
@@ -83,6 +89,36 @@ const formatTooltipDateTime = (value) => {
   return {
     date: tooltipDateFormatter.format(date),
     time: tooltipTimeFormatter.format(date),
+  };
+};
+
+const isDateKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+
+const isMonthKey = (value) => /^\d{4}-\d{2}$/.test(String(value || ''));
+
+const formatTrafficTooltipTitle = (point, type) => {
+  const key = String(point?.key || '');
+
+  if (type === 'daily') return formatTooltipDateTime(key);
+
+  if (isDateKey(key)) {
+    return {
+      date: tooltipDateFormatter.format(getCalendarDate(key)),
+      time: '',
+    };
+  }
+
+  if (isMonthKey(key)) {
+    const [year, month] = key.split('-').map(Number);
+    return {
+      date: tooltipMonthFormatter.format(new Date(Date.UTC(year, month - 1, 1))),
+      time: '',
+    };
+  }
+
+  return {
+    date: point?.fullTime || point?.time || key,
+    time: '',
   };
 };
 
@@ -664,8 +700,6 @@ const MonthlyTooltipContent = ({ cell, mode }) => {
   );
 };
 
-const isDateKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
-
 const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
   const [activeCell, setActiveCell] = useState(null);
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -691,6 +725,7 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
           const dateLabel = Number.isFinite(date.getTime())
             ? numericMonthDayFormatter.format(date)
             : cell.time;
+          const tooltipTitle = formatTrafficTooltipTitle(cell, 'monthly').date;
           const rowIndex = Math.floor(index / 7);
           const canDrill = Boolean(onDayClick && isDateKey(cell.key));
           const handleClick = () => {
@@ -712,7 +747,7 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
                 '--heatmap-color': getHeatmapColor(value, maxValue),
                 '--heatmap-text-color': getHeatmapTextColor(value, maxValue),
               }}
-              title={`${cell.fullTime || cell.time}: ${label} ${mode === 'volume' ? getDisplaySpeed(value) : value}`}
+              title={`${tooltipTitle}: ${label} ${mode === 'volume' ? getDisplaySpeed(value) : value}`}
               onMouseEnter={() => setActiveCell(cell)}
               onMouseLeave={() => setActiveCell(null)}
               onFocus={() => setActiveCell(cell)}
@@ -726,7 +761,7 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
               <span>{mode === 'volume' ? getDisplaySpeed(value) : value || '-'}</span>
               {activeCell?.key === cell.key && (
                 <div className={styles.heatmapTooltip}>
-                  <strong>{cell.fullTime || cell.time}</strong>
+                  <strong>{tooltipTitle}</strong>
                   <MonthlyTooltipContent cell={cell} mode={mode} />
                 </div>
               )}
@@ -896,12 +931,12 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload;
-                const tooltipDateTime = formatTooltipDateTime(point.key);
+                const tooltipDateTime = formatTrafficTooltipTitle(point, type);
                 return (
                   <div className={styles.tooltip}>
                     <strong>
                       {tooltipDateTime.date}
-                      <span>{tooltipDateTime.time}</span>
+                      {tooltipDateTime.time ? <span>{tooltipDateTime.time}</span> : null}
                     </strong>
                     {mode !== 'volume' && (
                       <TooltipSection title="Movement">
