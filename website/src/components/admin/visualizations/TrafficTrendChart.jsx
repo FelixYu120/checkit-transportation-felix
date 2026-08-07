@@ -68,6 +68,12 @@ const monthDayFormatter = new Intl.DateTimeFormat([], {
   timeZone: 'UTC',
 });
 
+const numericMonthDayFormatter = new Intl.DateTimeFormat([], {
+  month: 'numeric',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
 const formatHourLabel = (value) => timeFormatter.format(new Date(value));
 
 const formatDateTime = (value) => dateTimeFormatter.format(new Date(value));
@@ -676,15 +682,18 @@ const MonthlyTrafficHeatmap = ({ data, mode }) => {
         {days.map((day) => <span key={day}>{day}</span>)}
       </div>
       <div className={styles.heatmapGrid}>
-        {cells.map((cell) => {
+        {cells.map((cell, index) => {
           if (cell.blank) return <div key={cell.key} aria-hidden="true" />;
           const date = getCalendarDate(cell.key);
           const value = getHeatmapMetric(cell, mode);
-          const dayNumber = date.getUTCDate();
+          const dateLabel = Number.isFinite(date.getTime())
+            ? numericMonthDayFormatter.format(date)
+            : cell.time;
+          const rowIndex = Math.floor(index / 7);
           return (
             <div
               key={cell.key}
-              className={styles.heatmapCell}
+              className={`${styles.heatmapCell} ${rowIndex <= 1 ? styles.topRowHeatmapCell : ''}`}
               style={{
                 '--heatmap-color': getHeatmapColor(value, maxValue),
                 '--heatmap-text-color': getHeatmapTextColor(value, maxValue),
@@ -696,7 +705,7 @@ const MonthlyTrafficHeatmap = ({ data, mode }) => {
               onBlur={() => setActiveCell(null)}
               tabIndex={0}
             >
-              <strong>{dayNumber}</strong>
+              <strong>{dateLabel}</strong>
               <span>{mode === 'volume' ? getDisplaySpeed(value) : value || '-'}</span>
               {activeCell?.key === cell.key && (
                 <div className={styles.heatmapTooltip}>
@@ -814,7 +823,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
         </div>
       </div>
 
-      <div className={styles.canvas}>
+      <div className={`${styles.canvas} ${type === 'monthly' ? styles.monthlyCanvas : ''}`}>
         {type === 'monthly' ? (
           <MonthlyTrafficHeatmap data={chartData} mode={mode} />
         ) : (

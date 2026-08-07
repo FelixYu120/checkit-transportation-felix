@@ -236,7 +236,7 @@ const FloorDashboard = () => {
                             <strong>Sensor Status:</strong>
                             {SENSOR_STATUS_OPTIONS.map((status) => (
                                 <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>
-                                    <i className={`${styles.statusDot} ${styles[status]}`} aria-hidden="true" />
+                                    <i className={`${styles.statusDot} ${sensor.status === status ? styles[status] : ''}`} aria-hidden="true" />
                                     {formatAdminRouteLabel(status)}
                                 </span>
                             ))}

@@ -3807,7 +3807,7 @@ const InsightsStudio = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentUserRole, setCurrentUserRole] = useState('viewer');
+  const [currentUserRole, setCurrentUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [savedReportsError, setSavedReportsError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(null);
