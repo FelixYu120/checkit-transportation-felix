@@ -174,12 +174,12 @@
   width: 220px;
   transform: translateX(-50%);
   gap: 8px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid #dce5ea;
   border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
-  color: #172033;
-  padding: 9px 11px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  padding: 10px 12px;
   pointer-events: none;
   text-align: left;
 }
@@ -206,10 +206,10 @@
 }
 
 .heatmapCell .heatmapTooltip strong {
-  color: #172033;
-  font-size: 0.76rem;
-  font-weight: 900;
-  line-height: 1.2;
+  color: #111827;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
 }
 
 .heatmapCell .heatmapTooltip span {
@@ -312,6 +312,7 @@
   gap: 2px;
   margin-bottom: 2px;
   color: #111827;
+  font-weight: 800;
   line-height: 1.25;
 }
 

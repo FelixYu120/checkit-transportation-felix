@@ -672,10 +672,10 @@ const AggregateChart = ({
             : ['people_bar', 'combo'].includes(plotType);
 
         return (
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
-                <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '6px', lineHeight: 1.25 }}>
+            <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #dce5ea', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '2px', color: '#111827', lineHeight: 1.25, fontSize: '0.78rem', fontWeight: 800 }}>
                     <div>{tooltipTitle.date}</div>
-                    {tooltipTitle.time ? <div style={{ color: '#475569', fontSize: '11px', marginTop: '2px' }}>{tooltipTitle.time}</div> : null}
+                    {tooltipTitle.time ? <div style={{ color: '#475569', fontSize: '0.74rem', fontWeight: 750 }}>{tooltipTitle.time}</div> : null}
                 </div>
                 {point.hasData === false ? (
                     <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>

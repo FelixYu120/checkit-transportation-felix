@@ -370,8 +370,8 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                                     const point = payload[0].payload;
 
                                     return (
-                                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
-                                            <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                                        <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #dce5ea', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '2px', color: '#111827', lineHeight: 1.25, fontSize: '0.78rem', fontWeight: 800 }}>
                                                 {(type === 'weekly' || type === 'monthly') && point.dateLabel ? point.dateLabel : label}
                                             </div>
                                             {point.hasData === false ? (

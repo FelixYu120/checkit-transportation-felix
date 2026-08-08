@@ -265,7 +265,7 @@ const FloorDashboard = () => {
                     <section className={styles.chartSection}>
                         <div className={styles.trendToolbar}>
                             <div className={styles.trendCopy}>
-                                <span>{activeTimeframe.label} chart</span>
+                                <span>{activeTimeframe.label}</span>
                                 <strong>{activePreset.label}</strong>
                             </div>
                             <div className={styles.chartControls}>
