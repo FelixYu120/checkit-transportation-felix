@@ -62,6 +62,47 @@ const getFallbackInstitute = (instituteId) => {
   };
 };
 
+const compactSupabaseError = (error) => [
+  error?.code,
+  error?.message,
+  error?.details,
+  error?.hint,
+].filter(Boolean).join(" | ");
+
+const isMissingColumnError = (error) =>
+  error?.code === "42703" || /column .* does not exist|schema cache|could not find/i.test(compactSupabaseError(error));
+
+const querySensorRows = async (supabase, instituteId, sensorId) => {
+  const selectAttempts = [
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, updated_at",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude",
+    "sensor_id, institute_id, area_name, corridor_name",
+  ];
+
+  let lastError = null;
+
+  for (const selectColumns of selectAttempts) {
+    let query = supabase
+      .from("sensors")
+      .select(selectColumns)
+      .order("area_name")
+      .order("corridor_name");
+
+    if (instituteId) query = query.eq("institute_id", normalizeInstituteId(instituteId));
+    if (sensorId) query = query.eq("sensor_id", sensorId);
+
+    const { data, error } = sensorId ? await query.maybeSingle() : await query;
+    if (!error) return data;
+
+    lastError = error;
+    if (!isMissingColumnError(error)) break;
+  }
+
+  throw lastError;
+};
+
 export const getFallbackDirectory = (instituteId) => {
   const normalizedInstituteId = normalizeInstituteId(instituteId);
   return {
@@ -134,24 +175,16 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
     const instituteQuery = supabase
       .from("institutes")
       .select("institute_id, full_name");
-    const sensorQuery = supabase
-      .from("sensors")
-      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at")
-      .order("area_name")
-      .order("corridor_name");
 
-    const [{ data: institutes, error: institutesError }, { data: sensors, error: sensorsError }] =
+    const [{ data: institutes, error: institutesError }, sensors] =
       await Promise.all([
         instituteId
           ? instituteQuery.eq("institute_id", normalizedInstituteId).maybeSingle()
           : instituteQuery.order("full_name"),
-        instituteId
-          ? sensorQuery.eq("institute_id", normalizedInstituteId)
-          : sensorQuery,
+        querySensorRows(supabase, instituteId),
       ]);
 
     if (institutesError) throw institutesError;
-    if (sensorsError) throw sensorsError;
 
     if (!sensors?.length) {
       const inferredDirectory = await getDirectoryFromSummaryRows(supabase, normalizedInstituteId);
@@ -187,15 +220,7 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("sensors")
-      .select("sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at")
-      .eq("institute_id", normalizedInstituteId)
-      .eq("sensor_id", sensorId)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data || null;
+    return await querySensorRows(supabase, normalizedInstituteId, sensorId) || null;
   } catch (error) {
     console.warn("Using generated sensor fallback:", getSupabaseErrorContext(error));
     const inferredSensor = await getSensorFromSummaryRows(supabase, normalizedInstituteId, sensorId);

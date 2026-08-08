@@ -30,6 +30,23 @@ const DEFAULT_CUSTOM_METRICS = {
     approach: false,
     away: false,
 };
+const PACIFIC_TIME_ZONE = 'America/Los_Angeles';
+const tooltipDateFormatter = new Intl.DateTimeFormat([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: PACIFIC_TIME_ZONE,
+});
+const tooltipTimeFormatter = new Intl.DateTimeFormat([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: PACIFIC_TIME_ZONE,
+});
+const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+});
 
 const normalizeOccupancy = (density, people, capacity) => {
     const numericDensity = Number(density);
@@ -63,6 +80,29 @@ const getLocalMonthKey = (date) => {
 const getMonthLabel = (monthKey) => {
     const [year, month] = monthKey.split('-').map(Number);
     return new Date(year, month - 1, 1).toLocaleDateString([], { month: 'short', year: 'numeric' });
+};
+
+const formatTooltipTitle = (point, label, type) => {
+    const sortKey = String(point?.sortKey || '');
+    const dailyMatch = sortKey.match(/^(\d{4}-\d{2}-\d{2})-\d{1,2}$/);
+
+    if (type === 'daily' && dailyMatch) {
+        const date = new Date(`${dailyMatch[1]}T00:00:00`);
+        if (Number.isFinite(date.getTime())) return { date: tooltipDateFormatter.format(date), time: point?.time || label || '' };
+    }
+
+    if ((type === 'weekly' || type === 'monthly') && /^\d{4}-\d{2}-\d{2}$/.test(sortKey)) {
+        const date = new Date(`${sortKey}T00:00:00`);
+        if (Number.isFinite(date.getTime())) return { date: tooltipDateFormatter.format(date), time: '' };
+    }
+
+    if (type === 'monthly' && /^\d{4}-\d{2}$/.test(sortKey)) {
+        const [year, month] = sortKey.split('-').map(Number);
+        const date = new Date(Date.UTC(year, month - 1, 1));
+        if (Number.isFinite(date.getTime())) return { date: tooltipMonthFormatter.format(date), time: '' };
+    }
+
+    return { date: point?.dateLabel || point?.time || label, time: '' };
 };
 
 const getHourOfDayKey = (date) => String(date.getHours()).padStart(2, '0');
@@ -623,7 +663,7 @@ const AggregateChart = ({
         if (!active || !payload?.length) return null;
 
         const point = payload[0].payload;
-        const tooltipLabel = point?.dateLabel || point?.time || label;
+        const tooltipTitle = formatTooltipTitle(point, label, type);
         const showsSpeed = plotType === 'custom'
             ? effectiveCustomMetrics.avgSpeed
             : !['people_bar', 'direction_bar'].includes(plotType);
@@ -633,7 +673,10 @@ const AggregateChart = ({
 
         return (
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 12px', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
-                <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{tooltipLabel}</div>
+                <div style={{ color: '#374151', fontSize: '12px', fontWeight: 600, marginBottom: '6px', lineHeight: 1.25 }}>
+                    <div>{tooltipTitle.date}</div>
+                    {tooltipTitle.time ? <div style={{ color: '#475569', fontSize: '11px', marginTop: '2px' }}>{tooltipTitle.time}</div> : null}
+                </div>
                 {point.hasData === false ? (
                     <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
                 ) : showsSpeed && 'occupancy' in point && (
