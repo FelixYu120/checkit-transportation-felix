@@ -39,9 +39,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat([], {
 });
 
 const tooltipDateFormatter = new Intl.DateTimeFormat([], {
-  month: 'short',
+  month: 'numeric',
   day: 'numeric',
-  year: 'numeric',
   timeZone: PACIFIC_TIME_ZONE,
 });
 
@@ -221,7 +220,7 @@ const getHourlyBuckets = (rows = [], filters = {}) => {
         key,
         time: formatHourLabel(key),
         fullTime: formatDateTime(key),
-        dateLabel: monthDayFormatter.format(getCalendarDate(dateKey)),
+        dateLabel: numericMonthDayFormatter.format(getCalendarDate(dateKey)),
         isDayStart,
         isFirstBucket: index === 0,
       });
@@ -262,8 +261,8 @@ const getDailyRange = (startKey, endKey, labelType = 'day') => {
     const date = getCalendarDate(currentKey);
     buckets.push({
       key: currentKey,
-      time: labelType === 'weekday' ? dayLabelFormatter.format(date) : monthDayFormatter.format(date),
-      fullTime: monthDayFormatter.format(date),
+      time: labelType === 'weekday' ? dayLabelFormatter.format(date) : numericMonthDayFormatter.format(date),
+      fullTime: numericMonthDayFormatter.format(date),
     });
     currentKey = addCalendarDays(currentKey, 1);
   }
@@ -493,11 +492,24 @@ const getChartMargin = (mode) => ({
   bottom: 35,
 });
 
-const getXAxisHeight = (type) => (type === 'daily' ? 58 : 46);
+const getXAxisHeight = (type) => (type === 'daily' ? 58 : type === 'weekly' ? 54 : 46);
 
 const TrafficXAxisTick = ({ x, y, payload, pointsByKey, type }) => {
   const point = pointsByKey.get(payload.value);
   if (!point) return null;
+
+  if (type === 'weekly') {
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={12} textAnchor="middle" fill="#334155" fontSize={11} fontWeight={800}>
+          {point.time}
+        </text>
+        <text x={0} y={30} textAnchor="middle" fill="#64748b" fontSize={11}>
+          {point.fullTime}
+        </text>
+      </g>
+    );
+  }
 
   if (type !== 'daily') {
     return (

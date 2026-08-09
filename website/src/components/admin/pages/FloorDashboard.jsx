@@ -111,7 +111,7 @@ const TRAFFIC_VIEW_PRESETS = [
 const TRAFFIC_SUMMARY_GROUPS = [
     {
         label: 'Traffic Pattern',
-        metrics: ['peak', 'busiestTime', 'total', 'averageSpeed'],
+        metrics: ['peak', 'busiestDay', 'busiestTime', 'total', 'averageSpeed'],
     },
     {
         label: 'Speed And Reliability',

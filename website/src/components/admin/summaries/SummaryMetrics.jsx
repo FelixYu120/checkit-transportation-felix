@@ -56,7 +56,8 @@ const getMetricConfig = (timeframe) => {
 };
 
 const getDefaultVisibleMetrics = (timeframe) => {
-    return ['peak', 'busiestTime', 'total', 'averageSpeed'];
+    if (timeframe === 'daily') return ['peak', 'busiestTime', 'total', 'averageSpeed'];
+    return ['peak', 'busiestDay', 'total', 'averageSpeed'];
 };
 
 const DEFAULT_VISIBLE_METRICS = getDefaultVisibleMetrics('weekly');
@@ -98,8 +99,14 @@ const renderMetricDetail = (detail) => {
 
 const getPointLabel = (point) => point?.dateLabel || point?.axisLabel || point?.time || '-';
 
+const hasTrafficSamples = (point) => {
+    if (!point || point.hasData === false) return false;
+    const sampleCount = Number(point.sampleCount);
+    return !Number.isFinite(sampleCount) || sampleCount > 0;
+};
+
 const getChartMetrics = (sourceChartData, timeframe, thresholdValue) => {
-    const dataPoints = (sourceChartData || []).filter((point) => point && point.hasData !== false);
+    const dataPoints = (sourceChartData || []).filter(hasTrafficSamples);
     if (!dataPoints.length) return null;
 
     const getVolume = (point) => Number(point.volume ?? point.total_people ?? point.people_count ?? 0);
@@ -108,12 +115,12 @@ const getChartMetrics = (sourceChartData, timeframe, thresholdValue) => {
     const peakPoint = dataPoints.reduce((best, point) => (
         getVolume(point) > getVolume(best) ? point : best
     ), dataPoints[0]);
-    const speedWeight = dataPoints.reduce((sum, point) => sum + Math.max(getVolume(point), 1), 0);
+    const speedWeight = dataPoints.reduce((sum, point) => sum + Math.max(getVolume(point), 0), 0);
     const averageSpeed = speedWeight
-        ? dataPoints.reduce((sum, point) => sum + (getSpeed(point) * Math.max(getVolume(point), 1)), 0) / speedWeight
+        ? dataPoints.reduce((sum, point) => sum + (getSpeed(point) * Math.max(getVolume(point), 0)), 0) / speedWeight
         : 0;
     const v85Speed = speedWeight
-        ? dataPoints.reduce((sum, point) => sum + ((Number(point.v85Speed ?? point.v85_speed) || 0) * Math.max(getVolume(point), 1)), 0) / speedWeight
+        ? dataPoints.reduce((sum, point) => sum + ((Number(point.v85Speed ?? point.v85_speed) || 0) * Math.max(getVolume(point), 0)), 0) / speedWeight
         : 0;
     const maxSpeed = Math.max(0, ...dataPoints.map((point) => Number(point.maxSpeed ?? point.max_speed) || 0));
     const threshold = Number(thresholdValue);
@@ -222,12 +229,12 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                 const getAverageSpeed = (row) => row.avg_speed ?? row.density ?? 0;
                 const current = getCount(filteredData[0]); // Most recent data point
                 const total = filteredData.reduce((sum, row) => sum + getCount(row), 0);
-                const speedWeight = filteredData.reduce((sum, row) => sum + Math.max(getCount(row), 1), 0);
+                const speedWeight = filteredData.reduce((sum, row) => sum + Math.max(getCount(row), 0), 0);
                 const weightedAverageSpeed = speedWeight
-                    ? filteredData.reduce((sum, row) => sum + (getAverageSpeed(row) * Math.max(getCount(row), 1)), 0) / speedWeight
+                    ? filteredData.reduce((sum, row) => sum + (getAverageSpeed(row) * Math.max(getCount(row), 0)), 0) / speedWeight
                     : 0;
                 const weightedV85Speed = speedWeight
-                    ? filteredData.reduce((sum, row) => sum + ((Number(row.v85_speed) || 0) * Math.max(getCount(row), 1)), 0) / speedWeight
+                    ? filteredData.reduce((sum, row) => sum + ((Number(row.v85_speed) || 0) * Math.max(getCount(row), 0)), 0) / speedWeight
                     : 0;
                 const maxSpeed = Math.max(0, ...filteredData.map((row) => Number(row.max_speed) || 0));
                 const threshold = Number(thresholdValue);
@@ -348,7 +355,8 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
 
     const selectedVisibleMetrics = normalizedVisibleMetrics.filter((metric) => (
         metricConfig[metric] &&
-        !(timeframe === 'daily' && metric === 'busiestDay')
+        !(timeframe === 'daily' && metric === 'busiestDay') &&
+        !(timeframe !== 'daily' && metric === 'busiestTime')
     ));
     const gridStyle = {
         display: 'grid',
