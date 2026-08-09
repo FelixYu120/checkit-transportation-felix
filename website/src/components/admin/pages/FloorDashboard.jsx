@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
@@ -108,6 +108,16 @@ const TRAFFIC_VIEW_PRESETS = [
     { value: 'volume', label: 'Speed' },
     { value: 'direction', label: 'Direction' },
 ];
+const TRAFFIC_SUMMARY_GROUPS = [
+    {
+        label: 'Traffic Pattern',
+        metrics: ['peak', 'busiestTime', 'total', 'averageSpeed'],
+    },
+    {
+        label: 'Speed And Reliability',
+        metrics: ['overThresholdCount', 'lowNoMovementPeriods', 'maxSpeed', 'v85Speed'],
+    },
+];
 
 const getChartTitleLabel = (preset) => (
     preset?.value === 'combined' ? 'Flow' : preset?.label || 'Flow'
@@ -128,6 +138,14 @@ const FloorDashboard = () => {
     });
     const [activeTrafficTimeframe, setActiveTrafficTimeframe] = useState('daily');
     const [activeChartData, setActiveChartData] = useState(null);
+    const [drilldownHistory, setDrilldownHistory] = useState([]);
+    const filterSignature = useMemo(() => JSON.stringify({
+        startDate: filters?.startDate || '',
+        endDate: filters?.endDate || '',
+        startTime: filters?.startTime || '',
+        endTime: filters?.endTime || '',
+        dayPreset: filters?.dayPreset || 'all',
+    }), [filters]);
 
     useEffect(() => {
         let isMounted = true;
@@ -164,7 +182,7 @@ const FloorDashboard = () => {
 
     useEffect(() => {
         setActiveChartData(null);
-    }, [filters]);
+    }, [filterSignature]);
 
     const getCorridorExportRows = useCallback(async () => {
         const rows = await fetchTrafficDirectionRows(supabase, {
@@ -177,7 +195,50 @@ const FloorDashboard = () => {
         return getTrafficExportRows(rows || [], sensor);
     }, [activeTrafficTimeframe, corridorId, filters, sensor]);
 
+    const pushDrilldownHistory = useCallback(() => {
+        setDrilldownHistory((history) => [
+            ...history,
+            {
+                filters,
+                timeframe: activeTrafficTimeframe,
+                view: trendViews[activeTrafficTimeframe] || 'combined',
+            },
+        ]);
+    }, [activeTrafficTimeframe, filters, trendViews]);
+
+    const handleChartBack = useCallback(() => {
+        const previous = drilldownHistory[drilldownHistory.length - 1];
+        if (!previous) return;
+
+        setActiveChartData(null);
+        setFilters(previous.filters);
+        setActiveTrafficTimeframe(previous.timeframe);
+        if (previous.view) {
+            setTrendViews((current) => ({
+                ...current,
+                [previous.timeframe]: previous.view,
+            }));
+        }
+        setDrilldownHistory((history) => history.slice(0, -1));
+    }, [drilldownHistory]);
+
+    const handleChartTimeframeChange = useCallback((timeframe) => {
+        if (activeTrafficTimeframe === timeframe) return;
+
+        setDrilldownHistory((history) => [
+            ...history,
+            {
+                filters,
+                timeframe: activeTrafficTimeframe,
+                view: trendViews[activeTrafficTimeframe] || 'combined',
+            },
+        ]);
+        setActiveChartData(null);
+        setActiveTrafficTimeframe(timeframe);
+    }, [activeTrafficTimeframe, filters, trendViews]);
+
     const handleHeatmapDayClick = useCallback((selectedDay) => {
+        pushDrilldownHistory();
         setActiveChartData(null);
         setFilters((currentFilters) => ({
             ...currentFilters,
@@ -185,7 +246,23 @@ const FloorDashboard = () => {
             endDate: selectedDay,
         }));
         setActiveTrafficTimeframe('daily');
-    }, []);
+    }, [pushDrilldownHistory]);
+
+    const handleHeatmapMonthClick = useCallback((selectedMonth) => {
+        const [year, month] = String(selectedMonth || '').split('-').map(Number);
+        if (!year || !month) return;
+
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        pushDrilldownHistory();
+        setActiveChartData(null);
+        setFilters((currentFilters) => ({
+            ...currentFilters,
+            startDate: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+            endDate: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`,
+        }));
+        setActiveTrafficTimeframe('monthly');
+    }, [pushDrilldownHistory]);
 
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
@@ -202,6 +279,8 @@ const FloorDashboard = () => {
     const activeView = trendViews[activeTrafficTimeframe] || 'combined';
     const activeTimeframe = TRAFFIC_TIMEFRAMES.find((timeframe) => timeframe.value === activeTrafficTimeframe) || TRAFFIC_TIMEFRAMES[0];
     const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView) || TRAFFIC_VIEW_PRESETS[0];
+    const maxSpeedThreshold = Number(sensor?.max_cap ?? sensor?.max_speed_cap_threshold);
+    const summaryThreshold = Number.isFinite(maxSpeedThreshold) ? maxSpeedThreshold : undefined;
 
     return (
         <div className={styles.container}>
@@ -256,6 +335,8 @@ const FloorDashboard = () => {
                         timeframe={activeTrafficTimeframe}
                         sourceChartData={activeChartData}
                         preferSourceChartData
+                        metricGroups={TRAFFIC_SUMMARY_GROUPS}
+                        thresholdValue={summaryThreshold}
                     />
                 </>
             )}
@@ -265,7 +346,6 @@ const FloorDashboard = () => {
                     <section className={styles.chartSection}>
                         <div className={styles.trendToolbar}>
                             <div className={styles.trendCopy}>
-                                <span>{activeTimeframe.label}</span>
                                 <strong>{activePreset.label}</strong>
                             </div>
                             <div className={styles.chartControls}>
@@ -275,11 +355,7 @@ const FloorDashboard = () => {
                                             key={timeframe.value}
                                             type="button"
                                             className={`${styles.timeframeButton} ${activeTrafficTimeframe === timeframe.value ? styles.activeTimeframe : ''}`}
-                                            onClick={() => {
-                                                if (activeTrafficTimeframe === timeframe.value) return;
-                                                setActiveChartData(null);
-                                                setActiveTrafficTimeframe(timeframe.value);
-                                            }}
+                                            onClick={() => handleChartTimeframeChange(timeframe.value)}
                                         >
                                             {timeframe.label}
                                         </button>
@@ -307,6 +383,9 @@ const FloorDashboard = () => {
                             title={`${activeTimeframe.label} ${getChartTitleLabel(activePreset)}`}
                             onSnapshotData={setActiveChartData}
                             onHeatmapDayClick={handleHeatmapDayClick}
+                            onHeatmapMonthClick={handleHeatmapMonthClick}
+                            canGoBack={drilldownHistory.length > 0}
+                            onBack={handleChartBack}
                         />
                     </section>
                 </div>

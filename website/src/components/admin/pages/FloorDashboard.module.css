@@ -15,7 +15,7 @@
   flex-direction: column;
   gap: clamp(12px, 1.4vw, 20px);
   margin-top: clamp(8px, 1vw, 16px);
-  padding-bottom: 100px;
+  padding-bottom: clamp(180px, 18vh, 260px);
   width: 100%;
   box-sizing: border-box;
   min-width: 0;

@@ -19,9 +19,11 @@ export const FALLBACK_SENSORS = [
     corridor_name: "Pepper Canyon Corridor",
     latitude: 32.8801,
     longitude: -117.234,
-  status: "active",
-  last_seen_at: null,
-  updated_at: null,
+    status: "active",
+    last_seen_at: null,
+    updated_at: null,
+    speed_threshold: null,
+    max_cap: null,
   },
 ];
 
@@ -47,6 +49,8 @@ const getFallbackSensor = (sensorId, instituteId) => {
     latitude: null,
     longitude: null,
     status: "active",
+    speed_threshold: null,
+    max_cap: null,
     ...knownSensor,
     institute_id: knownSensor?.institute_id || normalizedInstituteId,
   };
@@ -74,6 +78,12 @@ const isMissingColumnError = (error) =>
 
 const querySensorRows = async (supabase, instituteId, sensorId) => {
   const selectAttempts = [
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at, speed_threshold, max_cap",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at, speed_limit_threshold, max_speed_cap_threshold",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, updated_at, speed_threshold, max_cap",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, updated_at, speed_limit_threshold, max_speed_cap_threshold",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, speed_threshold, max_cap",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, speed_limit_threshold, max_speed_cap_threshold",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, updated_at",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status",

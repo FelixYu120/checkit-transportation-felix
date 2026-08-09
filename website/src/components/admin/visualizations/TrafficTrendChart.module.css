@@ -13,6 +13,50 @@
   margin-bottom: 12px;
 }
 
+.headerTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chartBackButton {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid #dce5ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2f716f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(148, 163, 184, 0.12);
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chartBackButton:hover,
+.chartBackButton:focus-visible {
+  background: #eef8f7;
+  border-color: rgba(47, 113, 111, 0.42);
+  box-shadow: 0 7px 16px rgba(47, 113, 111, 0.14);
+  outline: none;
+}
+
+.chartBackButton:disabled {
+  opacity: 0.38;
+  cursor: default;
+  box-shadow: none;
+}
+
+.chartBackButton:disabled:hover,
+.chartBackButton:disabled:focus-visible {
+  background: #ffffff;
+  border-color: #dce5ea;
+  box-shadow: none;
+}
+
 .titleBlock {
   display: flex;
   flex-direction: column;
@@ -94,10 +138,9 @@
 
 .monthlyCanvas {
   height: auto;
-  min-height: clamp(330px, 34vw, 440px);
+  min-height: clamp(380px, 38vw, 520px);
   overflow: visible;
-  padding-top: 124px;
-  margin-top: -104px;
+  padding-top: 18px;
 }
 
 .heatmap {

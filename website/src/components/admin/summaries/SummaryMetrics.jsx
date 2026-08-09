@@ -31,31 +31,32 @@ const getBestAverageGroup = (groups) => {
 };
 
 const getTimeframeLabel = (timeframe) => {
-    if (timeframe === 'daily') return '24h';
+    if (timeframe === 'daily') return '24 hr';
     if (timeframe === 'monthly') return 'Monthly';
     if (timeframe === 'custom') return 'filtered';
-    return '7-day';
+    return '7 day';
 };
 
 const getMetricConfig = (timeframe) => {
     const windowLabel = getTimeframeLabel(timeframe);
 
     return {
-        total: { label: `${windowLabel} Volume`, unit: 'movements', detail: `Total traffic volume in the ${windowLabel} report window.` },
-        current: { label: 'Live Status', unit: 'movements', detail: 'Most recent movement count in the active report window.' },
-        peak: { label: `Peak ${windowLabel} Avg`, unit: 'movements', detail: `Highest averaged movement point in the ${windowLabel} report window.` },
-        averageSpeed: { label: `${windowLabel} Avg Speed`, unit: 'mph', detail: `Weighted average speed across the ${windowLabel} report window.` },
-        v85Speed: { label: `${windowLabel} 85th Speed`, unit: 'mph', detail: `Average 85th percentile speed across the ${windowLabel} report window.` },
-        maxSpeed: { label: `${windowLabel} Max Speed`, unit: 'mph', detail: `Highest speed observed in the ${windowLabel} report window.` },
-        approachShare: { label: `${windowLabel} Approach Share`, unit: '%', detail: `Share of directional traffic moving toward approach in the ${windowLabel} report window.` },
-        busiestDay: { label: `Highest ${windowLabel} Day`, unit: '', detail: `Day with the highest traffic volume in the ${windowLabel} report window.` },
-        busiestTime: { label: `Highest ${windowLabel} Time`, unit: '', detail: `Time with the highest traffic volume in the ${windowLabel} report window.` },
+        total: { label: 'Volume', unit: 'movements', detail: `Total traffic volume in the ${windowLabel} report window.` },
+        current: { label: 'Recent Movement', unit: 'movements', detail: 'Most recent movement count in the active report window.' },
+        peak: { label: 'Peak', unit: 'movements', detail: `Highest movement point in the ${windowLabel} report window.` },
+        averageSpeed: { label: 'Avg Speed', unit: 'mph', detail: `Weighted average speed across the ${windowLabel} report window.` },
+        v85Speed: { label: '85th Speed', unit: 'mph', detail: `Average 85th percentile speed across the ${windowLabel} report window.` },
+        maxSpeed: { label: 'Max Speed', unit: 'mph', detail: `Highest speed observed in the ${windowLabel} report window.` },
+        overThresholdCount: { label: 'Over Threshold Count', unit: 'periods', detail: `Number of ${windowLabel} periods where max speed exceeded the lane's max speed cap threshold.` },
+        lowNoMovementPeriods: { label: 'Low/No Movement Periods', unit: 'periods', detail: `Number of ${windowLabel} periods with little or no observed movement.` },
+        approachShare: { label: 'Approach Share', unit: '%', detail: `Share of directional traffic moving toward approach in the ${windowLabel} report window.` },
+        busiestDay: { label: 'Busiest Day', unit: '', detail: `Day with the highest traffic volume in the ${windowLabel} report window.` },
+        busiestTime: { label: 'Busiest Time', unit: '', detail: `Time with the highest traffic volume in the ${windowLabel} report window.` },
     };
 };
 
 const getDefaultVisibleMetrics = (timeframe) => {
-    if (timeframe === 'daily') return ['total', 'current', 'peak', 'busiestTime'];
-    return ['total', 'current', 'peak', 'averageSpeed'];
+    return ['peak', 'busiestTime', 'total', 'averageSpeed'];
 };
 
 const DEFAULT_VISIBLE_METRICS = getDefaultVisibleMetrics('weekly');
@@ -86,9 +87,18 @@ const renderMetricDisplay = (value, unit) => {
     );
 };
 
+const renderMetricDetail = (detail) => {
+    const parts = String(detail || '').split(/(24 hr|7 day|Monthly|filtered)/g);
+    return parts.map((part, index) => (
+        part === '24 hr' || part === '7 day' || part === 'Monthly' || part === 'filtered'
+            ? <strong key={`${part}-${index}`}>{part}</strong>
+            : part
+    ));
+};
+
 const getPointLabel = (point) => point?.dateLabel || point?.axisLabel || point?.time || '-';
 
-const getChartMetrics = (sourceChartData, timeframe) => {
+const getChartMetrics = (sourceChartData, timeframe, thresholdValue) => {
     const dataPoints = (sourceChartData || []).filter((point) => point && point.hasData !== false);
     if (!dataPoints.length) return null;
 
@@ -106,6 +116,11 @@ const getChartMetrics = (sourceChartData, timeframe) => {
         ? dataPoints.reduce((sum, point) => sum + ((Number(point.v85Speed ?? point.v85_speed) || 0) * Math.max(getVolume(point), 1)), 0) / speedWeight
         : 0;
     const maxSpeed = Math.max(0, ...dataPoints.map((point) => Number(point.maxSpeed ?? point.max_speed) || 0));
+    const threshold = Number(thresholdValue);
+    const overThresholdCount = Number.isFinite(threshold)
+        ? dataPoints.filter((point) => (Number(point.maxSpeed ?? point.max_speed) || 0) > threshold).length
+        : '-';
+    const lowNoMovementPeriods = dataPoints.filter((point) => getVolume(point) <= 0).length;
     const approachVolume = dataPoints.reduce((sum, point) => sum + (Number(point.approach ?? point.approach_volume) || 0), 0);
     const awayVolume = dataPoints.reduce((sum, point) => sum + (Number(point.away ?? point.away_volume) || 0), 0);
     const approachShare = approachVolume + awayVolume > 0
@@ -119,15 +134,22 @@ const getChartMetrics = (sourceChartData, timeframe) => {
         averageSpeed: Math.round(averageSpeed * 10) / 10,
         v85Speed: Math.round(v85Speed * 10) / 10,
         maxSpeed,
+        overThresholdCount,
+        lowNoMovementPeriods,
         approachShare,
         busiestDay: getPointLabel(peakPoint),
-        ...(timeframe === 'daily' || timeframe === 'custom' ? { busiestTime: getPointLabel(peakPoint) } : {}),
+        busiestTime: getPointLabel(peakPoint),
     };
 };
 
-const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: visibleMetrics, snapshotData, onSnapshotData, sourceChartData, preferSourceChartData = false }) => {
+const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: visibleMetrics, metricGroups, snapshotData, onSnapshotData, sourceChartData, preferSourceChartData = false, thresholdValue }) => {
+    const groupedMetricKeys = Array.isArray(metricGroups)
+        ? metricGroups.flatMap((group) => Array.isArray(group.metrics) ? group.metrics : [])
+        : [];
     const normalizedVisibleMetrics = Array.isArray(visibleMetrics) && visibleMetrics.length > 0
         ? visibleMetrics
+        : groupedMetricKeys.length
+            ? groupedMetricKeys
         : getDefaultVisibleMetrics(timeframe);
     const [liveMetrics, setLiveMetrics] = useState({
         total: 0,
@@ -136,6 +158,8 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         averageSpeed: 0,
         v85Speed: 0,
         maxSpeed: 0,
+        overThresholdCount: '-',
+        lowNoMovementPeriods: 0,
         approachShare: 0,
         busiestDay: '-',
         busiestTime: '-'
@@ -154,7 +178,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         endTime,
         dayPreset,
     }), [startDate, endDate, startTime, endTime, dayPreset]);
-    const chartMetrics = useMemo(() => getChartMetrics(sourceChartData, timeframe), [sourceChartData, timeframe]);
+    const chartMetrics = useMemo(() => getChartMetrics(sourceChartData, timeframe, thresholdValue), [sourceChartData, timeframe, thresholdValue]);
     const metrics = chartMetrics || snapshotData || liveMetrics;
     const isWaitingForSourceChartData = preferSourceChartData && sourceChartData == null;
     const isMetricsLoading = isWaitingForSourceChartData || (!chartMetrics && !snapshotData && loading);
@@ -179,7 +203,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
             setLoading(true);
             if (!id) {
                 if (isMounted) {
-                    setLiveMetrics({ total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' });
+                    setLiveMetrics({ total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, overThresholdCount: '-', lowNoMovementPeriods: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' });
                     setLoading(false);
                 }
                 return;
@@ -206,6 +230,11 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     ? filteredData.reduce((sum, row) => sum + ((Number(row.v85_speed) || 0) * Math.max(getCount(row), 1)), 0) / speedWeight
                     : 0;
                 const maxSpeed = Math.max(0, ...filteredData.map((row) => Number(row.max_speed) || 0));
+                const threshold = Number(thresholdValue);
+                const overThresholdCount = Number.isFinite(threshold)
+                    ? filteredData.filter((row) => (Number(row.max_speed) || 0) > threshold).length
+                    : '-';
+                const lowNoMovementPeriods = filteredData.filter((row) => getCount(row) <= 0).length;
                 const approachVolume = filteredData.reduce((sum, row) => sum + (Number(row.approach_volume) || 0), 0);
                 const awayVolume = filteredData.reduce((sum, row) => sum + (Number(row.away_volume) || 0), 0);
                 const approachShare = approachVolume + awayVolume > 0
@@ -268,6 +297,8 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     averageSpeed: Math.round(weightedAverageSpeed * 10) / 10,
                     v85Speed: Math.round(weightedV85Speed * 10) / 10,
                     maxSpeed,
+                    overThresholdCount,
+                    lowNoMovementPeriods,
                     approachShare,
                     busiestDay,
                     busiestTime,
@@ -277,7 +308,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     onSnapshotData?.(nextMetrics);
                 }
             } else {
-                const emptyMetrics = { total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' };
+                const emptyMetrics = { total: 0, current: 0, peak: 0, averageSpeed: 0, v85Speed: 0, maxSpeed: 0, overThresholdCount: Number.isFinite(Number(thresholdValue)) ? 0 : '-', lowNoMovementPeriods: 0, approachShare: 0, busiestDay: '-', busiestTime: '-' };
                 if (isMounted) {
                     setLiveMetrics(emptyMetrics);
                     onSnapshotData?.(emptyMetrics);
@@ -290,7 +321,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         return () => {
             isMounted = false;
         };
-    }, [chartMetrics, level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData, preferSourceChartData]);
+    }, [chartMetrics, level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData, preferSourceChartData, thresholdValue]);
 
     const cardStyle = {
         backgroundColor: '#ffffff',
@@ -317,8 +348,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
 
     const selectedVisibleMetrics = normalizedVisibleMetrics.filter((metric) => (
         metricConfig[metric] &&
-        !(timeframe === 'daily' && metric === 'busiestDay') &&
-        !(timeframe !== 'daily' && metric === 'busiestTime')
+        !(timeframe === 'daily' && metric === 'busiestDay')
     ));
     const gridStyle = {
         display: 'grid',
@@ -326,13 +356,46 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         alignContent: 'start',
         gap: 'clamp(8px, 1vw, 12px)',
         width: '100%',
-        height: '100%',
+        height: metricGroups ? 'auto' : '100%',
         boxSizing: 'border-box',
         minWidth: 0,
         overflowX: 'auto',
     };
 
     if (isMetricsLoading) {
+        if (Array.isArray(metricGroups) && metricGroups.length > 0) {
+            return (
+                <div data-report-loading="true" style={{ display: 'grid', gap: 'clamp(12px, 1.3vw, 16px)', width: '100%' }}>
+                    {metricGroups.map((group) => {
+                        const groupMetrics = selectedVisibleMetrics.filter((metric) => group.metrics?.includes(metric));
+                        if (!groupMetrics.length) return null;
+
+                        return (
+                            <section key={group.label || groupMetrics.join('-')} aria-hidden="true">
+                                {group.label ? (
+                                    <div style={{ color: '#64748b', fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
+                                        {group.label}
+                                    </div>
+                                ) : null}
+                                <div style={{
+                                    ...gridStyle,
+                                    gridTemplateColumns: `repeat(${Math.max(groupMetrics.length, 1)}, minmax(150px, 1fr))`,
+                                }}>
+                                    {groupMetrics.map((metricKey) => (
+                                        <div key={metricKey} style={{ ...cardStyle, gap: '10px' }}>
+                                            <span style={{ ...skeletonStyle, height: 12, width: '58%' }} />
+                                            <span style={{ ...skeletonStyle, height: 28, width: '44%' }} />
+                                            <span style={{ ...skeletonStyle, height: 10, width: '34%' }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })}
+                </div>
+            );
+        }
+
         return (
             <div data-report-loading="true" style={gridStyle}>
                 {selectedVisibleMetrics.map((metricKey) => (
@@ -351,97 +414,128 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         return value !== undefined && value !== null && value !== '' && value !== '-';
     });
     const renderedMetrics = safeVisibleMetrics.length ? safeVisibleMetrics : selectedVisibleMetrics;
+    const renderMetricCard = (metricKey) => {
+        const config = metricConfig[metricKey];
+        const isActive = activeDetailKey === metricKey;
+        const value = metrics[metricKey] ?? (config.unit ? 0 : '-');
+
+        return (
+            <div
+                key={metricKey}
+                style={{ ...cardStyle, cursor: 'pointer', position: 'relative' }}
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveDetailKey(isActive ? null : metricKey);
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setActiveDetailKey(isActive ? null : metricKey);
+                    }
+                }}
+            >
+                <span style={labelStyle}>{config.label}</span>
+                <p style={valueStyle}>
+                    {renderMetricDisplay(value, config.unit)}
+                </p>
+            </div>
+        );
+    };
+    const modal = activeConfig && typeof document !== 'undefined' && createPortal((
+        <div
+            role="presentation"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+                event.stopPropagation();
+                setActiveDetailKey(null);
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 10000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(15, 23, 42, 0.28)',
+            }}
+        >
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${activeConfig.label} details`}
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                    width: 'min(420px, calc(100vw - 32px))',
+                    background: '#ffffff',
+                    border: '1px solid #dbe4ee',
+                    borderRadius: '14px',
+                    boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)',
+                    padding: '20px',
+                    color: '#0f172a',
+                }}
+            >
+                <h3 style={{ margin: '0 0 8px', fontSize: '1rem', lineHeight: 1.25 }}>{activeConfig.label}</h3>
+                <p style={{ margin: '0 0 14px', color: '#475569', fontSize: '0.9rem', lineHeight: 1.45 }}>{renderMetricDetail(activeConfig.detail)}</p>
+                <p style={{ margin: 0, color: '#1f2937', fontWeight: 700 }}>
+                    Value: {formatMetricDisplayValue(modalValue, activeConfig.unit)} {activeConfig.unit}
+                </p>
+                <button
+                    type="button"
+                    onClick={() => setActiveDetailKey(null)}
+                    style={{
+                        marginTop: '18px',
+                        border: 0,
+                        borderRadius: '999px',
+                        background: '#2f716f',
+                        color: '#ffffff',
+                        padding: '8px 16px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    ), document.body);
+
+    if (Array.isArray(metricGroups) && metricGroups.length > 0) {
+        return (
+            <div style={{ display: 'grid', gap: 'clamp(12px, 1.3vw, 16px)', width: '100%' }}>
+                {metricGroups.map((group) => {
+                    const groupMetrics = renderedMetrics.filter((metric) => group.metrics?.includes(metric));
+                    if (!groupMetrics.length) return null;
+
+                    return (
+                        <section key={group.label || groupMetrics.join('-')}>
+                            {group.label ? (
+                                <div style={{ color: '#64748b', fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
+                                    {group.label}
+                                </div>
+                            ) : null}
+                            <div style={{
+                                ...gridStyle,
+                                gridTemplateColumns: `repeat(${Math.max(groupMetrics.length, 1)}, minmax(150px, 1fr))`,
+                            }}>
+                                {groupMetrics.map(renderMetricCard)}
+                            </div>
+                        </section>
+                    );
+                })}
+                {modal}
+            </div>
+        );
+    }
 
     return (
         <div style={{
             ...gridStyle,
             gridTemplateColumns: `repeat(${Math.max(renderedMetrics.length, 1)}, minmax(150px, 1fr))`,
         }}>
-            {renderedMetrics.map((metricKey) => {
-                const config = metricConfig[metricKey];
-                const isActive = activeDetailKey === metricKey;
-                const value = metrics[metricKey] ?? (config.unit ? 0 : '-');
-                return (
-                    <div
-                        key={metricKey}
-                        style={{ ...cardStyle, cursor: 'pointer', position: 'relative' }}
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            setActiveDetailKey(isActive ? null : metricKey);
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                setActiveDetailKey(isActive ? null : metricKey);
-                            }
-                        }}
-                    >
-                        <span style={labelStyle}>{config.label}</span>
-                        <p style={valueStyle}>
-                            {renderMetricDisplay(value, config.unit)}
-                        </p>
-                    </div>
-                );
-            })}
-            {activeConfig && typeof document !== 'undefined' && createPortal((
-                <div
-                    role="presentation"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        setActiveDetailKey(null);
-                    }}
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 10000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(15, 23, 42, 0.28)',
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label={`${activeConfig.label} details`}
-                        onClick={(event) => event.stopPropagation()}
-                        style={{
-                            width: 'min(420px, calc(100vw - 32px))',
-                            background: '#ffffff',
-                            border: '1px solid #dbe4ee',
-                            borderRadius: '14px',
-                            boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)',
-                            padding: '20px',
-                            color: '#0f172a',
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 8px', fontSize: '1rem', lineHeight: 1.25 }}>{activeConfig.label}</h3>
-                        <p style={{ margin: '0 0 14px', color: '#475569', fontSize: '0.9rem', lineHeight: 1.45 }}>{activeConfig.detail}</p>
-                        <p style={{ margin: 0, color: '#1f2937', fontWeight: 700 }}>
-                            Value: {formatMetricDisplayValue(modalValue, activeConfig.unit)} {activeConfig.unit}
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setActiveDetailKey(null)}
-                            style={{
-                                marginTop: '18px',
-                                border: 0,
-                                borderRadius: '999px',
-                                background: '#2f716f',
-                                color: '#ffffff',
-                                padding: '8px 16px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            ), document.body)}
+            {renderedMetrics.map(renderMetricCard)}
+            {modal}
         </div>
     );
 };

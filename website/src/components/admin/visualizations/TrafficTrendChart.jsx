@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ChevronLeft } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import styles from './TrafficTrendChart.module.css';
@@ -297,7 +298,7 @@ const getFilterRangeDays = (filters = {}) => {
 };
 
 const shouldUseMonthlyBuckets = (type, filters = {}) => (
-  type === 'monthly' && Boolean(filters.startDate || filters.endDate) && getFilterRangeDays(filters) > 62
+  type === 'monthly' && Boolean(filters.startDate || filters.endDate) && getFilterRangeDays(filters) > 31
 );
 
 const getWeeklyBuckets = (rows = [], filters = {}) => {
@@ -700,10 +701,11 @@ const MonthlyTooltipContent = ({ cell, mode }) => {
   );
 };
 
-const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
+const MonthlyTrafficHeatmap = ({ data, mode, onDayClick, onMonthClick }) => {
   const [activeCell, setActiveCell] = useState(null);
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const firstDate = data.length ? getCalendarDate(data[0].key) : null;
+  const isMonthBucketView = data.some((point) => isMonthKey(point.key));
+  const firstDate = data.length && !isMonthBucketView ? getCalendarDate(data[0].key) : null;
   const leadingBlanks = firstDate && Number.isFinite(firstDate.getTime()) ? firstDate.getUTCDay() : 0;
   const maxValue = Math.max(0, ...data.map((point) => getHeatmapMetric(point, mode)));
   const label = getHeatmapLabel(mode);
@@ -714,29 +716,35 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
 
   return (
     <div className={styles.heatmap}>
-      <div className={styles.heatmapWeekdays}>
-        {days.map((day) => <span key={day}>{day}</span>)}
-      </div>
+      {!isMonthBucketView && (
+        <div className={styles.heatmapWeekdays}>
+          {days.map((day) => <span key={day}>{day}</span>)}
+        </div>
+      )}
       <div className={styles.heatmapGrid}>
         {cells.map((cell, index) => {
           if (cell.blank) return <div key={cell.key} aria-hidden="true" />;
-          const date = getCalendarDate(cell.key);
+          const date = isDateKey(cell.key) ? getCalendarDate(cell.key) : null;
           const value = getHeatmapMetric(cell, mode);
-          const dateLabel = Number.isFinite(date.getTime())
+          const dateLabel = date && Number.isFinite(date.getTime())
             ? numericMonthDayFormatter.format(date)
             : cell.time;
           const tooltipTitle = formatTrafficTooltipTitle(cell, 'monthly').date;
           const rowIndex = Math.floor(index / 7);
-          const canDrill = Boolean(onDayClick && isDateKey(cell.key));
+          const canDrillDay = Boolean(onDayClick && isDateKey(cell.key));
+          const canDrillMonth = Boolean(onMonthClick && isMonthKey(cell.key));
+          const canDrill = canDrillDay || canDrillMonth;
           const handleClick = () => {
             if (!canDrill) return;
-            onDayClick(cell.key);
+            if (canDrillMonth) onMonthClick(cell.key);
+            else onDayClick(cell.key);
           };
           const handleKeyDown = (event) => {
             if (!canDrill) return;
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
-              onDayClick(cell.key);
+              if (canDrillMonth) onMonthClick(cell.key);
+              else onDayClick(cell.key);
             }
           };
           return (
@@ -780,7 +788,7 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick }) => {
   );
 };
 
-const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData, onHeatmapDayClick }) => {
+const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData, onHeatmapDayClick, onHeatmapMonthClick, canGoBack = false, onBack }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const effectiveFilters = useMemo(() => ({
@@ -856,8 +864,20 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
     return (
       <div className={styles.shell}>
         <div className={styles.header}>
-          <div className={styles.titleBlock}>
-            <h3>{title || getChartTitle(mode)}</h3>
+          <div className={styles.headerTitleRow}>
+            <button
+              type="button"
+              className={styles.chartBackButton}
+              onClick={canGoBack ? onBack : undefined}
+              disabled={!canGoBack}
+              aria-label="Go back to previous chart view"
+              title="Back"
+            >
+              <ChevronLeft size={18} strokeWidth={2.5} />
+            </button>
+            <div className={styles.titleBlock}>
+              <h3>{title || getChartTitle(mode)}</h3>
+            </div>
           </div>
         </div>
         <div className={styles.empty}>
@@ -870,14 +890,26 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
   return (
     <div className={styles.shell}>
       <div className={styles.header}>
-        <div className={styles.titleBlock}>
-          <h3>{title || getChartTitle(mode)}</h3>
+        <div className={styles.headerTitleRow}>
+          <button
+            type="button"
+            className={styles.chartBackButton}
+            onClick={canGoBack ? onBack : undefined}
+            disabled={!canGoBack}
+            aria-label="Go back to previous chart view"
+            title="Back"
+          >
+            <ChevronLeft size={18} strokeWidth={2.5} />
+          </button>
+          <div className={styles.titleBlock}>
+            <h3>{title || getChartTitle(mode)}</h3>
+          </div>
         </div>
       </div>
 
       <div className={`${styles.canvas} ${type === 'monthly' ? styles.monthlyCanvas : ''}`}>
         {type === 'monthly' ? (
-          <MonthlyTrafficHeatmap data={chartData} mode={mode} onDayClick={onHeatmapDayClick} />
+          <MonthlyTrafficHeatmap data={chartData} mode={mode} onDayClick={onHeatmapDayClick} onMonthClick={onHeatmapMonthClick} />
         ) : (
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={chartMargin}>
