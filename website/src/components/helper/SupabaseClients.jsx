@@ -31,6 +31,9 @@ const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseKey, {
       auth: {
         storageKey: 'checkit.transportation.web.auth',
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
       },
     })
   : null
