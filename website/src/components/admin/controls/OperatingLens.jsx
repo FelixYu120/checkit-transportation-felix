@@ -5,9 +5,11 @@ import styles from './OperatingLens.module.css';
 const CUSTOM_OPERATING_LENS_STORAGE_KEY = 'checkit.transportation.customOperatingLenses';
 const MAX_CUSTOM_OPERATING_LENSES = 5;
 
-const OperatingLens = ({ filters, onChange }) => {
+const OperatingLens = ({ filters, onChange, onLensNavigate }) => {
     const [modalOpen, setModalOpen] = useState(false);
     const [deleteLensTarget, setDeleteLensTarget] = useState(null);
+    const [editingLensId, setEditingLensId] = useState(null);
+    const [contextMenu, setContextMenu] = useState(null);
     const [error, setError] = useState('');
     const [savedLenses, setSavedLenses] = useState(() => {
         if (typeof window === 'undefined') return [];
@@ -28,6 +30,18 @@ const OperatingLens = ({ filters, onChange }) => {
         }));
     }, [onChange]);
 
+    useEffect(() => {
+        if (!contextMenu) return undefined;
+
+        const closeContextMenu = () => setContextMenu(null);
+        window.addEventListener('click', closeContextMenu);
+        window.addEventListener('scroll', closeContextMenu, true);
+        return () => {
+            window.removeEventListener('click', closeContextMenu);
+            window.removeEventListener('scroll', closeContextMenu, true);
+        };
+    }, [contextMenu]);
+
     const persistLenses = (lenses) => {
         setSavedLenses(lenses);
         if (typeof window !== 'undefined') {
@@ -40,6 +54,9 @@ const OperatingLens = ({ filters, onChange }) => {
     };
 
     const applyAllDay = () => {
+        if (filters.startTime !== '00:00' || filters.endTime !== '23:59') {
+            onLensNavigate?.();
+        }
         onChange((current) => ({
             ...current,
             startTime: '00:00',
@@ -48,6 +65,9 @@ const OperatingLens = ({ filters, onChange }) => {
     };
 
     const applyLens = (lens) => {
+        if (filters.startTime !== lens.startTime || filters.endTime !== lens.endTime) {
+            onLensNavigate?.();
+        }
         onChange((current) => ({
             ...current,
             startTime: lens.startTime,
@@ -66,6 +86,34 @@ const OperatingLens = ({ filters, onChange }) => {
         setDeleteLensTarget(null);
     };
 
+    const openCreateLens = () => {
+        setError('');
+        setEditingLensId(null);
+        setCustomLens({ name: '', startTime: '09:00', endTime: '17:00' });
+        setModalOpen(true);
+    };
+
+    const openEditLens = (lens) => {
+        setError('');
+        setEditingLensId(lens.id);
+        setCustomLens({
+            name: lens.name,
+            startTime: lens.startTime,
+            endTime: lens.endTime,
+        });
+        setContextMenu(null);
+        setModalOpen(true);
+    };
+
+    const openLensContextMenu = (event, lens) => {
+        event.preventDefault();
+        setContextMenu({
+            lens,
+            x: event.clientX,
+            y: event.clientY,
+        });
+    };
+
     const applyCustomLens = () => {
         if (!customLens.name?.trim() || !customLens.startTime || !customLens.endTime) {
             setError('Custom name and time range are required.');
@@ -73,21 +121,29 @@ const OperatingLens = ({ filters, onChange }) => {
         }
 
         const lensName = customLens.name.trim();
-        const replacingExisting = savedLenses.some((lens) => lens.name === lensName);
+        const replacingExisting = savedLenses.some((lens) => lens.id === editingLensId || lens.name === lensName);
+        const duplicateName = savedLenses.some((lens) => lens.name === lensName && lens.id !== editingLensId);
+        if (duplicateName) {
+            setError('An operating lens with this name already exists.');
+            return;
+        }
         if (!replacingExisting && savedLenses.length >= MAX_CUSTOM_OPERATING_LENSES) {
             setError(`You can save up to ${MAX_CUSTOM_OPERATING_LENSES} operating lenses.`);
             return;
         }
 
         const nextLens = {
-            id: `${Date.now()}`,
+            id: editingLensId || `${Date.now()}`,
             name: lensName,
             startTime: customLens.startTime,
             endTime: customLens.endTime,
         };
-        const nextLenses = [nextLens, ...savedLenses.filter((lens) => lens.name !== nextLens.name)].slice(0, MAX_CUSTOM_OPERATING_LENSES);
+        const nextLenses = editingLensId
+            ? savedLenses.map((lens) => (lens.id === editingLensId ? nextLens : lens))
+            : [nextLens, ...savedLenses].slice(0, MAX_CUSTOM_OPERATING_LENSES);
         persistLenses(nextLenses);
         setCustomLens({ name: '', startTime: '09:00', endTime: '17:00' });
+        setEditingLensId(null);
         setError('');
         setModalOpen(false);
     };
@@ -110,7 +166,11 @@ const OperatingLens = ({ filters, onChange }) => {
                     {savedLenses.map((lens) => {
                         const active = filters.startTime === lens.startTime && filters.endTime === lens.endTime;
                         return (
-                            <span key={lens.id} className={`${styles.savedLensPill} ${active ? styles.activeSavedLens : ''}`}>
+                            <span
+                                key={lens.id}
+                                className={`${styles.savedLensPill} ${active ? styles.activeSavedLens : ''}`}
+                                onContextMenu={(event) => openLensContextMenu(event, lens)}
+                            >
                                 <button type="button" onClick={() => applyLens(lens)}>
                                     {lens.name}
                                 </button>
@@ -123,23 +183,31 @@ const OperatingLens = ({ filters, onChange }) => {
                     <button
                         type="button"
                         className={styles.addLensButton}
-                        onClick={() => {
-                            setError('');
-                            setCustomLens({ name: '', startTime: '09:00', endTime: '17:00' });
-                            setModalOpen(true);
-                        }}
+                        onClick={openCreateLens}
                         aria-label="Add custom operating lens"
                     >
                         <Plus size={16} />
                     </button>
                 </div>
             </section>
+            {contextMenu && (
+                <div
+                    className={styles.lensContextMenu}
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    role="menu"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <button type="button" role="menuitem" onClick={() => openEditLens(contextMenu.lens)}>
+                        Edit
+                    </button>
+                </div>
+            )}
             {modalOpen && (
-                <div className={styles.lensModalBackdrop} role="presentation" onMouseDown={() => setModalOpen(false)}>
+                <div className={styles.lensModalBackdrop} role="presentation" onMouseDown={() => { setModalOpen(false); setEditingLensId(null); }}>
                     <div className={styles.lensModal} role="dialog" aria-modal="true" aria-label="Custom operating lens" onMouseDown={(event) => event.stopPropagation()}>
                         <div className={styles.lensModalHeader}>
-                            <h3>Custom</h3>
-                            <button type="button" className={styles.lensModalClose} onClick={() => setModalOpen(false)} aria-label="Close custom operating lens">
+                            <h3>{editingLensId ? 'Edit Lens' : 'Custom'}</h3>
+                            <button type="button" className={styles.lensModalClose} onClick={() => { setModalOpen(false); setEditingLensId(null); }} aria-label="Close custom operating lens">
                                 <X size={18} />
                             </button>
                         </div>
@@ -164,7 +232,7 @@ const OperatingLens = ({ filters, onChange }) => {
                         </div>
                         {error ? <p className={styles.lensModalError}>{error}</p> : null}
                         <button type="button" className={styles.lensModalSave} onClick={applyCustomLens}>
-                            Save
+                            {editingLensId ? 'Save Changes' : 'Save'}
                         </button>
                     </div>
                 </div>

@@ -37,11 +37,6 @@ const tooltipDateFormatter = new Intl.DateTimeFormat([], {
     year: 'numeric',
     timeZone: PACIFIC_TIME_ZONE,
 });
-const tooltipTimeFormatter = new Intl.DateTimeFormat([], {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: PACIFIC_TIME_ZONE,
-});
 const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
     month: 'short',
     year: 'numeric',
@@ -146,12 +141,12 @@ const groupToTrafficPoint = (group) => ({
     axisLabel: group.axisLabel,
     dateLabel: group.dateLabel,
     hasData: group.count > 0,
-    occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-    total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    v85_speed: group.count > 0 ? Math.round(group.v85Sum / group.count) : 0,
-    max_speed: group.count > 0 ? group.maxSpeed : 0,
-    approach_volume: group.count > 0 ? Math.round(group.approachSum / group.count) : 0,
-    away_volume: group.count > 0 ? Math.round(group.awaySum / group.count) : 0,
+    occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
+    total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+    v85_speed: group.count > 0 ? Math.round(group.v85Sum / group.count) : null,
+    max_speed: group.count > 0 ? group.maxSpeed : null,
+    approach_volume: group.count > 0 ? Math.round(group.approachSum / group.count) : null,
+    away_volume: group.count > 0 ? Math.round(group.awaySum / group.count) : null,
 });
 
 const getLatestObservedDate = (rows = []) => rows.reduce((latest, row) => {
@@ -321,13 +316,15 @@ const createSingleDateHourlyTimeline = (filters) => {
 
 const getHourlyRange = (rawData, filters, type) => {
     const hasDateFilters = filters?.startDate || filters?.endDate;
+    const hasTimeFilters = hasActiveTimeFilter(filters);
     const { start: filterStart, end: filterEnd } = getDateBounds(filters);
     const fallbackEnd = rawData.length ? new Date(rawData[rawData.length - 1].observed_at) : new Date();
     const fallbackStart = getDefaultStartTime(type, fallbackEnd);
-    const start = hasDateFilters
+    const hasQueryBounds = hasDateFilters || hasTimeFilters;
+    const start = hasQueryBounds
         ? new Date(filterStart)
         : fallbackStart;
-    const end = hasDateFilters
+    const end = hasQueryBounds
         ? new Date(filterEnd)
         : fallbackEnd;
 
@@ -397,6 +394,8 @@ const buildMonthAggregateData = (rawData, filters) => {
 };
 
 const buildHourOfDayAggregateData = (rawData, filters) => {
+    if (!rawData?.length) return [];
+
     const hourlyTimeline = createHourOfDayTimeline(filters);
     const groupsByHour = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
@@ -411,10 +410,12 @@ const buildHourOfDayAggregateData = (rawData, filters) => {
         addTrafficRowToGroup(group, row);
     });
 
-    return hourlyTimeline.map(groupToTrafficPoint);
+    return hourlyTimeline.map(groupToTrafficPoint).filter((point) => point.hasData);
 };
 
 const buildSingleDateHourlyAggregateData = (rawData, filters) => {
+    if (!rawData?.length) return [];
+
     const hourlyTimeline = createSingleDateHourlyTimeline(filters);
     const hourGroups = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
@@ -430,7 +431,7 @@ const buildSingleDateHourlyAggregateData = (rawData, filters) => {
         addTrafficRowToGroup(group, row);
     });
 
-    return hourlyTimeline.map(groupToTrafficPoint);
+    return hourlyTimeline.map(groupToTrafficPoint).filter((point) => point.hasData);
 };
 
 const buildWeeklyAggregateData = (rawData, filters) => {
@@ -630,7 +631,7 @@ const AggregateChart = ({
                             addTrafficRowToGroup(group, row);
                         });
 
-                        processedData = hourlyTimeline.map(groupToTrafficPoint);
+                        processedData = hourlyTimeline.map(groupToTrafficPoint).filter((point) => point.hasData);
                     }
                 }
                 if (isMounted) {

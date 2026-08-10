@@ -408,6 +408,8 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
 };
 
 const buildChartData = (rows, type, filters) => {
+  if (!rows.length) return [];
+
   const buckets = getChartBuckets(type, rows, filters);
   const getBucketKey = shouldUseMonthlyBuckets(type, filters)
     ? (value) => {
@@ -420,7 +422,8 @@ const buildChartData = (rows, type, filters) => {
 
   // Ten-minute summaries arrive as one row per direction. Chart buckets first
   // create the expected time range, then merge both directions into that range.
-  return aggregateSummariesByBucket(rows, buckets, getBucketKey);
+  const points = aggregateSummariesByBucket(rows, buckets, getBucketKey);
+  return type === 'daily' ? points.filter((point) => point.sampleCount > 0) : points;
 };
 
 const getChartTitle = (mode) => {
@@ -440,47 +443,6 @@ const getNiceCeiling = (value) => {
   if (numeric <= 10) return 10;
   const magnitude = 10 ** Math.floor(Math.log10(numeric));
   return Math.ceil(numeric / magnitude) * magnitude;
-};
-
-const buildChartStats = (points = []) => {
-  const totals = points.reduce((acc, point) => {
-    const volume = Number(point.volume) || 0;
-
-    acc.volume += volume;
-    acc.approach += Number(point.approach) || 0;
-    acc.away += Number(point.away) || 0;
-    if (volume > 0 && point.avgSpeed != null) {
-      acc.speedWeightedSum += Number(point.avgSpeed) * volume;
-      acc.speedWeight += volume;
-    }
-    if (volume > 0 && point.v85Speed != null) {
-      acc.v85WeightedSum += Number(point.v85Speed) * volume;
-      acc.v85Weight += volume;
-    }
-    acc.maxSpeed = Math.max(acc.maxSpeed, Number(point.maxSpeed) || 0);
-    if (volume > 0 && (!acc.peak || volume > acc.peak.volume)) acc.peak = point;
-    return acc;
-  }, {
-    volume: 0,
-    approach: 0,
-    away: 0,
-    speedWeightedSum: 0,
-    v85WeightedSum: 0,
-    speedWeight: 0,
-    v85Weight: 0,
-    maxSpeed: 0,
-    peak: null,
-  });
-
-  return {
-    totalVolume: totals.volume,
-    approach: totals.approach,
-    away: totals.away,
-    avgSpeed: weightedAverageSpeed(totals.speedWeightedSum, totals.speedWeight) ?? 0,
-    v85Speed: weightedAverageSpeed(totals.v85WeightedSum, totals.v85Weight) ?? 0,
-    maxSpeed: roundOne(totals.maxSpeed),
-    peakLabel: totals.peak?.time || 'No peak',
-  };
 };
 
 const getDisplaySpeed = (value) => (value == null ? 'No data' : `${value} mph`);
@@ -537,81 +499,6 @@ const TrafficXAxisTick = ({ x, y, payload, pointsByKey, type }) => {
       </text>
     </g>
   );
-};
-
-const getMetricSet = (mode, stats) => {
-  if (mode === 'direction') {
-    return [
-      {
-        label: 'Total volume',
-        value: stats.totalVolume,
-        detail: 'Total observed movement across both directions in this chart window.',
-      },
-      {
-        label: 'Approach',
-        value: stats.approach,
-        detail: 'Movement traveling toward the monitored approach direction in this chart window.',
-      },
-      {
-        label: 'Away',
-        value: stats.away,
-        detail: 'Movement traveling away from the monitored approach direction in this chart window.',
-      },
-      {
-        label: 'Peak interval',
-        value: stats.peakLabel,
-        detail: 'The interval with the highest observed movement in this chart window.',
-      },
-    ];
-  }
-
-  if (mode === 'volume') {
-    return [
-      {
-        label: 'Average speed',
-        value: `${stats.avgSpeed} mph`,
-        detail: 'Weighted average traffic speed across the chart window.',
-      },
-      {
-        label: '85th percentile speed',
-        value: `${stats.v85Speed} mph`,
-        detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
-      },
-      {
-        label: 'Max speed',
-        value: `${stats.maxSpeed} mph`,
-        detail: 'Highest recorded speed in this chart window.',
-      },
-      {
-        label: 'Peak interval',
-        value: stats.peakLabel,
-        detail: 'The interval with the highest observed movement in this chart window.',
-      },
-    ];
-  }
-
-  return [
-    {
-      label: 'Total volume',
-      value: stats.totalVolume,
-      detail: 'Total observed movement in this chart window.',
-    },
-    {
-      label: 'Average speed',
-      value: `${stats.avgSpeed} mph`,
-      detail: 'Weighted average traffic speed across the chart window.',
-    },
-    {
-      label: '85th percentile speed',
-      value: `${stats.v85Speed} mph`,
-      detail: 'Volume-weighted 85th percentile speed approximation across the chart window.',
-    },
-    {
-      label: 'Max speed',
-      value: `${stats.maxSpeed} mph`,
-      detail: 'Highest recorded speed in this chart window.',
-    },
-  ];
 };
 
 const getLegendItems = (mode) => {

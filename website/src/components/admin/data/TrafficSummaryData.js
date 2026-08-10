@@ -185,6 +185,27 @@ const normalizeSensorIds = (sensorIds = []) => (
   Array.from(new Set(sensorIds.filter(Boolean)))
 );
 
+const getTodayDateFilterValue = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeTrafficFilters = (filters = {}) => {
+  const hasDateFilters = Boolean(filters?.startDate || filters?.endDate);
+  const hasTimeOnlyFilter = !hasDateFilters && hasActiveTimeFilter(filters);
+  if (!hasTimeOnlyFilter) return filters || {};
+
+  const today = getTodayDateFilterValue();
+  return {
+    ...filters,
+    startDate: today,
+    endDate: today,
+  };
+};
+
 const getTrafficRowsCacheKey = ({ sensorId, sensorIds = [], filters, type, limit, rowType }) => JSON.stringify({
   rowType,
   sensorId: sensorId || "",
@@ -252,24 +273,25 @@ export const fetchTrafficSummaryRows = async (supabase, {
   type = "daily",
   limit,
 } = {}) => {
+  const effectiveFilters = normalizeTrafficFilters(filters);
   const normalizedSensorIds = normalizeSensorIds(sensorIds);
-  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters, type, limit, rowType: "summary" });
+  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters: effectiveFilters, type, limit, rowType: "summary" });
   const cachedRows = getCachedTrafficRows(cacheKey);
   if (cachedRows) return cachedRows;
 
   if (USE_LOCAL_SUMMARIES) {
     const localRows = getFallbackSummaryRows(sensorId, normalizedSensorIds);
 
-    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), filters));
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), effectiveFilters));
   }
 
   try {
-    const rowLimit = limit || getDefaultTrafficRowLimit(type, filters);
+    const rowLimit = limit || getDefaultTrafficRowLimit(type, effectiveFilters);
     const periodBounds = await getDefaultPeriodBounds(supabase, {
       sensorId,
       sensorIds: normalizedSensorIds,
       type,
-      filters,
+      filters: effectiveFilters,
     });
 
     let query = supabase
@@ -280,8 +302,8 @@ export const fetchTrafficSummaryRows = async (supabase, {
 
     query = applySensorFilter(query, sensorId, normalizedSensorIds);
 
-    if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
-      query = applyTimeBucketBounds(query, filters);
+    if (effectiveFilters?.startDate || effectiveFilters?.endDate || hasActiveTimeFilter(effectiveFilters)) {
+      query = applyTimeBucketBounds(query, effectiveFilters);
     } else {
       query = applyDefaultPeriodBounds(query, periodBounds);
     }
@@ -290,15 +312,15 @@ export const fetchTrafficSummaryRows = async (supabase, {
     if (error) throw error;
 
     if (!data?.length) {
-      return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(getFallbackSummaryRows(sensorId, normalizedSensorIds)), filters));
+      return setCachedTrafficRows(cacheKey, []);
     }
 
-    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(data), filters));
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(data), effectiveFilters));
   } catch (error) {
     console.warn("Using local traffic summary fallback:", getSupabaseErrorContext(error));
     const localRows = getFallbackSummaryRows(sensorId, normalizedSensorIds);
 
-    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), filters));
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(combineDirectionRows(localRows), effectiveFilters));
   }
 };
 
@@ -309,22 +331,23 @@ export const fetchTrafficDirectionRows = async (supabase, {
   type = "daily",
   limit,
 } = {}) => {
+  const effectiveFilters = normalizeTrafficFilters(filters);
   const normalizedSensorIds = normalizeSensorIds(sensorIds);
-  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters, type, limit, rowType: "direction" });
+  const cacheKey = getTrafficRowsCacheKey({ sensorId, sensorIds: normalizedSensorIds, filters: effectiveFilters, type, limit, rowType: "direction" });
   const cachedRows = getCachedTrafficRows(cacheKey);
   if (cachedRows) return cachedRows;
 
   if (USE_LOCAL_SUMMARIES || !supabase) {
-    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
+    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, effectiveFilters));
   }
 
   try {
-    const rowLimit = limit || getDefaultTrafficRowLimit(type, filters);
+    const rowLimit = limit || getDefaultTrafficRowLimit(type, effectiveFilters);
     const periodBounds = await getDefaultPeriodBounds(supabase, {
       sensorId,
       sensorIds: normalizedSensorIds,
       type,
-      filters,
+      filters: effectiveFilters,
     });
 
     let query = supabase
@@ -335,8 +358,8 @@ export const fetchTrafficDirectionRows = async (supabase, {
 
     query = applySensorFilter(query, sensorId, normalizedSensorIds);
 
-    if (filters?.startDate || filters?.endDate || hasActiveTimeFilter(filters)) {
-      query = applyTimeBucketBounds(query, filters);
+    if (effectiveFilters?.startDate || effectiveFilters?.endDate || hasActiveTimeFilter(effectiveFilters)) {
+      query = applyTimeBucketBounds(query, effectiveFilters);
     } else {
       query = applyDefaultPeriodBounds(query, periodBounds);
     }
@@ -345,13 +368,12 @@ export const fetchTrafficDirectionRows = async (supabase, {
     if (error) throw error;
 
     if (!data?.length) {
-      console.warn("Using local directional traffic fallback: remote source returned no rows");
-      return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
+      return setCachedTrafficRows(cacheKey, []);
     }
 
-    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), filters));
+    return setCachedTrafficRows(cacheKey, applyAnalyticsFilters(data.map(normalizeTrafficSummaryRow), effectiveFilters));
   } catch (error) {
     console.warn("Using local directional traffic fallback:", getSupabaseErrorContext(error));
-    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, filters));
+    return setCachedTrafficRows(cacheKey, applyFallbackDirectionRows(sensorId, normalizedSensorIds, effectiveFilters));
   }
 };

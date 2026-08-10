@@ -32,11 +32,6 @@ const tooltipDateFormatter = new Intl.DateTimeFormat([], {
     year: 'numeric',
     timeZone: PACIFIC_TIME_ZONE,
 });
-const tooltipTimeFormatter = new Intl.DateTimeFormat([], {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: PACIFIC_TIME_ZONE,
-});
 const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
     month: 'short',
     year: 'numeric',
@@ -198,13 +193,15 @@ const createSingleDateHourlyTimeline = (filters) => {
 
 const getHourlyRange = (rawData, filters, type) => {
     const hasDateFilters = filters?.startDate || filters?.endDate;
+    const hasTimeFilters = hasActiveTimeFilter(filters);
     const { start: filterStart, end: filterEnd } = getDateBounds(filters);
     const fallbackEnd = rawData.length ? new Date(rawData[rawData.length - 1].observed_at) : new Date();
     const fallbackStart = getDefaultStartTime(type, fallbackEnd);
-    const start = hasDateFilters
+    const hasQueryBounds = hasDateFilters || hasTimeFilters;
+    const start = hasQueryBounds
         ? new Date(filterStart)
         : fallbackStart;
-    const end = hasDateFilters
+    const end = hasQueryBounds
         ? new Date(filterEnd)
         : fallbackEnd;
 
@@ -350,6 +347,8 @@ const buildMonthlyData = (rawData, filters) => {
 };
 
 const buildDailyData = (rawData, filters) => {
+    if (!rawData?.length) return [];
+
     const hourlyTimeline = createHourlyTimeline(rawData, filters, 'daily');
     const hourGroups = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
@@ -375,9 +374,9 @@ const buildDailyData = (rawData, filters) => {
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
+        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+    })).filter((point) => point.hasData);
 };
 
 const buildDateData = (rawData, filters) => {
@@ -411,6 +410,8 @@ const buildDateData = (rawData, filters) => {
 };
 
 const buildHourOfDayData = (rawData, filters) => {
+    if (!rawData?.length) return [];
+
     const hourlyTimeline = createHourOfDayTimeline(filters);
     const groupsByHour = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
@@ -435,12 +436,14 @@ const buildHourOfDayData = (rawData, filters) => {
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
+        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+    })).filter((point) => point.hasData);
 };
 
 const buildSingleDateHourlyData = (rawData, filters) => {
+    if (!rawData?.length) return [];
+
     const hourlyTimeline = createSingleDateHourlyTimeline(filters);
     const hourGroups = hourlyTimeline.reduce((acc, group) => {
         acc[group.key] = group;
@@ -466,9 +469,9 @@ const buildSingleDateHourlyData = (rawData, filters) => {
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
-    }));
+        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
+        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+    })).filter((point) => point.hasData);
 };
 
 const getPeopleAxisMax = (chartData, targetSeries) => {

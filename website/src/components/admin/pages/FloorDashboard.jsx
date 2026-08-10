@@ -164,6 +164,11 @@ const FloorDashboard = () => {
         setDrilldownForwardHistory([]);
     }, [activeTrafficTimeframe, filters, trendViews]);
 
+    const handleOperatingLensNavigate = useCallback(() => {
+        pushDrilldownHistory();
+        setActiveChartData(null);
+    }, [pushDrilldownHistory]);
+
     const handleChartBack = useCallback(() => {
         const previous = drilldownHistory[drilldownHistory.length - 1];
         if (!previous) return;
@@ -319,7 +324,7 @@ const FloorDashboard = () => {
                         exportLoading={loading}
                         getExportRows={getCorridorExportRows}
                     />
-                    <OperatingLens filters={filters} onChange={setFilters} />
+                    <OperatingLens filters={filters} onChange={setFilters} onLensNavigate={handleOperatingLensNavigate} />
 
                     <SummaryMetrics
                         level="floor"

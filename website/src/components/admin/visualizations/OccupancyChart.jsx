@@ -156,11 +156,14 @@ const createDateTimeline = (filters) => {
 
 const mapRoomGroups = (timeline) => timeline.map((group) => ({
     time: group.time,
+    hasData: group.count > 0,
     density: group.count > 0 ? Math.round(group.densitySum / group.count) : 0,
     peopleCount: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
 }));
 
 const buildDailyRoomData = (rawData, filters, anchorDate = new Date()) => {
+    if (!rawData?.length) return [];
+
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const hasTimeFilters = hasActiveTimeFilter(filters);
     const hasSingleDate = isSingleDateFilter(filters);
@@ -196,7 +199,7 @@ const buildDailyRoomData = (rawData, filters, anchorDate = new Date()) => {
         group.count += 1;
     });
 
-    return mapRoomGroups(hourlyTimeline);
+    return mapRoomGroups(hourlyTimeline).filter((group) => group.hasData);
 };
 
 const buildPeriodRoomData = (rawData, filters, days) => {
@@ -292,7 +295,9 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                     const latestSummaryDate = getLatestTrafficSummaryDate(rawData);
                     let processedData = [];
 
-                    if (hasDateFilters) {
+                    if (!rawData.length) {
+                        processedData = [];
+                    } else if (hasDateFilters) {
                         processedData = buildDailyRoomData(rawData, effectiveFilters);
                     } else if (type === 'weekly') {
                         processedData = buildWeeklyRoomData(rawData, effectiveFilters);
@@ -327,7 +332,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
             <div style={{ width: '100%', height: 'clamp(260px, 30vw, 380px)', minWidth: 0 }}>
                 {chartData.length === 0 ? (
                     <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                        No historical data available yet for this corridor.
+                        No data has been collected for this selected time window.
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">
