@@ -13,54 +13,10 @@ import {
 import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
+import OperatingLens from '../controls/OperatingLens';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
 import SummaryMetrics from '../summaries/SummaryMetrics';
-
-const roundOne = (value) => Math.round(value * 10) / 10;
-
-const getLatestRows = (rows = []) => {
-    if (!rows.length) return [];
-    const sorted = rows.slice().sort((a, b) => new Date(a.observed_at) - new Date(b.observed_at));
-    const latestTime = sorted.at(-1)?.observed_at;
-    return sorted.filter((row) => row.observed_at === latestTime);
-};
-
-const summarizeTraffic = (rows = []) => {
-    const latestRows = getLatestRows(rows);
-    const latestTime = latestRows[0]?.observed_at;
-    const volume = latestRows.reduce((sum, row) => sum + (Number(row.volume) || 0), 0);
-    const approach = latestRows
-        .filter((row) => row.direction === 'approach')
-        .reduce((sum, row) => sum + (Number(row.volume) || 0), 0);
-    const away = latestRows
-        .filter((row) => row.direction === 'away')
-        .reduce((sum, row) => sum + (Number(row.volume) || 0), 0);
-    const weightedSpeed = latestRows.reduce((sum, row) => {
-        const weight = Number(row.volume) || 1;
-        return sum + ((Number(row.avg_speed) || 0) * weight);
-    }, 0);
-    const speedWeight = latestRows.reduce((sum, row) => sum + (Number(row.volume) || 1), 0);
-    const avgSpeed = speedWeight ? roundOne(weightedSpeed / speedWeight) : 0;
-    const v85Speed = latestRows.length
-        ? roundOne(latestRows.reduce((sum, row) => sum + (Number(row.v85_speed) || 0), 0) / latestRows.length)
-        : 0;
-    const maxSpeed = latestRows.reduce((max, row) => Math.max(max, Number(row.max_speed) || 0), 0);
-    const rangeVolume = rows.reduce((sum, row) => sum + (Number(row.volume) || 0), 0);
-    const peakRow = rows.reduce((peak, row) => (!peak || (Number(row.volume) || 0) > (Number(peak.volume) || 0) ? row : peak), null);
-
-    return {
-        latestTime,
-        volume,
-        approach,
-        away,
-        avgSpeed,
-        v85Speed,
-        maxSpeed,
-        rangeVolume,
-        peakRow,
-    };
-};
 
 const formatDateTime = (value) => value
     ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -139,6 +95,7 @@ const FloorDashboard = () => {
     const [activeTrafficTimeframe, setActiveTrafficTimeframe] = useState('daily');
     const [activeChartData, setActiveChartData] = useState(null);
     const [drilldownHistory, setDrilldownHistory] = useState([]);
+    const [drilldownForwardHistory, setDrilldownForwardHistory] = useState([]);
     const filterSignature = useMemo(() => JSON.stringify({
         startDate: filters?.startDate || '',
         endDate: filters?.endDate || '',
@@ -204,6 +161,7 @@ const FloorDashboard = () => {
                 view: trendViews[activeTrafficTimeframe] || 'combined',
             },
         ]);
+        setDrilldownForwardHistory([]);
     }, [activeTrafficTimeframe, filters, trendViews]);
 
     const handleChartBack = useCallback(() => {
@@ -211,6 +169,14 @@ const FloorDashboard = () => {
         if (!previous) return;
 
         setActiveChartData(null);
+        setDrilldownForwardHistory((history) => [
+            ...history,
+            {
+                filters,
+                timeframe: activeTrafficTimeframe,
+                view: trendViews[activeTrafficTimeframe] || 'combined',
+            },
+        ]);
         setFilters(previous.filters);
         setActiveTrafficTimeframe(previous.timeframe);
         if (previous.view) {
@@ -220,7 +186,31 @@ const FloorDashboard = () => {
             }));
         }
         setDrilldownHistory((history) => history.slice(0, -1));
-    }, [drilldownHistory]);
+    }, [activeTrafficTimeframe, drilldownHistory, filters, trendViews]);
+
+    const handleChartForward = useCallback(() => {
+        const next = drilldownForwardHistory[drilldownForwardHistory.length - 1];
+        if (!next) return;
+
+        setActiveChartData(null);
+        setDrilldownHistory((history) => [
+            ...history,
+            {
+                filters,
+                timeframe: activeTrafficTimeframe,
+                view: trendViews[activeTrafficTimeframe] || 'combined',
+            },
+        ]);
+        setFilters(next.filters);
+        setActiveTrafficTimeframe(next.timeframe);
+        if (next.view) {
+            setTrendViews((current) => ({
+                ...current,
+                [next.timeframe]: next.view,
+            }));
+        }
+        setDrilldownForwardHistory((history) => history.slice(0, -1));
+    }, [activeTrafficTimeframe, drilldownForwardHistory, filters, trendViews]);
 
     const handleChartTimeframeChange = useCallback((timeframe) => {
         if (activeTrafficTimeframe === timeframe) return;
@@ -233,6 +223,7 @@ const FloorDashboard = () => {
                 view: trendViews[activeTrafficTimeframe] || 'combined',
             },
         ]);
+        setDrilldownForwardHistory([]);
         setActiveChartData(null);
         setActiveTrafficTimeframe(timeframe);
     }, [activeTrafficTimeframe, filters, trendViews]);
@@ -271,6 +262,7 @@ const FloorDashboard = () => {
     const areaName = sensor?.area_name || 'Unassigned Area';
     const areaPath = getAdminAreaPath(normalizedCollegeId, slugifyAdminPathSegment(areaName));
     const updateTrendView = (timeframe, view) => {
+        setDrilldownForwardHistory([]);
         setTrendViews((current) => ({
             ...current,
             [timeframe]: view,
@@ -327,6 +319,7 @@ const FloorDashboard = () => {
                         exportLoading={loading}
                         getExportRows={getCorridorExportRows}
                     />
+                    <OperatingLens filters={filters} onChange={setFilters} />
 
                     <SummaryMetrics
                         level="floor"
@@ -386,6 +379,8 @@ const FloorDashboard = () => {
                             onHeatmapMonthClick={handleHeatmapMonthClick}
                             canGoBack={drilldownHistory.length > 0}
                             onBack={handleChartBack}
+                            canGoForward={drilldownForwardHistory.length > 0}
+                            onForward={handleChartForward}
                         />
                     </section>
                 </div>

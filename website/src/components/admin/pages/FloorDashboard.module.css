@@ -664,6 +664,359 @@
   gap: 12px;
 }
 
+.comparisonPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #dce5ea;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
+  padding: clamp(14px, 1.5vw, 20px);
+}
+
+.comparisonHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.comparisonHeader h2 {
+  margin: 0;
+  color: #172033;
+  font-size: clamp(18px, 1.55vw, 24px);
+  line-height: 1.08;
+}
+
+.comparisonSortControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sortSelectLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid #d8e2e8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.sortSelectLabel span {
+  color: #738195;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sortSelectLabel select {
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  outline: none;
+}
+
+.sortSelectLabel:hover {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+}
+
+.sortSelectLabel:focus-within {
+  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline-offset: 3px;
+}
+
+.sortDirectionGroup {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid #d8e2e8;
+  border-radius: 10px;
+  background: #f8fcfb;
+  padding: 3px;
+}
+
+.sortDirectionButton {
+  min-height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 9px;
+  white-space: nowrap;
+}
+
+.sortDirectionButton:hover {
+  color: #2f716f;
+}
+
+.activeSortDirection {
+  background: #2f716f;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(47, 113, 111, 0.18);
+}
+
+.activeSortDirection:hover {
+  color: #ffffff;
+}
+
+.comparisonLoading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  border: 1px solid #dcebe8;
+  border-radius: 999px;
+  background: #f8fcfb;
+  color: #2f716f;
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.loadingSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(47, 113, 111, 0.18);
+  border-top-color: #2f716f;
+  border-radius: 999px;
+  animation: comparisonSpin 0.75s linear infinite;
+}
+
+@keyframes comparisonSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.comparisonSummary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.comparisonSummary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e0e8ed;
+  border-radius: 999px;
+  background: #f8fcfb;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 32px;
+  padding: 0 11px;
+  white-space: nowrap;
+}
+
+.metricToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metricPicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metricButton {
+  min-height: 32px;
+  border: 1px solid #d8e2e8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 12px;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.metricButton:hover {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+}
+
+.activeMetricButton {
+  border-color: #2f7d72;
+  background: #e8f6f2;
+  color: #25675e;
+}
+
+.comparisonTableWrap {
+  overflow-x: auto;
+}
+
+.comparisonTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.comparisonTable th {
+  border-bottom: 1px solid #dce5ea;
+  color: #738195;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0 12px 10px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sortHeaderButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  text-align: left;
+  text-transform: inherit;
+  white-space: nowrap;
+}
+
+.sortHeaderButton:hover {
+  color: #2f716f;
+}
+
+.sortHeaderButton:focus-visible {
+  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline-offset: 3px;
+}
+
+.comparisonTable td {
+  border-bottom: 1px solid #edf2f5;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 13px 12px;
+  vertical-align: middle;
+}
+
+.comparisonTable tbody tr:hover td {
+  background: #f8fcfb;
+}
+
+.comparisonTable td:first-child,
+.comparisonTable th:first-child {
+  padding-left: 0;
+}
+
+.comparisonTable td:last-child,
+.comparisonTable th:last-child {
+  padding-right: 0;
+}
+
+.comparisonTable strong {
+  color: #172033;
+  font-weight: 900;
+}
+
+.comparisonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comparisonRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.75fr) minmax(180px, 1fr) minmax(130px, 0.45fr);
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #edf2f5;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.comparisonLabel,
+.comparisonMetrics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.comparisonLabel strong,
+.comparisonMetrics strong {
+  color: #172033;
+  font-weight: 900;
+}
+
+.comparisonLink {
+  color: #172033;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.comparisonLink:hover {
+  color: #2f716f;
+  text-decoration: underline;
+}
+
+.comparisonLink:focus-visible {
+  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.comparisonLabel span,
+.comparisonMetrics span {
+  color: #7a8797;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.comparisonMetrics {
+  text-align: right;
+}
+
+.comparisonTrack {
+  height: 12px;
+  border-radius: 999px;
+  background: #e8f1ef;
+  overflow: hidden;
+}
+
+.comparisonTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7dbbb2, #2f716f);
+}
+
 .sectionTitle {
   margin: 0;
   font-size: 1rem;
@@ -1364,6 +1717,20 @@
   .heroMetricGrid,
   .insightGrid {
     grid-template-columns: 1fr;
+  }
+
+  .comparisonHeader,
+  .comparisonRow {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .comparisonHeader {
+    flex-direction: column;
+  }
+
+  .comparisonMetrics {
+    text-align: left;
   }
 
   .placeSummaryCopy h1 {

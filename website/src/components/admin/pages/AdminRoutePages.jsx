@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, ArrowDownUp, Gauge } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -14,6 +13,7 @@ import {
 import { fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
+import OperatingLens from '../controls/OperatingLens';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 
 const groupSensorsByArea = (sensors = []) =>
@@ -164,53 +164,6 @@ const getAreaById = (sensors = [], areaId) => {
     );
 };
 
-const getOverviewMetrics = (trafficSummaries = []) => {
-    const activeSensors = trafficSummaries.filter((sensor) => sensor.lastSeen);
-    const activeCount = activeSensors.length;
-
-    const totalVolume = activeSensors.reduce(
-        (sum, sensor) => sum + (sensor.latestVolume || 0),
-        0
-    );
-
-    const totalApproach = activeSensors.reduce(
-        (sum, sensor) => sum + (sensor.approach || 0),
-        0
-    );
-
-    const totalAway = activeSensors.reduce(
-        (sum, sensor) => sum + (sensor.away || 0),
-        0
-    );
-
-    const averageSpeed = activeCount > 0
-        ? activeSensors.reduce((sum, sensor) => sum + (sensor.avgSpeed || 0), 0) / activeCount
-        : 0;
-
-    const busiestSensor = activeSensors.reduce((top, sensor) => (
-        !top || sensor.latestVolume > top.latestVolume ? sensor : top
-    ), null);
-
-    const peakVelocity = activeSensors.reduce((top, sensor) => (
-        !top || sensor.v85Speed > top.v85Speed ? sensor : top
-    ), null);
-
-    const highestInbound = activeSensors.reduce((top, sensor) => (
-        !top || sensor.approach > top.approach ? sensor : top
-    ), null);
-
-    return {
-        totalVolume,
-        totalApproach,
-        totalAway,
-        averageSpeed,
-        activeCount,
-        busiestSensor,
-        peakVelocity,
-        highestInbound,
-    };
-};
-
 const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
     const areaSensorIds = new Set(areaSensors.map((sensor) => sensor.sensor_id));
 
@@ -254,43 +207,6 @@ const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
     };
 };
 
-const PlaceSuperlatives = ({ busiestSensor, peakVelocity, highestInbound }) => (
-    <section className={styles.insightGrid} aria-label="Place transportation superlatives">
-        <div className={styles.insightCard}>
-            <Activity size={18} />
-            <span>Busiest Corridor</span>
-            <strong>{busiestSensor?.corridor_name || busiestSensor?.sensor_id || 'No data'}</strong>
-            <p>
-                {busiestSensor
-                    ? `${busiestSensor.latestVolume} movements in the latest interval.`
-                    : 'No movement data yet.'}
-            </p>
-        </div>
-
-        <div className={styles.insightCard}>
-            <Gauge size={18} />
-            <span>Fastest Corridor</span>
-            <strong>{peakVelocity?.corridor_name || peakVelocity?.sensor_id || 'No data'}</strong>
-            <p>
-                {peakVelocity
-                    ? `${peakVelocity.v85Speed} mph 85th percentile speed.`
-                    : 'No speed samples yet.'}
-            </p>
-        </div>
-
-        <div className={styles.insightCard}>
-            <ArrowDownUp size={18} />
-            <span>Most Inbound Flow</span>
-            <strong>{highestInbound?.corridor_name || highestInbound?.sensor_id || 'No data'}</strong>
-            <p>
-                {highestInbound
-                    ? `${highestInbound.approach} approach movements in the latest interval.`
-                    : 'No inbound data yet.'}
-            </p>
-        </div>
-    </section>
-);
-
 const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
     <div className={styles.areaCardGrid}>
         {Object.entries(areas).map(([areaName, areaSensors]) => {
@@ -313,7 +229,7 @@ const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
                     <div className={styles.areaCardMetricRow}>
                         <div>
                             <strong>{summary.totalVolume}</strong>
-                            <span>traffic volume</span>
+                            <span>flow</span>
                         </div>
 
                         <div>
@@ -328,56 +244,106 @@ const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
     </div>
 );
 
-const TrafficSensorCards = ({ collegeId, sensors, trafficSummaries }) => (
-    <div className={styles.trafficCardGrid}>
-        {sensors.map((sensor) => {
-            const summary =
-                trafficSummaries.find((item) => item.sensor_id === sensor.sensor_id) ||
-                sensor;
+const TRAFFIC_COMPARISON_METRICS = [
+    { key: 'totalVolume', label: 'Flow', format: (sensor) => sensor.totalVolume || 0 },
+    { key: 'avgSpeed', label: 'Avg Speed', format: (sensor) => `${sensor.avgSpeed || 0} mph` },
+    { key: 'maxSpeed', label: 'Max Speed', format: (sensor) => `${sensor.maxSpeed || 0} mph` },
+    { key: 'approach', label: 'Approach', format: (sensor) => sensor.approach || 0 },
+    { key: 'away', label: 'Away', format: (sensor) => sensor.away || 0 },
+];
 
-            return (
-                <Link
-                    key={sensor.sensor_id}
-                    to={getAdminFloorPath(collegeId, sensor.sensor_id)}
-                    className={styles.trafficSensorCard}
-                >
-                    <div className={styles.cardTopline}>
-                        <span className={styles.roomNameText}>
-                            {sensor.corridor_name || sensor.sensor_id}
-                        </span>
+const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
+    const [selectedMetric, setSelectedMetric] = useState('totalVolume');
+    const [sortDirection, setSortDirection] = useState('desc');
+    const metric = TRAFFIC_COMPARISON_METRICS.find((item) => item.key === selectedMetric) || TRAFFIC_COMPARISON_METRICS[0];
+    const comparisonRows = useMemo(() => (
+        [...summaries].sort((left, right) => {
+            const order = (Number(left[selectedMetric]) || 0) - (Number(right[selectedMetric]) || 0);
+            return sortDirection === 'asc' ? order : -order;
+        })
+    ), [selectedMetric, sortDirection, summaries]);
+    const maxValue = Math.max(1, ...comparisonRows.map((sensor) => Number(sensor[selectedMetric]) || 0));
 
-                        <span className={`${styles.healthPill} ${styles[summary.health?.tone] || ""}`}>
-                            {summary.health?.label || 'Unknown'}
-                        </span>
+    return (
+        <section className={styles.comparisonPanel}>
+            <div className={styles.comparisonHeader}>
+                <div>
+                    <h2>Corridor Comparison</h2>
+                </div>
+                <div className={styles.comparisonSortControls}>
+                    <label className={styles.sortSelectLabel}>
+                        <span>Sort</span>
+                        <select
+                            value={selectedMetric}
+                            onChange={(event) => setSelectedMetric(event.target.value)}
+                            aria-label="Sort corridor comparison by"
+                        >
+                            {TRAFFIC_COMPARISON_METRICS.map((item) => (
+                                <option key={item.key} value={item.key}>{item.label}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <div className={styles.sortDirectionGroup} aria-label="Sort direction">
+                        {[
+                            ['asc', 'Ascending'],
+                            ['desc', 'Descending'],
+                        ].map(([value, label]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                className={`${styles.sortDirectionButton} ${sortDirection === value ? styles.activeSortDirection : ''}`}
+                                onClick={() => setSortDirection(value)}
+                            >
+                                {label}
+                            </button>
+                        ))}
                     </div>
+                </div>
+            </div>
 
-                    <div className={styles.cardMetricRow}>
-                        <div>
-                            <strong>{summary.latestVolume ?? 0}</strong>
-                            <span>traffic volume</span>
+            {loading && comparisonRows.length === 0 && (
+                <div className={styles.comparisonLoading} role="status">
+                    <span className={styles.loadingSpinner} aria-hidden="true" />
+                    Loading comparison...
+                </div>
+            )}
+
+            <div className={styles.comparisonRows}>
+                {comparisonRows.map((sensor) => {
+                    const metricValue = Number(sensor[selectedMetric]) || 0;
+                    const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
+
+                    return (
+                        <div key={sensor.sensor_id} className={styles.comparisonRow}>
+                            <div className={styles.comparisonLabel}>
+                                <Link
+                                    className={styles.comparisonLink}
+                                    to={getAdminFloorPath(collegeId, sensor.sensor_id)}
+                                >
+                                    {sensor.corridor_name || sensor.sensor_id}
+                                </Link>
+                                <span>{sensor.area_name || sensor.institute_id || ''}</span>
+                            </div>
+
+                            <div className={styles.comparisonTrack} aria-hidden="true">
+                                <span style={{ width }} />
+                            </div>
+
+                            <div className={styles.comparisonMetrics}>
+                                <strong>{metric.format(sensor)}</strong>
+                                <span>{sensor.avgSpeed || 0} mph avg · peak {sensor.maxSpeed || 0} mph</span>
+                            </div>
                         </div>
+                    );
+                })}
 
-                        <div>
-                            <strong>{summary.avgSpeed ?? 0}</strong>
-                            <span>avg mph</span>
-                        </div>
-                    </div>
-
-                    <div className={styles.directionBar} aria-hidden="true">
-                        <span style={{ flex: Math.max(summary.approach || 0, 1) }} />
-                        <span style={{ flex: Math.max(summary.away || 0, 1) }} />
-                    </div>
-
-                    <div className={styles.cardFooter}>
-                        <span>Approach {summary.approach ?? 0}</span>
-                        <span>Away {summary.away ?? 0}</span>
-                    </div>
-
-                </Link>
-            );
-        })}
-    </div>
-);
+                {comparisonRows.length === 0 && (
+                    <p className={styles.noData}>No corridor data found for this filter range.</p>
+                )}
+            </div>
+        </section>
+    );
+};
 
 export const CollegeOverview = () => {
     const { collegeId } = useParams();
@@ -424,7 +390,7 @@ export const CollegeOverview = () => {
         if (normalizedCollegeId) fetchInstitute();
     }, [collegeId, filters, normalizedCollegeId]);
 
-    if (loading) {
+    if (loading && sensors.length === 0) {
         return <div className={styles.loading}>Loading institute corridors...</div>;
     }
 
@@ -432,17 +398,6 @@ export const CollegeOverview = () => {
     const areaCount = Object.keys(areas).length;
     const trafficSummaries = getSensorTrafficSummaries(sensors, trafficRows);
     const exportRows = getTrafficExportRows(trafficRows, sensors, 'institute', normalizedCollegeId);
-
-    const {
-        totalVolume,
-        totalApproach,
-        totalAway,
-        averageSpeed,
-        activeCount,
-        busiestSensor,
-        peakVelocity,
-        highestInbound,
-    } = getOverviewMetrics(trafficSummaries);
 
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
@@ -462,52 +417,13 @@ export const CollegeOverview = () => {
                         exportRows={exportRows}
                         exportLoading={loading}
                     />
+                    <OperatingLens filters={filters} onChange={setFilters} />
 
-                    <section className={styles.placeSummaryBox}>
-                        <div className={styles.placeSummaryTop}>
-                            <div className={styles.placeSummaryCopy}>
-                                <span className={styles.eyebrow}>
-                                    Transportation Operations
-                                </span>
-
-                                <h1>{instituteName}</h1>
-
-                                <p>
-                                    Campus-wide transportation summary across {areaCount}{' '}
-                                    {areaCount === 1 ? 'area' : 'areas'} and {activeCount}{' '}
-                                    active {activeCount === 1 ? 'corridor' : 'corridors'}.
-                                </p>
-                            </div>
-
-                            <div className={styles.heroMetricGrid}>
-                                <div>
-                                    <Activity size={18} />
-                                    <strong>{totalVolume}</strong>
-                                    <span>Total latest movements</span>
-                                </div>
-
-                                <div>
-                                    <ArrowDownUp size={18} />
-                                    <strong>{totalApproach}/{totalAway}</strong>
-                                    <span>Inbound / outbound</span>
-                                </div>
-
-                                <div>
-                                    <Gauge size={18} />
-                                    <strong>{roundOne(averageSpeed)} mph</strong>
-                                    <span>Average speed</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.placeSummaryDivider} />
-
-                        <PlaceSuperlatives
-                            busiestSensor={busiestSensor}
-                            peakVelocity={peakVelocity}
-                            highestInbound={highestInbound}
-                        />
-                    </section>
+                    <TrafficComparisonPanel
+                        summaries={trafficSummaries}
+                        loading={loading}
+                        collegeId={normalizedCollegeId}
+                    />
 
                     <section className={styles.corridorSection}>
                         <div className={styles.sectionHeader}>
@@ -580,23 +496,12 @@ export const AreaOverview = () => {
         if (normalizedCollegeId && buildingId) fetchArea();
     }, [buildingId, filters, normalizedCollegeId]);
 
-    if (loading) {
+    if (loading && areaSensors.length === 0) {
         return <div className={styles.loading}>Loading area...</div>;
     }
 
     const trafficSummaries = getSensorTrafficSummaries(areaSensors, trafficRows);
     const exportRows = getTrafficExportRows(trafficRows, areaSensors, 'area', normalizedCollegeId);
-
-    const {
-        totalVolume,
-        totalApproach,
-        totalAway,
-        averageSpeed,
-        activeCount,
-        busiestSensor,
-        peakVelocity,
-        highestInbound,
-    } = getOverviewMetrics(trafficSummaries);
 
     return (
         <div className={styles.container} style={{ paddingTop: '0px' }}>
@@ -624,67 +529,13 @@ export const AreaOverview = () => {
                         exportRows={exportRows}
                         exportLoading={loading}
                     />
+                    <OperatingLens filters={filters} onChange={setFilters} />
 
-                    <section className={styles.placeSummaryBox}>
-                        <div className={styles.placeSummaryTop}>
-                            <div className={styles.placeSummaryCopy}>
-                                <span className={styles.eyebrow}>
-                                    Transportation Area
-                                </span>
-
-                                <h1>{areaName}</h1>
-
-                                <p>
-                                    {instituteName} movement summary across {activeCount}{' '}
-                                    active {activeCount === 1 ? 'corridor' : 'corridors'}.
-                                </p>
-                            </div>
-
-                            <div className={styles.heroMetricGrid}>
-                                <div>
-                                    <Activity size={18} />
-                                    <strong>{totalVolume}</strong>
-                                    <span>Total latest movements</span>
-                                </div>
-
-                                <div>
-                                    <ArrowDownUp size={18} />
-                                    <strong>{totalApproach}/{totalAway}</strong>
-                                    <span>Approach / away</span>
-                                </div>
-
-                                <div>
-                                    <Gauge size={18} />
-                                    <strong>{roundOne(averageSpeed)} mph</strong>
-                                    <span>Average speed</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.placeSummaryDivider} />
-
-                        <PlaceSuperlatives
-                            busiestSensor={busiestSensor}
-                            peakVelocity={peakVelocity}
-                            highestInbound={highestInbound}
-                        />
-                    </section>
-
-                    <section className={styles.corridorSection}>
-                        <div className={styles.sectionHeader}>
-                            <h2>{areaName} Corridors</h2>
-                            <span>
-                                {areaSensors.length}{' '}
-                                {areaSensors.length === 1 ? 'corridor' : 'corridors'}
-                            </span>
-                        </div>
-
-                        <TrafficSensorCards
-                            collegeId={normalizedCollegeId}
-                            sensors={areaSensors}
-                            trafficSummaries={trafficSummaries}
-                        />
-                    </section>
+                    <TrafficComparisonPanel
+                        summaries={trafficSummaries}
+                        loading={loading}
+                        collegeId={normalizedCollegeId}
+                    />
                 </div>
             )}
         </div>

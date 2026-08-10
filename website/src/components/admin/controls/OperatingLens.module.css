@@ -1,0 +1,275 @@
+.operatingProfiles {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dce5ea;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
+  padding: 10px 14px;
+}
+
+.profileHeading,
+.profileButtons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profileHeading {
+  color: #263241;
+  font-weight: 800;
+}
+
+.profileButtons {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profileButton,
+.addLensButton {
+  border: 1px solid #d8e2e8;
+  background: #ffffff;
+  color: #263241;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.profileButton {
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.activeProfile {
+  border-color: #2f7d72;
+  background: #e8f6f2;
+  color: #25675e;
+}
+
+.addLensButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: #2f716f;
+}
+
+.profileButton:hover,
+.addLensButton:hover {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+}
+
+.savedLensPill {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d8e2e8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #263241;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.savedLensPill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.savedLensPill button:first-child {
+  padding: 0 5px 0 11px;
+}
+
+.savedLensPill button:last-child {
+  width: 23px;
+  color: #64748b;
+}
+
+.savedLensPill:hover {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+}
+
+.activeSavedLens {
+  border-color: #2f7d72;
+  background: #e8f6f2;
+  color: #25675e;
+}
+
+.lensModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.24);
+  padding: 18px;
+}
+
+.lensModal {
+  width: min(420px, 100%);
+  border: 1px solid #dce5ea;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  padding: 18px;
+  color: #172033;
+}
+
+.lensModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.lensModalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.lensModalClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d8e2e8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #52606d;
+  cursor: pointer;
+}
+
+.lensModalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.lensModalField span {
+  color: #738195;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lensModalField input {
+  min-height: 38px;
+  border: 1px solid #d8e2e8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 0 10px;
+  outline: none;
+}
+
+.lensModalField input:focus {
+  border-color: #91c7bb;
+  box-shadow: 0 0 0 3px rgba(47, 113, 111, 0.12);
+}
+
+.lensModalTimeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lensModalError {
+  margin: 0 0 12px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lensModalSave {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: #2f716f;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.lensConfirmText {
+  margin: 0;
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.lensConfirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.lensCancelButton,
+.lensDeleteButton {
+  min-height: 38px;
+  border-radius: 11px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 0 14px;
+}
+
+.lensCancelButton {
+  border: 1px solid #d8e2e8;
+  background: #ffffff;
+  color: #263241;
+}
+
+.lensCancelButton:hover {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+}
+
+.lensDeleteButton {
+  border: 1px solid #fecaca;
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.lensDeleteButton:hover {
+  background: #991b1b;
+}
+
+@media (max-width: 720px) {
+  .operatingProfiles {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lensModalTimeGrid {
+    grid-template-columns: 1fr;
+  }
+}

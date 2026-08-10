@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import styles from './TrafficTrendChart.module.css';
@@ -800,7 +800,7 @@ const MonthlyTrafficHeatmap = ({ data, mode, onDayClick, onMonthClick }) => {
   );
 };
 
-const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData, onHeatmapDayClick, onHeatmapMonthClick, canGoBack = false, onBack }) => {
+const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined', title, onSnapshotData, onHeatmapDayClick, onHeatmapMonthClick, canGoBack = false, onBack, canGoForward = false, onForward }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const effectiveFilters = useMemo(() => ({
@@ -887,6 +887,16 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             >
               <ChevronLeft size={18} strokeWidth={2.5} />
             </button>
+            <button
+              type="button"
+              className={styles.chartBackButton}
+              onClick={canGoForward ? onForward : undefined}
+              disabled={!canGoForward}
+              aria-label="Go forward to next chart view"
+              title="Forward"
+            >
+              <ChevronRight size={18} strokeWidth={2.5} />
+            </button>
             <div className={styles.titleBlock}>
               <h3>{title || getChartTitle(mode)}</h3>
             </div>
@@ -912,6 +922,16 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
             title="Back"
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            className={styles.chartBackButton}
+            onClick={canGoForward ? onForward : undefined}
+            disabled={!canGoForward}
+            aria-label="Go forward to next chart view"
+            title="Forward"
+          >
+            <ChevronRight size={18} strokeWidth={2.5} />
           </button>
           <div className={styles.titleBlock}>
             <h3>{title || getChartTitle(mode)}</h3>
