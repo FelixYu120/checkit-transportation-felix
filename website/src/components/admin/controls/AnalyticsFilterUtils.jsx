@@ -22,6 +22,7 @@ const analyticsDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
   hourCycle: 'h23',
 });
 
+
 const analyticsWeekdayFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: ANALYTICS_TIME_ZONE,
   weekday: 'short',
