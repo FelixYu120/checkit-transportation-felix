@@ -80,6 +80,26 @@ Current user-facing corridor columns:
 - `v85_speed_mph`
 - `max_speed_mph`
 
+## Transportation Metrics
+
+These metrics are calculated inside the active dashboard filter window: selected dates, selected time range, weekday/weekend preset, and current chart view. A "period" means one chart bucket in the current view, usually a ten-minute summary row before it is grouped into hourly, daily, weekly, or monthly chart buckets.
+
+| Metric | What It Represents | Math |
+| --- | --- | --- |
+| Flow / Volume | Total movement through the lane or corridor. | `sum(volume)` across sampled periods. When approach and away are both present, total flow is `approach_volume + away_volume`. |
+| Recent Movement | Most recent movement count in the active window. | `volume` from the latest sampled chart point or latest filtered summary row. |
+| Peak | Highest movement point in the active window. | `max(volume)` across chart points. In weekly/monthly summary cards, the busiest day/month bucket is the peak bucket. |
+| Busiest Time | Time bucket with the highest movement in a 24 hr/custom view. | Group samples by hour or visible chart bucket, compute movement per bucket, choose the bucket with the highest `volume`. |
+| Busiest Day | Day with the highest movement in a weekly/monthly view. | Group samples by day, compute total or average visible movement per day depending on the chart bucket, choose the highest day. |
+| Average Speed | Volume-weighted traffic speed. | `sum(avg_speed * volume) / sum(volume)`. If there is no movement volume, the value is `0` or hidden as no data depending on the chart. |
+| 85th Speed | Approximate 85th percentile speed carried by the summary table. | The firmware/pipeline provides `v85_speed` per period. Dashboard rollups use `sum(v85_speed * volume) / sum(volume)`. |
+| Max Speed | Highest speed observed in the active window. | `max(max_speed)` across sampled periods. |
+| Over Threshold Count | Number of sampled periods where speed exceeded the configured max speed cap threshold. | `count(period where max_speed > max_speed_cap_threshold)`. If the sensor has no threshold configured, the card shows `-`. |
+| Low/No Movement Periods | Number of sampled periods with little or no traffic. | `count(period where volume <= 0)`. |
+| Approach Share | Percent of directional traffic moving in the approach direction. | `approach_volume / (approach_volume + away_volume) * 100`. |
+| Away Share | Percent of directional traffic moving away from the approach direction. | `away_volume / (approach_volume + away_volume) * 100`, or `100 - approach_share` when both directions are present. |
+| Direction Split | How total movement divides between approach and away. | Approach and away are summed separately from directional summary rows, then shown as bars or shares. |
+
 Future scale TODOs:
 
 - Move CSV generation server-side when exports regularly exceed 50,000 rows or the browser feels slow.
