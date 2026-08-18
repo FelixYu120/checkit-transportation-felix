@@ -38,6 +38,7 @@ import { AGGREGATE_CHART_TYPES, COMPARISON_CHART_TYPES } from '../visualizations
 import SummaryMetrics from '../summaries/SummaryMetrics';
 import ComparisonSummaryMetrics from '../summaries/ComparisonSummaryMetrics';
 import { fetchSensorDirectory } from '../data/SensorDirectoryData';
+import { fetchInstitutionTeamMembers } from '../team/TeamData';
 
 
 const DEFAULT_CARD_BACKGROUND = '#ffffff';
@@ -2145,60 +2146,28 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const loadShareEmailDirectory = async () => {
     setIsShareDirectoryLoading(true);
 
-    const { data: userResult } = await supabase.auth.getUser();
-    const currentUser = userResult?.user;
-    if (!currentUser) {
+    try {
+      const { members, currentUserId } = await fetchInstitutionTeamMembers(supabase);
+      setShareEmailDirectory((members || [])
+        .filter((profile) => profile?.email && profile.id !== currentUserId)
+        .map((profile) => {
+          const fullName = String(profile.full_name || '').trim();
+          const nameParts = fullName.split(/\s+/).filter(Boolean);
+          return {
+            id: profile.id,
+            email: String(profile.email).trim().toLowerCase(),
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' '),
+            fullName,
+            role: profile.role || '',
+          };
+        }));
+    } catch (error) {
+      console.error('Failed to load share directory:', error);
       setShareEmailDirectory([]);
+    } finally {
       setIsShareDirectoryLoading(false);
-      return;
     }
-
-    const { data: currentProfile, error: currentProfileError } = await supabase
-      .from('profile')
-      .select('id,email,assigned_institute,role')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (currentProfileError) {
-      setShareEmailDirectory([]);
-      setIsShareDirectoryLoading(false);
-      return;
-    }
-
-    const isCheckItAdmin = String(currentProfile?.role || '').trim().toLowerCase() === 'checkit_admin';
-    let profileQuery = supabase
-      .from('profile')
-      .select('id,email,first_name,last_name,full_name,assigned_institute,role')
-      .order('email', { ascending: true })
-      .order('full_name', { ascending: true, nullsFirst: false });
-
-    if (!isCheckItAdmin) {
-      if (!currentProfile?.assigned_institute) {
-        setShareEmailDirectory([]);
-        setIsShareDirectoryLoading(false);
-        return;
-      }
-      profileQuery = profileQuery.eq('assigned_institute', currentProfile.assigned_institute);
-    }
-
-    const { data: profiles, error: profilesError } = await profileQuery;
-    if (profilesError) {
-      setShareEmailDirectory([]);
-      setIsShareDirectoryLoading(false);
-      return;
-    }
-
-    setShareEmailDirectory((profiles || [])
-      .filter((profile) => profile?.email && profile.id !== currentUser.id)
-      .map((profile) => ({
-        id: profile.id,
-        email: String(profile.email).trim().toLowerCase(),
-        firstName: String(profile.first_name || '').trim(),
-        lastName: String(profile.last_name || '').trim(),
-        fullName: String(profile.full_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ')).trim(),
-        role: profile.role || '',
-      })));
-    setIsShareDirectoryLoading(false);
   };
 
   const handleOpenShareDialog = async () => {
