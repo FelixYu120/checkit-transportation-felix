@@ -188,7 +188,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     const chartMetrics = useMemo(() => getChartMetrics(sourceChartData, timeframe, thresholdValue), [sourceChartData, timeframe, thresholdValue]);
     const metrics = chartMetrics || snapshotData || liveMetrics;
     const isWaitingForSourceChartData = preferSourceChartData && sourceChartData == null;
-    const isMetricsLoading = isWaitingForSourceChartData || (!chartMetrics && !snapshotData && loading);
+    const isMetricsLoading = isWaitingForSourceChartData || (!preferSourceChartData && !chartMetrics && !snapshotData && loading);
     const metricConfig = useMemo(() => getMetricConfig(timeframe), [timeframe]);
 
     useEffect(() => {
@@ -196,11 +196,9 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
             return undefined;
         }
         if (chartMetrics) {
-            setLoading(false);
             return undefined;
         }
         if (preferSourceChartData) {
-            setLoading(false);
             return undefined;
         }
 
