@@ -3917,6 +3917,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         onClose={() => {
           if (isSharing) return;
           setShareDialogOpen(false);
+          setShareEmail('');
+          setShareEmailDirectory([]);
           setShareError('');
           setShareNotice('');
         }}
