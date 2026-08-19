@@ -138,6 +138,17 @@
     gap: 16px;
 }
 
+.autofillUsernameInput {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .fieldGroup {
     display: flex;
     flex-direction: column;

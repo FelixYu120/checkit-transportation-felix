@@ -555,8 +555,10 @@ const ShareReportModal = ({
   sharedAccess = {},
   suggestions = [],
   isLoadingSuggestions = false,
+  selectedRecipients = [],
   onEmailChange,
   onSuggestionSelect,
+  onRecipientRemove,
   onClose,
   onShare,
   onAccessChange,
@@ -581,7 +583,7 @@ const ShareReportModal = ({
             <Users size={16} />
             <span>People with access</span>
           </div>
-          {sharedWith.length ? (
+          {sharedWith.length || selectedRecipients.length ? (
             <div className={styles.sharedUsers}>
               {sharedWith.map((sharedEmail) => (
                 <div className={styles.sharedUserRow} key={sharedEmail}>
@@ -611,6 +613,28 @@ const ShareReportModal = ({
                   </button>
                 </div>
               ))}
+              {selectedRecipients.map((recipient) => (
+                <div className={`${styles.sharedUserRow} ${styles.sharedUserPendingRow}`} key={`pending-${recipient.email}`}>
+                  <span className={styles.sharedUserAvatar}>
+                    <User size={14} />
+                  </span>
+                  <span className={styles.sharedUserEmail}>
+                    {recipient.fullName || recipient.email}
+                    {recipient.fullName ? <small>{recipient.email}</small> : null}
+                  </span>
+                  <span className={styles.sharedUserPendingBadge}>Pending</span>
+                  <button
+                    type="button"
+                    className={styles.sharedUserRemoveBtn}
+                    onClick={() => onRecipientRemove(recipient.email)}
+                    disabled={isSharing}
+                    aria-label={`Remove ${recipient.email}`}
+                    title="Remove pending access"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
           ) : (
             <p className={styles.sharedUsersEmpty}>Only you have access right now.</p>
@@ -620,68 +644,85 @@ const ShareReportModal = ({
         <label className={styles.inputLabel} htmlFor="share-report-email">Add people</label>
         <div className={styles.shareInviteControl}>
           <div className={styles.shareInviteRow}>
-            <input
-              id="share-report-email"
-              className={styles.shareEmailInput}
-              type="text"
-              value={email}
-              placeholder="name@institution.edu"
-              onChange={(event) => onEmailChange(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onShare(false);
-              }}
-              autoComplete="off"
-              aria-autocomplete="list"
-              aria-controls="share-email-suggestions"
-              autoFocus
-            />
+            <div className={styles.shareRecipientInputWrap}>
+              {selectedRecipients.map((recipient) => (
+                <span className={styles.shareRecipientChip} key={recipient.email}>
+                  <span>{recipient.fullName || recipient.email}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRecipientRemove(recipient.email)}
+                    disabled={isSharing}
+                    aria-label={`Remove ${recipient.email}`}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              ))}
+              <input
+                id="share-report-email"
+                className={styles.shareEmailInput}
+                type="text"
+                value={email}
+                placeholder={selectedRecipients.length ? 'Add another person' : 'Name or email'}
+                onChange={(event) => onEmailChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onShare(false);
+                }}
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-controls="share-email-suggestions"
+                autoFocus
+              />
+            </div>
             <button
               type="button"
               className={styles.shareAddBtn}
               onClick={() => onShare(true)}
-              disabled={isSharing || !email.trim()}
+              disabled={isSharing || (!email.trim() && selectedRecipients.length === 0)}
               aria-label="Add people"
               title="Add people"
             >
               <Plus size={18} />
             </button>
           </div>
-          {email.trim() ? (
-            <div className={styles.shareSuggestions} id="share-email-suggestions" role="listbox">
-              {isLoadingSuggestions ? (
-                <p className={styles.shareSuggestionState}>Loading people...</p>
-              ) : suggestions.length ? (
-                suggestions.map((suggestion) => (
-                  <button
-                    type="button"
-                    className={styles.shareSuggestionOption}
-                    key={suggestion.email}
-                    onClick={() => onSuggestionSelect(suggestion.email)}
-                    role="option"
-                  >
-                    <span className={styles.sharedUserAvatar}>
-                      <User size={14} />
-                    </span>
-                    <span>
-                      <strong>{suggestion.fullName || suggestion.email}</strong>
-                      {suggestion.fullName ? <em>{suggestion.email}</em> : null}
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <p className={styles.shareSuggestionState}>No matching platform users.</p>
-              )}
-            </div>
-          ) : null}
+          <div className={styles.shareSuggestions} id="share-email-suggestions" role="listbox">
+            {isLoadingSuggestions ? (
+              <p className={styles.shareSuggestionState}>Loading people...</p>
+            ) : suggestions.length ? (
+              suggestions.map((suggestion) => (
+                <button
+                  type="button"
+                  className={styles.shareSuggestionOption}
+                  key={suggestion.email}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSuggestionSelect(suggestion);
+                  }}
+                  role="option"
+                >
+                  <span className={styles.sharedUserAvatar}>
+                    <User size={14} />
+                  </span>
+                  <span>
+                    <strong>{suggestion.fullName || suggestion.email}</strong>
+                    {suggestion.fullName ? <em>{suggestion.email}</em> : null}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className={styles.shareSuggestionState}>No matching platform users.</p>
+            )}
+          </div>
         </div>
 
         {error && <p className={styles.shareError}>{error}</p>}
         {!error && notice && <p className={styles.shareNotice}>{notice}</p>}
-        <p className={styles.fieldHint}>Enter one email, or use + to add multiple emails separated by commas.</p>
+        <p className={styles.fieldHint}>Select people from the list, or enter emails separated by commas.</p>
 
         <div className={styles.confirmActions}>
           <button type="button" className={styles.secondaryBtn} onClick={onClose}>Cancel</button>
-          <button type="button" className={styles.primaryBtn} onClick={() => onShare(false)} disabled={isSharing || !email.trim()}>
+          <button type="button" className={styles.primaryBtn} onClick={() => onShare(false)} disabled={isSharing || (!email.trim() && selectedRecipients.length === 0)}>
             {isSharing ? 'Checking...' : 'Share'}
           </button>
         </div>
@@ -868,16 +909,17 @@ const getActiveShareEmailToken = (value = '') => {
   return String(parts[parts.length - 1] || '').trim().toLowerCase();
 };
 
-const replaceActiveShareEmailToken = (value = '', email = '') => {
-  const previousEmails = String(value || '')
+const removeActiveShareEmailToken = (value = '') => (
+  String(value || '')
     .split(',')
     .slice(0, -1)
     .map((item) => item.trim())
-    .filter(Boolean);
-  return [...previousEmails, email].join(', ');
-};
+    .filter(Boolean)
+    .join(', ')
+);
 
 const getShareSuggestionMatchRank = (profile, token) => {
+  if (!token) return 4;
   const email = String(profile.email || '').trim().toLowerCase();
   const firstName = String(profile.firstName || '').trim().toLowerCase();
   const lastName = String(profile.lastName || '').trim().toLowerCase();
@@ -1031,6 +1073,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [remoteLocks, setRemoteLocks] = useState({});
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
+  const [selectedShareRecipients, setSelectedShareRecipients] = useState([]);
   const [shareError, setShareError] = useState('');
   const [shareNotice, setShareNotice] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -1047,17 +1090,20 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const insightsLandingPath = returnReportTab === 'shared' ? '/insights-studio?tab=shared' : '/insights-studio';
   const filteredShareSuggestions = useMemo(() => {
     const activeToken = getActiveShareEmailToken(shareEmail);
-    if (!shareDialogOpen || !activeToken) return [];
+    if (!shareDialogOpen) return [];
 
     const sharedEmails = new Set((Array.isArray(reportSettings.sharedWith) ? reportSettings.sharedWith : [])
       .map((value) => String(value).trim().toLowerCase())
+      .filter(Boolean));
+    const selectedEmails = new Set(selectedShareRecipients
+      .map((recipient) => String(recipient.email).trim().toLowerCase())
       .filter(Boolean));
     const enteredEmails = new Set(parseShareEmails(shareEmail).filter((value) => value !== activeToken));
 
     return shareEmailDirectory
       .map((profile) => {
         const email = String(profile.email || '').trim().toLowerCase();
-        if (!email || sharedEmails.has(email) || enteredEmails.has(email)) return null;
+        if (!email || sharedEmails.has(email) || selectedEmails.has(email) || enteredEmails.has(email)) return null;
         const matchRank = getShareSuggestionMatchRank(profile, activeToken);
         return matchRank === null ? null : { ...profile, matchRank };
       })
@@ -1068,7 +1114,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         const rightLabel = right.fullName || right.email;
         return leftLabel.localeCompare(rightLabel);
       });
-  }, [reportSettings.sharedWith, shareDialogOpen, shareEmail, shareEmailDirectory]);
+  }, [reportSettings.sharedWith, selectedShareRecipients, shareDialogOpen, shareEmail, shareEmailDirectory]);
   
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
@@ -2290,11 +2336,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const handleShareReport = async (allowMultiple = false) => {
-    const recipientEmails = parseShareEmails(shareEmail);
+    const recipientEmails = Array.from(new Set([
+      ...selectedShareRecipients.map((recipient) => String(recipient.email).trim().toLowerCase()),
+      ...parseShareEmails(shareEmail),
+    ].filter(Boolean)));
     if (!recipientEmails.length) return;
     if (!allowMultiple && recipientEmails.length > 1) {
-      setShareError('Add one email with Share, or use the + button to add multiple people.');
-      return;
+      setShareError('');
     }
 
     const invalidEmails = recipientEmails.filter((recipientEmail) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail));
@@ -2422,6 +2470,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     }));
     setIsDirty(false);
     setShareEmail('');
+    setSelectedShareRecipients([]);
     setShareNotice(`Shared with ${recipientEmails.length === 1 ? recipientEmails[0] : `${recipientEmails.length} people`}.`);
     setIsSharing(false);
   };
@@ -3904,20 +3953,33 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         sharedAccess={reportSettings.sharedAccess || {}}
         suggestions={filteredShareSuggestions}
         isLoadingSuggestions={isShareDirectoryLoading}
+        selectedRecipients={selectedShareRecipients}
         onEmailChange={(value) => {
           setShareEmail(value);
           setShareError('');
           setShareNotice('');
         }}
-        onSuggestionSelect={(suggestionEmail) => {
-          setShareEmail(replaceActiveShareEmailToken(shareEmail, suggestionEmail));
+        onSuggestionSelect={(suggestion) => {
+          const email = String(suggestion?.email || '').trim().toLowerCase();
+          if (!email) return;
+          setSelectedShareRecipients((currentRecipients) => (
+            currentRecipients.some((recipient) => recipient.email === email)
+              ? currentRecipients
+              : [...currentRecipients, { ...suggestion, email }]
+          ));
+          setShareEmail(removeActiveShareEmailToken(shareEmail));
           setShareError('');
           setShareNotice('');
+        }}
+        onRecipientRemove={(recipientEmail) => {
+          const email = String(recipientEmail || '').trim().toLowerCase();
+          setSelectedShareRecipients((currentRecipients) => currentRecipients.filter((recipient) => recipient.email !== email));
         }}
         onClose={() => {
           if (isSharing) return;
           setShareDialogOpen(false);
           setShareEmail('');
+          setSelectedShareRecipients([]);
           setShareEmailDirectory([]);
           setShareError('');
           setShareNotice('');

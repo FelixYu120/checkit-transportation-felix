@@ -4,6 +4,19 @@ import { Eye, EyeOff } from 'lucide-react';
 import styles from './Login.module.css';
 import supabase from '../helper/SupabaseClients'; 
 
+const AUTOFILL_PREFIX = 'checkit-transportation';
+
+const buildAutofillUsername = (value) => {
+    const normalizedEmail = String(value || '').trim().toLowerCase();
+    return normalizedEmail ? `${AUTOFILL_PREFIX}:${normalizedEmail}` : '';
+};
+
+const parseAutofillUsername = (value) => {
+    const text = String(value || '').trim();
+    const prefix = `${AUTOFILL_PREFIX}:`;
+    return text.startsWith(prefix) ? text.slice(prefix.length) : text;
+};
+
 function Login({ setIsLoggedIn }) {
     const navigate = useNavigate();
     const goToMainWebsite = () => {
@@ -54,17 +67,34 @@ function Login({ setIsLoggedIn }) {
 
                     {errorMessage && <div className={styles.errorMessage}>{errorMessage}</div>}
                     
-                    <form className={styles.formlayout} onSubmit={handleSubmit}>
+                    <form
+                        id="checkit-transportation-login-form"
+                        name="checkit-transportation-login-form"
+                        action="/transportation-login"
+                        className={styles.formlayout}
+                        autoComplete="on"
+                        onSubmit={handleSubmit}
+                    >
+                        <input
+                            className={styles.autofillUsernameInput}
+                            type="text"
+                            name="username"
+                            value={buildAutofillUsername(email)}
+                            autoComplete="section-checkit-transportation username"
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            onChange={(event) => setEmail(parseAutofillUsername(event.target.value))}
+                        />
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="transportation-login-email">Email address</label>
                             <input 
                                 id="transportation-login-email"
-                                name="checkit-transportation-email"
+                                name="checkit-transportation-display-email"
                                 className={styles.loginemail} 
                                 type="email" 
                                 value={email}
                                 placeholder="you@organization.edu" 
-                                autoComplete="section-checkit-transportation username"
+                                autoComplete="off"
                                 required 
                                 onChange={(e) => setEmail(e.target.value)} 
                             />

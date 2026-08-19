@@ -1512,6 +1512,36 @@
   white-space: nowrap;
 }
 
+.sharedUserEmail small {
+  display: block;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharedUserPendingRow {
+  border-color: #bfe2dc;
+  background: #f5fbfa;
+}
+
+.sharedUserPendingBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border: 1px solid #bfe2dc;
+  border-radius: 999px;
+  background: #eef8f6;
+  color: #2f716f;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 10px;
+}
+
 .sharedUserRoleSelect {
   width: 116px;
   min-height: 30px;
@@ -1572,7 +1602,7 @@
 .shareInviteRow {
   display: flex;
   gap: 12px;
-  align-items: center;
+  align-items: stretch;
   width: 100%;
   min-width: 0;
 }
@@ -1583,20 +1613,79 @@
   gap: 8px;
 }
 
-.shareEmailInput {
+.shareRecipientInputWrap {
   flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  height: 48px;
+  min-height: 48px;
   box-sizing: border-box;
-  padding: 0 14px;
+  padding: 6px 10px;
   border: 2px solid #9cc9c4;
   border-radius: 10px;
   background: #f5fbfa;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.shareRecipientInputWrap:focus-within {
+  outline: none;
+  border-color: #2f716f;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(47, 113, 111, 0.14);
+}
+
+.shareRecipientChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 30px;
+  border: 1px solid #bfe2dc;
+  border-radius: 999px;
+  background: #eef8f6;
+  color: #2f716f;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 7px 0 10px;
+}
+
+.shareRecipientChip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shareRecipientChip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(47, 113, 111, 0.12);
+  color: #2f716f;
+  cursor: pointer;
+  padding: 0;
+}
+
+.shareRecipientChip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.shareEmailInput {
+  flex: 1 1 160px;
+  min-width: 140px;
+  height: 32px;
+  border: 0;
+  background: transparent;
   color: #0f172a;
   font: inherit;
   font-size: 14px;
   line-height: 1.35;
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .shareEmailInput::placeholder {
@@ -1605,9 +1694,6 @@
 
 .shareEmailInput:focus {
   outline: none;
-  border-color: #2f716f;
-  background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(47, 113, 111, 0.14);
 }
 
 .shareAddBtn {
