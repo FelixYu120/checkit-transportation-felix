@@ -41,6 +41,7 @@ import ComparisonSummaryMetrics from '../summaries/ComparisonSummaryMetrics';
 import { fetchSensorDirectory } from '../data/SensorDirectoryData';
 import { fetchInstitutionTeamMembers } from '../team/TeamData';
 
+
 const DEFAULT_CARD_BACKGROUND = '#ffffff';
 const DEFAULT_TEXT_COLOR = '#0f172a';
 const DEFAULT_PAGE_COUNT = 1;
