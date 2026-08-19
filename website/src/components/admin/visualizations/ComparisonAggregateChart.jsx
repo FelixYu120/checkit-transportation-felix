@@ -486,8 +486,10 @@ const fetchTargetData = async ({ target, type, filters }) => {
     if (!target.id) return [];
 
     const sensorId = target.level === 'floor' || target.level === 'room' ? target.id : undefined;
+    const sensorIds = sensorId ? [] : (Array.isArray(target.sensorIds) ? target.sensorIds : []);
     const rawData = await fetchTrafficSummaryRows(supabase, {
         sensorId,
+        sensorIds,
         filters,
         type,
     });
@@ -554,17 +556,18 @@ const ComparisonAggregateChart = ({
     const [isLoading, setIsLoading] = useState(!snapshotData?.length);
     const gradientId = `comparisonOccupancy-${useId().replace(/:/g, '')}`;
 
+    const targetsInputSignature = JSON.stringify((Array.isArray(targets) ? targets : []).map((target) => ({
+        id: target?.id || '',
+        level: target?.level || '',
+        label: target?.label || '',
+        sensorIds: Array.isArray(target?.sensorIds) ? target.sensorIds.filter(Boolean).sort() : [],
+    })));
     const activeTargets = useMemo(() => (
-        (Array.isArray(targets) ? targets : [])
+        JSON.parse(targetsInputSignature)
             .filter((target) => target?.id && target?.level)
-            .map((target) => ({
-                id: target.id,
-                level: target.level,
-                label: target.label || '',
-            }))
-    ), [targets]);
+    ), [targetsInputSignature]);
     const targetSignature = useMemo(() => (
-        activeTargets.map((target) => `${target.level}:${target.id}:${target.label}`).join('|')
+        activeTargets.map((target) => `${target.level}:${target.id}:${target.label}:${target.sensorIds.join(',')}`).join('|')
     ), [activeTargets]);
     const hasTargets = activeTargets.length >= 2;
     const startDate = filters?.startDate || '';

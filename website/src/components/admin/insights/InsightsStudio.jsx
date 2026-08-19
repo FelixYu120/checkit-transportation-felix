@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Maximize2,
   Share2,
+  X,
 } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import html2canvas from 'html2canvas';
@@ -488,6 +489,20 @@ const ConfirmDialog = ({ dialog, onClose }) => {
   ), document.body);
 };
 
+const SavingReportOverlay = ({ isOpen }) => {
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  return createPortal((
+    <div className={`${styles.modalOverlay} ${styles.savingReportOverlay}`} role="presentation">
+      <div className={styles.savingReportCard} role="status" aria-live="polite">
+        <span className={styles.builderAccessSpinner} aria-hidden="true" />
+        <h2>Saving report...</h2>
+        <p>Please wait while Insights Studio saves your changes.</p>
+      </div>
+    </div>
+  ), document.body);
+};
+
 const ExportPreviewModal = ({ isOpen, pageCount = 1, renderPage, onClose, onDownload, isDownloading }) => {
   const [activePageIndex, setActivePageIndex] = useState(0);
 
@@ -835,6 +850,18 @@ const getSavedReportState = ({
   reportSettings,
 });
 
+const stripTransientElementState = (element) => {
+  const stableElement = { ...element };
+  delete stableElement.snapshotData;
+  delete stableElement.snapshotKey;
+  return stableElement;
+};
+
+const getComparableReportState = (reportState) => ({
+  ...reportState,
+  elements: (reportState.elements || []).map(stripTransientElementState),
+});
+
 const parseSavedLayoutData = (layoutData) => {
   if (Array.isArray(layoutData)) {
     const elements = normalizeReportElements(layoutData);
@@ -1057,6 +1084,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const collaborationChannelRef = useRef(null);
   
   const [isSaved, setIsSaved] = useState(false);
+  const [isSavingAndLeaving, setIsSavingAndLeaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -1222,7 +1250,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 sharedWith,
                 sharedAccess,
               });
-              lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+              lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
                 mode: type,
                 elements: savedLayout.elements,
                 pageCount: savedLayout.pageCount,
@@ -1233,7 +1261,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   sharedWith,
                   sharedAccess,
                 },
-              }));
+              })));
             }
             setIsDirty(false);
           }
@@ -1345,14 +1373,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const visiblePageCount = Math.max(pageCount, getRequiredPageCount(elements));
   const totalVisiblePageCount = visiblePageCount + (hasCoverPage ? 1 : 0);
 
-  const getCurrentReportSnapshotString = useCallback((candidateElements = elements, candidateReportSettings = reportSettings) => JSON.stringify(getSavedReportState({
+  const getCurrentReportSnapshotString = useCallback((candidateElements = elements, candidateReportSettings = reportSettings) => JSON.stringify(getComparableReportState(getSavedReportState({
     mode: type,
     elements: candidateElements,
     pageCount: visiblePageCount,
     selections,
     comparisonSelections,
     reportSettings: candidateReportSettings,
-  })), [comparisonSelections, elements, reportSettings, selections, type, visiblePageCount]);
+  }))), [comparisonSelections, elements, reportSettings, selections, type, visiblePageCount]);
 
   const hasActualUnsavedChanges = useCallback((candidateElements = elements) => (
     !lastCleanSnapshotRef.current || getCurrentReportSnapshotString(candidateElements) !== lastCleanSnapshotRef.current
@@ -1418,6 +1446,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const getTargetFromSelections = (targetSelections, fallbackLabel) => {
     const selectedArea = areas.find((area) => area.id === targetSelections.areaId);
+    const selectedAreaSensorIds = getRoomsForSelections(targetSelections)
+      .map((sensor) => sensor.sensor_id)
+      .filter(Boolean);
 
     if (targetSelections.floorNumber) {
       const selectedSensor = allRooms.find((sensor) => sensor.sensor_id === targetSelections.floorNumber);
@@ -1425,6 +1456,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         level: 'floor',
         id: targetSelections.floorNumber,
         label: selectedSensor?.corridor_name || `Corridor ${targetSelections.floorNumber}`,
+        sensorIds: [targetSelections.floorNumber],
       };
     }
 
@@ -1432,6 +1464,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       level: 'area',
       id: targetSelections.areaId,
       label: selectedArea?.name || fallbackLabel,
+      sensorIds: selectedAreaSensorIds,
     };
   };
 
@@ -2291,14 +2324,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     setReportSettings(nextReportSettings);
     setShareNotice('Access updated.');
-    lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+    lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
       mode: type,
       elements: committedElements,
       pageCount: visiblePageCount,
       selections,
       comparisonSelections,
       reportSettings: nextReportSettings,
-    }));
+    })));
     setIsDirty(false);
     setIsSharing(false);
     return true;
@@ -2459,14 +2492,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     }
 
     setReportSettings(nextReportSettings);
-    lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+    lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
       mode: type,
       elements: committedElements,
       pageCount: visiblePageCount,
       selections,
       comparisonSelections,
       reportSettings: nextReportSettings,
-    }));
+    })));
     setIsDirty(false);
     setShareEmail('');
     setSelectedShareRecipients([]);
@@ -2496,7 +2529,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     setIsSaved(false);
     const committedElements = commitTextDrafts();
     if (reportRef.current) {
-      await waitForReportReady(reportRef.current);
+      await waitForReportReady(reportRef.current, 2500);
       await waitForNextPaint();
     }
 
@@ -2553,14 +2586,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       if (response.error) throw response.error;
 
       setReportSettings(nextReportSettings);
-      lastCleanSnapshotRef.current = JSON.stringify(getSavedReportState({
+      lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
         mode: type,
         elements: committedElements,
         pageCount: visiblePageCount,
         selections,
         comparisonSelections,
         reportSettings: nextReportSettings,
-      }));
+      })));
       setIsSaved(true);
       setIsDirty(false);
       setTimeout(() => setIsSaved(false), 3000);
@@ -2596,8 +2629,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     });
 
     if (exitAction === 'save') {
-      const didSave = await handleSaveLayout();
-      if (didSave) navigate(insightsLandingPath);
+      setIsSavingAndLeaving(true);
+      try {
+        const didSave = await handleSaveLayout();
+        if (didSave) navigate(insightsLandingPath);
+      } finally {
+        setIsSavingAndLeaving(false);
+      }
     }
 
     if (exitAction === 'discard') {
@@ -2856,7 +2894,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -3929,6 +3967,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         </div>}
 
       </div>
+      <SavingReportOverlay isOpen={isSavingAndLeaving} />
       <ConfirmDialog dialog={confirmDialog} onClose={resolveConfirmation} />
       <ExportPreviewModal
         isOpen={Boolean(exportPreviewImage)}

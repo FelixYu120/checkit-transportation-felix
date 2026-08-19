@@ -1399,6 +1399,38 @@
   z-index: 10080;
 }
 
+.savingReportOverlay {
+  z-index: 10090;
+  cursor: wait;
+}
+
+.savingReportCard {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: min(360px, 100%);
+  padding: 28px;
+  border: 1px solid #dbe4ea;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.savingReportCard h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.savingReportCard p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .confirmDialog {
   width: min(420px, 100%);
   padding: 24px;

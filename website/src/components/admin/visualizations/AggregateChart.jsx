@@ -514,6 +514,7 @@ const getPeopleAxisMax = (chartData) => {
 const AggregateChart = ({
     level,
     id,
+    sensorIds = [],
     type,
     title,
     filters,
@@ -542,6 +543,9 @@ const AggregateChart = ({
     const startTime = filters?.startTime || '';
     const endTime = filters?.endTime || '';
     const dayPreset = filters?.dayPreset || 'all';
+    const sensorIdsSignature = useMemo(() => (
+        (Array.isArray(sensorIds) ? sensorIds : []).filter(Boolean).sort().join('|')
+    ), [sensorIds]);
     const effectiveFilters = useMemo(() => ({
         startDate,
         endDate,
@@ -578,6 +582,7 @@ const AggregateChart = ({
         const fetchViewData = async () => {
             setIsLoading(true);
             const sensorId = level === 'floor' || level === 'room' ? id : undefined;
+            const scopedSensorIds = sensorId || !sensorIdsSignature ? [] : sensorIdsSignature.split('|');
 
             if (!id) {
                 if (isMounted) {
@@ -590,6 +595,7 @@ const AggregateChart = ({
             try {
                 const rawData = await fetchTrafficSummaryRows(supabase, {
                     sensorId,
+                    sensorIds: scopedSensorIds,
                     filters: effectiveFilters,
                     type,
                 });
@@ -648,7 +654,7 @@ const AggregateChart = ({
         return () => {
             isMounted = false;
         };
-    }, [level, id, type, effectiveFilters, snapshotData, onSnapshotData]);
+    }, [level, id, sensorIdsSignature, type, effectiveFilters, snapshotData, onSnapshotData]);
 
     const isPeriodAxis = type === 'weekly' || type === 'monthly';
     const xAxisKey = isPeriodAxis ? 'dateLabel' : 'sortKey';
