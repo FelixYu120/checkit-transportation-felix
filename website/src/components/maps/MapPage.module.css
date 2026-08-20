@@ -3,6 +3,9 @@
     height: 100%;
     position: relative;
     overflow: hidden; /* Prevents the page from scrolling */
+    background:
+        radial-gradient(circle at top left, rgba(160, 209, 197, 0.12), transparent 34%),
+        linear-gradient(180deg, #e4eaed 0%, #d6e0e6 100%);
 }
 
 .mapDiv {
@@ -11,9 +14,19 @@
     outline: none;
 }
 
+.mapDiv :global(canvas) {
+    filter: grayscale(0.12) saturate(0.58) brightness(0.9) contrast(0.88);
+}
+
+.mapDiv :global(.esri-widget),
+.mapDiv :global(.esri-component),
+.mapDiv :global(.esri-popup__main-container) {
+    background: rgba(248, 252, 251, 0.86);
+    color: #172033;
+}
+
 /* Ensure the Esri UI components stay inside the box */
 :global(.esri-ui-bottom-right) {
     bottom: 20px !important;
     right: 20px !important;
 }
-

@@ -11,8 +11,10 @@
     width: 400px;
     min-width: 400px;
     height: 100%;
-    background: #f8fafc;
-    border-right: 1px solid #e2e8f0;
+    background:
+        radial-gradient(circle at top left, rgba(160, 209, 197, 0.1), transparent 32%),
+        linear-gradient(180deg, #e7eef1 0%, #dde6eb 100%);
+    border-right: 1px solid #cbd8e0;
     transition: margin-left 0.3s ease-in-out;
     position: relative;
     z-index: 10;
@@ -46,6 +48,9 @@
     flex: 1;
     height: 100%;
     position: relative;
+    background:
+        radial-gradient(circle at top left, rgba(160, 209, 197, 0.12), transparent 34%),
+        linear-gradient(180deg, #e4eaed 0%, #d6e0e6 100%);
 }
 
 .toggleButton {
@@ -66,7 +71,7 @@
 }
 .availabilityHeader {
     /* Using your brand light teal */
-    background: #e8f8f7; 
+    background: rgba(232, 246, 242, 0.82); 
     padding: 15px;
     border-radius: 12px;
     margin-bottom: 15px;
