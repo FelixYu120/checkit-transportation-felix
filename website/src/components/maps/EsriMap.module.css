@@ -3,7 +3,7 @@
   width: 100%;
   height: calc(100vh - 64px);
   overflow: hidden;
-  background: #dde5ea;
+  background: #d4dfe5;
 }
 
 .embedded {
@@ -17,6 +17,10 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mapDiv :global(canvas) {
+  filter: saturate(0.72) brightness(0.94) contrast(0.92);
 }
 
 .mapDiv:focus,
