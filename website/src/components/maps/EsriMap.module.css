@@ -4,8 +4,8 @@
   height: calc(100vh - 64px);
   overflow: hidden;
   background:
-    radial-gradient(circle at top left, rgba(160, 209, 197, 0.12), transparent 34%),
-    linear-gradient(180deg, #e4eaed 0%, #d6e0e6 100%);
+    radial-gradient(circle at top left, rgba(52, 82, 77, 0.12), transparent 34%),
+    linear-gradient(180deg, #eef3f1 0%, #dfe8e5 100%);
 }
 
 .embedded {
@@ -28,8 +28,8 @@
 .mapDiv :global(.esri-view-root),
 .mapDiv :global(.esri-view-surface) {
   background:
-    radial-gradient(circle at top left, rgba(160, 209, 197, 0.1), transparent 34%),
-    #d6e0e6;
+    radial-gradient(circle at top left, rgba(52, 82, 77, 0.1), transparent 34%),
+    #dfe8e5;
 }
 
 .mapDiv :global(.esri-widget),

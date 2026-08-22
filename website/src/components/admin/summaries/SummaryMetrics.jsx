@@ -494,7 +494,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                         marginTop: '18px',
                         border: 0,
                         borderRadius: '999px',
-                        background: '#2f716f',
+                        background: '#34524D',
                         color: '#ffffff',
                         padding: '8px 16px',
                         fontWeight: 700,

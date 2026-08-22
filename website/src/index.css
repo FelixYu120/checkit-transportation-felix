@@ -1,8 +1,16 @@
 html,
 #root {
+    --checkit-green: #34524D;
+    --checkit-green-dark: #28423E;
+    --checkit-bg: #eef3f1;
+    --checkit-bg-soft: #f4f6f5;
+    --checkit-panel: #fbfcfb;
+    --checkit-border: #cbd8d4;
+    --checkit-ink: #15201f;
+    --checkit-muted: #667572;
     width: 100%;
     height: 100%;
-    background-color: #e4eaed;
+    background-color: var(--checkit-bg);
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -12,5 +20,5 @@ body {
     margin: 0;
     padding: 0;
     min-width: 0;
-    background-color: #e4eaed;
+    background-color: var(--checkit-bg);
 }

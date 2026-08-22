@@ -112,16 +112,16 @@ function Dashboard() {
                 
                 <div className={styles.statusLegend}>
                     <div className={styles.legendItem}>
-                        <span>Empty: </span><span className={`${styles.dot} ${styles.greenDot}`}></span>
+                        <span>Clear: </span><span className={`${styles.dot} ${styles.greenDot}`}></span>
                     </div>
                     <div className={styles.legendItem}>
-                        <span>Partially Full: </span><span className={`${styles.dot} ${styles.yellowDot}`}></span>
+                        <span>Moderate: </span><span className={`${styles.dot} ${styles.yellowDot}`}></span>
                     </div>
                     <div className={styles.legendItem}>
-                        <span>Nearly Full: </span><span className={`${styles.dot} ${styles.orangeDot}`}></span>
+                        <span>High: </span><span className={`${styles.dot} ${styles.orangeDot}`}></span>
                     </div>
                     <div className={styles.legendItem}>
-                        <span>Full: </span><span className={`${styles.dot} ${styles.redDot}`}></span>
+                        <span>At Limit: </span><span className={`${styles.dot} ${styles.redDot}`}></span>
                     </div>
                 </div>
             </div>

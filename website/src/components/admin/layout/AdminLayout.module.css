@@ -21,12 +21,12 @@
 }
 
 .breadcrumbLink:hover {
-  color: #4c6d69;
-  background-color: rgba(159, 210, 205, 0.24);
+  color: #34524D;
+  background-color: rgba(52, 82, 77, 0.24);
 }
 
 .breadcrumbLink:focus-visible {
-  outline: 2px solid #8cbdb8;
+  outline: 2px solid #28423E;
   outline-offset: 3px;
 }
 
@@ -47,12 +47,12 @@
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  background-color: #e4eaed; 
+  background-color: #eef3f1; 
 }
 
 /* The teal header */
 .admin-header {
-  background-color: #a0d1c5;
+  background-color: #34524D;
   min-height: 64px;
   display: flex;
   align-items: center;
@@ -103,8 +103,8 @@
   min-width: 0;
   height: 100%;
   background:
-    linear-gradient(180deg, rgba(235, 241, 244, 0.88), rgba(224, 232, 236, 0.95)),
-    #e2e9ed;
+    linear-gradient(180deg, rgba(244, 246, 245, 0.92), rgba(232, 238, 235, 0.96)),
+    var(--checkit-bg-soft, #f4f6f5);
 }
 
 .analytics-panel {
@@ -112,8 +112,8 @@
   overflow: hidden;
   padding: 0;
   background:
-    radial-gradient(circle at top left, rgba(160, 209, 197, 0.14), transparent 34%),
-    linear-gradient(180deg, #e9eff2 0%, #dde6eb 100%);
+    radial-gradient(circle at top left, rgba(52, 82, 77, 0.14), transparent 34%),
+    linear-gradient(180deg, var(--checkit-bg-soft, #f4f6f5) 0%, var(--checkit-bg, #eef3f1) 100%);
 }
 
 .map-panel {
@@ -121,9 +121,9 @@
   overflow: hidden;
   padding: 0;
   background:
-    radial-gradient(circle at top left, rgba(160, 209, 197, 0.2), transparent 38%),
-    linear-gradient(180deg, #e0e8ed 0%, #d4dfe5 100%);
-  border-left: 1px solid rgba(221, 228, 234, 0.9);
+    radial-gradient(circle at top left, rgba(52, 82, 77, 0.2), transparent 38%),
+    linear-gradient(180deg, #e8eeeb 0%, #dfe8e5 100%);
+  border-left: 1px solid rgba(203, 216, 212, 0.9);
 }
 
 @media (max-width: 1200px) {
@@ -168,7 +168,7 @@
   .analytics-panel {
     padding: 16px 16px 0;
     border-right: none;
-    border-bottom: 1px solid #dde4ea;
+    border-bottom: 1px solid var(--checkit-border, #cbd8d4);
   }
 
   .map-panel {

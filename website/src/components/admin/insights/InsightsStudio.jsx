@@ -69,8 +69,8 @@ const DEFAULT_REPORT_SETTINGS = {
   showFooter: true,
   coverEyebrow: 'Insights Studio',
   coverSubtitle: 'Add a short report subtitle',
-  coverAccentColor: '#2f716f',
-  coverBackground: '#f7fbfa',
+  coverAccentColor: '#34524D',
+  coverBackground: '#fbfcfb',
   coverLayout: 'classic',
   coverEyebrowX: 72,
   coverEyebrowY: 88,
@@ -215,14 +215,14 @@ const TEMPLATE_COVER_SETTINGS = {
     coverEyebrow: 'Usage Report',
     coverSubtitle: 'A focused snapshot of corridor traffic and operational context.',
     coverLayout: 'classic',
-    coverAccentColor: '#2f716f',
-    coverBackground: '#f7fbfa',
+    coverAccentColor: '#34524D',
+    coverBackground: '#fbfcfb',
   },
   operations: {
     coverEyebrow: 'Operations Snapshot',
     coverSubtitle: 'Daily activity, sensor notes, and corridor-use indicators.',
-    coverAccentColor: '#2f716f',
-    coverBackground: '#eef8f6',
+    coverAccentColor: '#34524D',
+    coverBackground: '#eef3f1',
     coverLayout: 'banded',
     coverTitleX: 72,
     coverTitleY: 132,
@@ -382,13 +382,13 @@ const getColorInputValue = (value, fallback) =>
   /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
 
 const getCoverExportBackground = (settings) => {
-  const accent = getColorInputValue(settings.coverAccentColor, '#2f716f');
-  const bg = getColorInputValue(settings.coverBackground, '#f7fbfa');
+  const accent = getColorInputValue(settings.coverAccentColor, '#34524D');
+  const bg = getColorInputValue(settings.coverBackground, '#fbfcfb');
   const layout = settings.coverLayout || 'classic';
 
   if (layout === 'minimal') return bg;
   if (layout === 'banded') return `linear-gradient(180deg, ${accent} 0 255px, transparent 255px), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
-  if (layout === 'editorial') return `linear-gradient(90deg, transparent 0 620px, rgba(47, 113, 111, 0.18) 620px 100%), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
+  if (layout === 'editorial') return `linear-gradient(90deg, transparent 0 620px, rgba(52, 82, 77, 0.18) 620px 100%), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
   if (layout === 'executive') return `linear-gradient(135deg, rgba(71, 85, 105, 0.14) 0 34%, transparent 34%), linear-gradient(180deg, ${bg} 0%, #ffffff 100%)`;
   if (layout === 'benchmark') return `linear-gradient(90deg, rgba(139, 92, 246, 0.16) 0 50%, #ffffff 50% 100%), linear-gradient(180deg, ${bg} 0%, #ffffff 100%)`;
   return `linear-gradient(90deg, ${accent} 0 14px, transparent 14px), linear-gradient(180deg, #ffffff 0%, ${bg} 100%)`;
@@ -2921,8 +2921,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             <section
               className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
               style={{
-                '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#2f716f'),
-                '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#f7fbfa'),
+                '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#34524D'),
+                '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#fbfcfb'),
                 position: 'absolute',
                 inset: 0,
                 width: `${PAGE_WIDTH}px`,
@@ -3239,8 +3239,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   setEditingTextId(null);
                 }}
                 style={{
-                  '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#2f716f'),
-                  '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#f7fbfa'),
+                  '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#34524D'),
+                  '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#fbfcfb'),
                 }}
               >
                 <Rnd
@@ -3498,11 +3498,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 <div className={styles.twoColumnFields}>
                   <div>
                     <label className={styles.inputLabel}>Accent</label>
-                    <input type="color" value={getColorInputValue(reportSettings.coverAccentColor, '#2f716f')} onChange={(e) => updateReportSettings({ coverAccentColor: e.target.value })} className={styles.colorPicker} />
+                    <input type="color" value={getColorInputValue(reportSettings.coverAccentColor, '#34524D')} onChange={(e) => updateReportSettings({ coverAccentColor: e.target.value })} className={styles.colorPicker} />
                   </div>
                   <div>
                     <label className={styles.inputLabel}>Background</label>
-                    <input type="color" value={getColorInputValue(reportSettings.coverBackground, '#f7fbfa')} onChange={(e) => updateReportSettings({ coverBackground: e.target.value })} className={styles.colorPicker} />
+                    <input type="color" value={getColorInputValue(reportSettings.coverBackground, '#fbfcfb')} onChange={(e) => updateReportSettings({ coverBackground: e.target.value })} className={styles.colorPicker} />
                   </div>
                 </div>
                 <div className={styles.twoColumnFields}>
@@ -3703,7 +3703,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               <label className={styles.inputLabel}>Series {index + 1}</label>
                               <input
                                 type="color"
-                                value={getColorInputValue(activeElement.seriesColors?.[index], ['#2f716f', '#8b5cf6', '#0ea5e9', '#f59e0b'][index] || '#2f716f')}
+                                value={getColorInputValue(activeElement.seriesColors?.[index], ['#34524D', '#8b5cf6', '#0ea5e9', '#f59e0b'][index] || '#34524D')}
                                 onChange={(e) => updateElementArrayValue(activeElement.id, 'seriesColors', index, e.target.value)}
                                 className={styles.colorPicker}
                               />
@@ -4232,7 +4232,7 @@ const InsightsStudio = () => {
               </div>
               
               <div className={styles.savedReportActions}>
-                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#2f716f', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#275f5e'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2f716f'}>
+                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#34524D', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#28423E'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#34524D'}>
                   Open Workspace <ArrowRight size={14} />
                 </Link>
 

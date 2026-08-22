@@ -5,7 +5,7 @@ function Header() {
     return (
         <header className={styles.headerBar}>  
             <a href="https://checkit.dev">
-                <img src="/checkit-logo.png" alt="logo" className={styles.checkitLogo} />
+                <img src="/checkit-logo-enterprise.svg" alt="CheckIt" className={styles.checkitLogo} />
             </a>
 
         </header>

@@ -23,7 +23,7 @@
 
 .chartSection {
   min-width: 0;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
@@ -78,7 +78,7 @@
   gap: 4px;
   flex-shrink: 0;
   padding: 4px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 8px;
   background: #f8fafc;
 }
@@ -107,9 +107,9 @@
 .activeTimeframe,
 .activeTimeframe:hover,
 .activeTimeframe:focus-visible {
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
-  box-shadow: 0 6px 14px rgba(47, 113, 111, 0.22);
+  box-shadow: 0 6px 14px rgba(52, 82, 77, 0.22);
 }
 
 .overviewHero,
@@ -289,7 +289,7 @@
 .heroMetricGrid > div,
 .snapshotCard,
 .insightCard {
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
@@ -310,7 +310,7 @@
 .heroMetricGrid svg,
 .snapshotCard svg,
 .insightCard svg {
-  color: #2f716f;
+  color: #34524D;
 }
 
 .heroMetricGrid strong {
@@ -451,7 +451,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 999px;
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
   font: inherit;
   font-weight: 800;
@@ -488,8 +488,8 @@
 }
 
 .sectionTitleLink:hover {
-  color: #2f716f;
-  background: rgba(160, 209, 197, 0.18);
+  color: #34524D;
+  background: rgba(52, 82, 77, 0.18);
 }
 
 .sectionHeader span {
@@ -521,7 +521,7 @@
   content: "";
   position: absolute;
   inset: 28% 8%;
-  border-top: 3px solid rgba(47, 113, 111, 0.24);
+  border-top: 3px solid rgba(52, 82, 77, 0.24);
   transform: rotate(-8deg);
 }
 
@@ -543,15 +543,15 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: rgba(160, 209, 197, 0.3);
-  border: 1px solid rgba(47, 113, 111, 0.28);
+  background: rgba(52, 82, 77, 0.3);
+  border: 1px solid rgba(52, 82, 77, 0.28);
 }
 
 .networkMarker span {
   width: 42%;
   height: 42%;
   border-radius: 999px;
-  background: #2f716f;
+  background: #34524D;
 }
 
 .networkMarker.clear span { background: #059669; }
@@ -570,7 +570,7 @@
   gap: 10px;
   min-width: 0;
   padding: 12px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   color: #1f2937;
@@ -580,9 +580,9 @@
 }
 
 .trafficSensorCard:hover {
-  border-color: #a0d1c5;
+  border-color: #34524D;
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(160, 209, 197, 0.16);
+  box-shadow: 0 8px 18px rgba(52, 82, 77, 0.16);
 }
 
 .cardTopline,
@@ -657,11 +657,11 @@
 }
 
 .directionBar span:first-child {
-  background: #2f716f;
+  background: #34524D;
 }
 
 .directionBar span:last-child {
-  background: #a0d1c5;
+  background: #34524D;
 }
 
 .updatedText {
@@ -687,7 +687,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
@@ -721,7 +721,7 @@
   align-items: center;
   gap: 8px;
   min-height: 34px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   color: #334155;
@@ -750,12 +750,12 @@
 }
 
 .sortSelectLabel:hover {
-  border-color: #91c7bb;
-  background: #f4fbf8;
+  border-color: #6f8983;
+  background: #fbfcfb;
 }
 
 .sortSelectLabel:focus-within {
-  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline: 2px solid rgba(52, 82, 77, 0.24);
   outline-offset: 3px;
 }
 
@@ -763,9 +763,9 @@
   display: inline-flex;
   align-items: center;
   min-height: 34px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
-  background: #f8fcfb;
+  background: #fbfcfb;
   padding: 3px;
 }
 
@@ -783,13 +783,13 @@
 }
 
 .sortDirectionButton:hover {
-  color: #2f716f;
+  color: #34524D;
 }
 
 .activeSortDirection {
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
-  box-shadow: 0 6px 14px rgba(47, 113, 111, 0.18);
+  box-shadow: 0 6px 14px rgba(52, 82, 77, 0.18);
 }
 
 .activeSortDirection:hover {
@@ -803,8 +803,8 @@
   width: fit-content;
   border: 1px solid #dcebe8;
   border-radius: 999px;
-  background: #f8fcfb;
-  color: #2f716f;
+  background: #fbfcfb;
+  color: #34524D;
   font-size: 12px;
   font-weight: 850;
   min-height: 32px;
@@ -814,8 +814,8 @@
 .loadingSpinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(47, 113, 111, 0.18);
-  border-top-color: #2f716f;
+  border: 2px solid rgba(52, 82, 77, 0.18);
+  border-top-color: #34524D;
   border-radius: 999px;
   animation: comparisonSpin 0.75s linear infinite;
 }
@@ -838,9 +838,9 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid #e0e8ed;
+  border: 1px solid #dfe8e5;
   border-radius: 999px;
-  background: #f8fcfb;
+  background: #fbfcfb;
   color: #334155;
   font-size: 12px;
   font-weight: 850;
@@ -866,7 +866,7 @@
 
 .metricButton {
   min-height: 32px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 999px;
   background: #ffffff;
   color: #334155;
@@ -878,14 +878,14 @@
 }
 
 .metricButton:hover {
-  border-color: #91c7bb;
-  background: #f4fbf8;
+  border-color: #6f8983;
+  background: #fbfcfb;
 }
 
 .activeMetricButton {
-  border-color: #2f7d72;
-  background: #e8f6f2;
-  color: #25675e;
+  border-color: #34524D;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .comparisonTableWrap {
@@ -900,7 +900,7 @@
 }
 
 .comparisonTable th {
-  border-bottom: 1px solid #dce5ea;
+  border-bottom: 1px solid #cbd8d4;
   color: #738195;
   font-size: 11px;
   font-weight: 900;
@@ -928,16 +928,16 @@
 }
 
 .sortHeaderButton:hover {
-  color: #2f716f;
+  color: #34524D;
 }
 
 .sortHeaderButton:focus-visible {
-  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline: 2px solid rgba(52, 82, 77, 0.24);
   outline-offset: 3px;
 }
 
 .comparisonTable td {
-  border-bottom: 1px solid #edf2f5;
+  border-bottom: 1px solid #e8eeeb;
   color: #334155;
   font-size: 13px;
   font-weight: 750;
@@ -946,7 +946,7 @@
 }
 
 .comparisonTable tbody tr:hover td {
-  background: #f8fcfb;
+  background: #fbfcfb;
 }
 
 .comparisonTable td:first-child,
@@ -975,7 +975,7 @@
   grid-template-columns: minmax(150px, 0.75fr) minmax(180px, 1fr) minmax(130px, 0.45fr);
   align-items: center;
   gap: 14px;
-  border: 1px solid #edf2f5;
+  border: 1px solid #e8eeeb;
   border-radius: 14px;
   padding: 12px;
 }
@@ -1001,12 +1001,12 @@
 }
 
 .comparisonLink:hover {
-  color: #2f716f;
+  color: #34524D;
   text-decoration: underline;
 }
 
 .comparisonLink:focus-visible {
-  outline: 2px solid rgba(47, 113, 111, 0.24);
+  outline: 2px solid rgba(52, 82, 77, 0.24);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -1033,7 +1033,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #7dbbb2, #2f716f);
+  background: linear-gradient(90deg, #7dbbb2, #34524D);
 }
 
 .comparisonPagination {
@@ -1041,7 +1041,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid #edf2f5;
+  border-top: 1px solid #e8eeeb;
   color: #64748b;
   font-size: 13px;
   font-weight: 850;
@@ -1056,7 +1056,7 @@
 
 .paginationButtons button {
   min-height: 34px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   color: #334155;
@@ -1067,9 +1067,9 @@
 }
 
 .paginationButtons button:hover:not(:disabled) {
-  border-color: #91c7bb;
-  background: #f4fbf8;
-  color: #2f716f;
+  border-color: #6f8983;
+  background: #fbfcfb;
+  color: #34524D;
 }
 
 .paginationButtons button:disabled {
@@ -1088,7 +1088,7 @@
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 251, 0.92)),
     white;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   min-height: 72px;
   padding: 16px;
@@ -1143,7 +1143,7 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   padding: clamp(20px, 2.2vw, 28px);
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
@@ -1165,8 +1165,8 @@
 }
 
 .roomCard:hover {
-  border-color: #a0d1c5;
-  box-shadow: 0 16px 34px rgba(160, 209, 197, 0.24);
+  border-color: #34524D;
+  box-shadow: 0 16px 34px rgba(52, 82, 77, 0.24);
   transform: translateY(-3px);
 }
 
@@ -1465,7 +1465,7 @@
   padding: 14px;
   min-width: 0;
   text-align: center;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.12);
@@ -1503,7 +1503,7 @@
   gap: 6px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background: #ffffff;
   color: inherit;
@@ -1540,7 +1540,7 @@
   gap: 10px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   color: #1f2937;
@@ -1550,9 +1550,9 @@
 }
 
 .areaCard:hover {
-  border-color: #a0d1c5;
+  border-color: #34524D;
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(160, 209, 197, 0.16);
+  box-shadow: 0 8px 18px rgba(52, 82, 77, 0.16);
 }
 
 .areaCardTopline {
@@ -1706,7 +1706,7 @@
   justify-content: center;
   padding: 10px 8px;
   text-align: center;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   box-shadow: none;
@@ -1748,7 +1748,7 @@
   gap: 6px;
   min-width: 0;
   padding: 12px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   color: inherit;

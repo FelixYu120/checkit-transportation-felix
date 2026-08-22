@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
@@ -29,7 +29,7 @@
 
 .profileButton,
 .addLensButton {
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   background: #ffffff;
   color: #263241;
   cursor: pointer;
@@ -45,9 +45,9 @@
 }
 
 .activeProfile {
-  border-color: #2f7d72;
-  background: #e8f6f2;
-  color: #25675e;
+  border-color: #34524D;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .addLensButton {
@@ -57,20 +57,20 @@
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  color: #2f716f;
+  color: #34524D;
 }
 
 .profileButton:hover,
 .addLensButton:hover {
-  border-color: #91c7bb;
-  background: #f4fbf8;
+  border-color: #6f8983;
+  background: #fbfcfb;
 }
 
 .savedLensPill {
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 999px;
   background: #ffffff;
   color: #263241;
@@ -101,21 +101,21 @@
 }
 
 .savedLensPill:hover {
-  border-color: #91c7bb;
-  background: #f4fbf8;
+  border-color: #6f8983;
+  background: #fbfcfb;
 }
 
 .activeSavedLens {
-  border-color: #2f7d72;
-  background: #e8f6f2;
-  color: #25675e;
+  border-color: #34524D;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .lensContextMenu {
   position: fixed;
   z-index: 90;
   min-width: 118px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
@@ -138,8 +138,8 @@
 }
 
 .lensContextMenu button:hover {
-  background: #eef8f5;
-  color: #25675e;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .lensModalBackdrop {
@@ -155,7 +155,7 @@
 
 .lensModal {
   width: min(420px, 100%);
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
@@ -183,7 +183,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 999px;
   background: #ffffff;
   color: #52606d;
@@ -207,7 +207,7 @@
 
 .lensModalField input {
   min-height: 38px;
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   color: #172033;
@@ -219,8 +219,8 @@
 }
 
 .lensModalField input:focus {
-  border-color: #91c7bb;
-  box-shadow: 0 0 0 3px rgba(47, 113, 111, 0.12);
+  border-color: #6f8983;
+  box-shadow: 0 0 0 3px rgba(52, 82, 77, 0.12);
 }
 
 .lensModalTimeGrid {
@@ -241,7 +241,7 @@
   min-height: 40px;
   border: 0;
   border-radius: 12px;
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
   cursor: pointer;
   font-size: 13px;
@@ -274,14 +274,14 @@
 }
 
 .lensCancelButton {
-  border: 1px solid #d8e2e8;
+  border: 1px solid #cbd8d4;
   background: #ffffff;
   color: #263241;
 }
 
 .lensCancelButton:hover {
-  border-color: #91c7bb;
-  background: #f4fbf8;
+  border-color: #6f8983;
+  background: #fbfcfb;
 }
 
 .lensDeleteButton {

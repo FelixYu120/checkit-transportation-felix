@@ -4,8 +4,8 @@
     position: relative;
     overflow: hidden; /* Prevents the page from scrolling */
     background:
-        radial-gradient(circle at top left, rgba(160, 209, 197, 0.12), transparent 34%),
-        linear-gradient(180deg, #e4eaed 0%, #d6e0e6 100%);
+        radial-gradient(circle at top left, rgba(52, 82, 77, 0.12), transparent 34%),
+        linear-gradient(180deg, #eef3f1 0%, #dfe8e5 100%);
 }
 
 .mapDiv {

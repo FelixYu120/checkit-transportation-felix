@@ -6,7 +6,7 @@
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  background: #e7eef1; /* Soft gray workspace canvas */
+  background: #f4f6f5; /* Soft gray workspace canvas */
   color: #0f172a;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -56,16 +56,16 @@
   min-height: 380px;
   padding: 36px 32px;
   border-radius: 16px;
-  background: #9fd2cd;
+  background: #34524D;
   color: #ffffff;
   box-sizing: border-box;
-  box-shadow: 0 10px 25px -5px rgba(159, 210, 205, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 25px -5px rgba(52, 82, 77, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .insightCard:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(159, 210, 205, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 20px 25px -5px rgba(52, 82, 77, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
 }
 
 .cardCopy h2 {
@@ -199,7 +199,7 @@
   padding: 12px 28px;
   border: 0;
   border-radius: 999px;
-  background: #1e4a49; /* Deep complementary contract green */
+  background: #34524D; /* Deep complementary contract green */
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
@@ -238,7 +238,7 @@
   gap: 4px;
   margin-bottom: 16px;
   padding: 4px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -266,7 +266,7 @@
 }
 
 .reportTabActive {
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
 }
 
@@ -282,8 +282,8 @@
   height: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  background: #eef8f6;
-  color: #2f716f;
+  background: #eef3f1;
+  color: #34524D;
   font-size: 12px;
   font-weight: 900;
 }
@@ -387,8 +387,8 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: #eef8f6;
-  color: #2f716f;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .savedReportTitleBlock {
@@ -500,8 +500,8 @@
 .builderAccessSpinner {
   width: 34px;
   height: 34px;
-  border: 3px solid #dbe4ea;
-  border-top-color: #2f716f;
+  border: 3px solid #cbd8d4;
+  border-top-color: #34524D;
   border-radius: 50%;
   animation: builderAccessSpin 0.8s linear infinite;
 }
@@ -531,8 +531,8 @@
   padding: 5px 10px;
   border: 1px solid #cfe5df;
   border-radius: 999px;
-  background: #eef8f6;
-  color: #1f5f5d;
+  background: #eef3f1;
+  color: #34524D;
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -579,7 +579,7 @@
 
 .primaryBtn {
   padding: 8px 16px;
-  background-color: #2f716f;
+  background-color: #34524D;
   border: none;
   border-radius: 6px;
   color: #ffffff;
@@ -656,7 +656,7 @@
 
 .targetGroupTitle {
   margin: 0 0 12px;
-  color: #2f716f;
+  color: #34524D;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -763,7 +763,7 @@
 .checkboxRow input {
   width: 16px;
   height: 16px;
-  accent-color: #2f716f;
+  accent-color: #34524D;
 }
 
 .controlCard {
@@ -964,7 +964,7 @@
   width: 820px;
   min-height: 520px;
   margin: 48px auto;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   color: #64748b;
@@ -1038,7 +1038,7 @@
 
 .attachmentCard svg,
 .linkCard svg {
-  color: #2f716f;
+  color: #34524D;
 }
 
 .attachmentCard span,
@@ -1124,19 +1124,19 @@
   padding: 0;
   color: #0f172a;
   background:
-    linear-gradient(90deg, var(--cover-accent, #2f716f) 0, var(--cover-accent, #2f716f) 14px, transparent 14px),
-    linear-gradient(180deg, #ffffff 0%, var(--cover-bg, #f7fbfa) 100%);
+    linear-gradient(90deg, var(--cover-accent, #34524D) 0, var(--cover-accent, #34524D) 14px, transparent 14px),
+    linear-gradient(180deg, #ffffff 0%, var(--cover-bg, #fbfcfb) 100%);
   border-bottom: 1px solid var(--border-color);
 }
 
 .coverPageMinimal {
-  background: var(--cover-bg, #f7fbfa);
+  background: var(--cover-bg, #fbfcfb);
 }
 
 .coverPageBanded {
   background:
-    linear-gradient(180deg, var(--cover-accent, #2f716f) 0 255px, transparent 255px),
-    linear-gradient(180deg, #ffffff 0%, var(--cover-bg, #f7fbfa) 100%);
+    linear-gradient(180deg, var(--cover-accent, #34524D) 0 255px, transparent 255px),
+    linear-gradient(180deg, #ffffff 0%, var(--cover-bg, #fbfcfb) 100%);
 }
 
 .coverPageBanded h1,
@@ -1150,7 +1150,7 @@
 
 .coverPageBanded .coverMeta {
   padding: 22px 24px;
-  border: 1px solid rgba(47, 113, 111, 0.18);
+  border: 1px solid rgba(52, 82, 77, 0.18);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.78);
 }
@@ -1210,7 +1210,7 @@
 
 .coverEyebrow {
   margin: 0 0 28px;
-  color: var(--cover-accent, #2f716f);
+  color: var(--cover-accent, #34524D);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -1240,7 +1240,7 @@
 
 .coverPage [contenteditable="true"]:focus {
   border-radius: 4px;
-  box-shadow: 0 0 0 2px rgba(47, 113, 111, 0.18);
+  box-shadow: 0 0 0 2px rgba(52, 82, 77, 0.18);
 }
 
 .coverMeta {
@@ -1248,7 +1248,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   padding-top: 24px;
-  border-top: 1px solid #dbe4ea;
+  border-top: 1px solid #cbd8d4;
   color: #475569;
   font-size: 13px;
   font-weight: 600;
@@ -1342,7 +1342,7 @@
   height: 44px;
   border: 0;
   background: #ffffff;
-  color: #2f716f;
+  color: #34524D;
   font-size: 30px;
   line-height: 1;
   font-weight: 500;
@@ -1355,12 +1355,12 @@
 }
 
 .pageControlButton:hover {
-  background: #eef8f6;
-  color: #1e4a49;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .pageControlButton:focus-visible {
-  outline: 3px solid rgba(47, 113, 111, 0.28);
+  outline: 3px solid rgba(52, 82, 77, 0.28);
   outline-offset: -3px;
 }
 
@@ -1410,7 +1410,7 @@
   justify-items: center;
   width: min(360px, 100%);
   padding: 28px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   color: #0f172a;
@@ -1434,7 +1434,7 @@
 .confirmDialog {
   width: min(420px, 100%);
   padding: 24px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
@@ -1460,7 +1460,7 @@
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding: 24px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
@@ -1531,8 +1531,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #eef8f6;
-  color: #2f716f;
+  background: #eef3f1;
+  color: #34524D;
 }
 
 .sharedUserEmail {
@@ -1556,8 +1556,8 @@
 }
 
 .sharedUserPendingRow {
-  border-color: #bfe2dc;
-  background: #f5fbfa;
+  border-color: #b7c8c3;
+  background: #fbfcfb;
 }
 
 .sharedUserPendingBadge {
@@ -1565,10 +1565,10 @@
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  border: 1px solid #bfe2dc;
+  border: 1px solid #b7c8c3;
   border-radius: 999px;
-  background: #eef8f6;
-  color: #2f716f;
+  background: #eef3f1;
+  color: #34524D;
   font-size: 12px;
   font-weight: 850;
   padding: 0 10px;
@@ -1578,7 +1578,7 @@
   width: 116px;
   min-height: 30px;
   padding: 5px 26px 5px 10px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 999px;
   background: #ffffff;
   color: #334155;
@@ -1657,15 +1657,15 @@
   padding: 6px 10px;
   border: 2px solid #9cc9c4;
   border-radius: 10px;
-  background: #f5fbfa;
+  background: #fbfcfb;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .shareRecipientInputWrap:focus-within {
   outline: none;
-  border-color: #2f716f;
+  border-color: #34524D;
   background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(47, 113, 111, 0.14);
+  box-shadow: 0 0 0 4px rgba(52, 82, 77, 0.14);
 }
 
 .shareRecipientChip {
@@ -1674,10 +1674,10 @@
   gap: 6px;
   max-width: 100%;
   min-height: 30px;
-  border: 1px solid #bfe2dc;
+  border: 1px solid #b7c8c3;
   border-radius: 999px;
-  background: #eef8f6;
-  color: #2f716f;
+  background: #eef3f1;
+  color: #34524D;
   font-size: 12px;
   font-weight: 850;
   padding: 0 7px 0 10px;
@@ -1697,8 +1697,8 @@
   height: 20px;
   border: 0;
   border-radius: 50%;
-  background: rgba(47, 113, 111, 0.12);
-  color: #2f716f;
+  background: rgba(52, 82, 77, 0.12);
+  color: #34524D;
   cursor: pointer;
   padding: 0;
 }
@@ -1737,7 +1737,7 @@
   height: 48px;
   border: 0;
   border-radius: 10px;
-  background: #2f716f;
+  background: #34524D;
   color: #ffffff;
   cursor: pointer;
 }
@@ -1748,7 +1748,7 @@
 }
 
 .shareAddBtn:hover:not(:disabled) {
-  background: #275f5e;
+  background: #28423E;
 }
 
 .shareSuggestions {
@@ -1756,7 +1756,7 @@
   gap: 4px;
   max-height: 220px;
   overflow-y: auto;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   padding: 6px;
   background: #ffffff;
@@ -1781,7 +1781,7 @@
 .shareSuggestionOption:hover,
 .shareSuggestionOption:focus {
   outline: none;
-  background: #eef8f6;
+  background: #eef3f1;
 }
 
 .shareSuggestionOption span:last-child {
@@ -1825,10 +1825,10 @@
 .shareNotice {
   margin: 12px 0 0;
   padding: 10px 12px;
-  border: 1px solid #b8ddd6;
+  border: 1px solid #b7c8c3;
   border-radius: 8px;
-  background: #eef8f6;
-  color: #1f5f5d;
+  background: #eef3f1;
+  color: #34524D;
   font-size: 13px;
   font-weight: 800;
 }
@@ -1850,7 +1850,7 @@
   display: flex;
   flex-direction: column;
   padding: 22px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
@@ -1859,7 +1859,7 @@
 .templateChoiceDialog {
   width: min(980px, 100%);
   padding: 24px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
@@ -1898,7 +1898,7 @@
   gap: 12px;
   min-height: 320px;
   padding: 18px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 10px;
   background: #f8fafc;
   color: #0f172a;
@@ -1907,8 +1907,8 @@
 }
 
 .templateChoiceCard:hover {
-  border-color: #2f716f;
-  box-shadow: 0 12px 28px rgba(47, 113, 111, 0.16);
+  border-color: #34524D;
+  box-shadow: 0 12px 28px rgba(52, 82, 77, 0.16);
   transform: translateY(-2px);
 }
 
@@ -1934,7 +1934,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: inset 8px 0 0 #9fd2cd;
+  box-shadow: inset 8px 0 0 #34524D;
 }
 
 .templatePreviewHeader,
@@ -1958,7 +1958,7 @@
 .templatePreviewChart {
   width: 100%;
   background: linear-gradient(180deg, #d9eeeb 0%, #ffffff 100%);
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
 }
 
 .templatePreviewNote {
@@ -1968,7 +1968,7 @@
 .templatePreviewOperations {
   grid-template-columns: 1fr 0.62fr;
   grid-template-rows: 34px 1fr 1fr;
-  box-shadow: inset 8px 0 0 #2f716f;
+  box-shadow: inset 8px 0 0 #34524D;
 }
 
 .templatePreviewOperations .templatePreviewHeader {
@@ -2059,7 +2059,7 @@
   display: block;
   min-height: 82px;
   background: linear-gradient(180deg, #d9eeeb 0%, #ffffff 100%);
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
 }
 
 .templatePreviewBlank {
@@ -2111,7 +2111,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px solid #dbe4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 8px;
   background: #ffffff;
   color: #475569;
@@ -2135,9 +2135,9 @@
 }
 
 .exportPreviewThumbnailActive {
-  border-color: #2f716f;
-  color: #1e4a49;
-  box-shadow: 0 0 0 2px rgba(47, 113, 111, 0.14);
+  border-color: #34524D;
+  color: #34524D;
+  box-shadow: 0 0 0 2px rgba(52, 82, 77, 0.14);
 }
 
 .exportPreviewFrame {

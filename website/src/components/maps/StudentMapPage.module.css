@@ -12,8 +12,8 @@
     min-width: 400px;
     height: 100%;
     background:
-        radial-gradient(circle at top left, rgba(160, 209, 197, 0.1), transparent 32%),
-        linear-gradient(180deg, #e7eef1 0%, #dde6eb 100%);
+        radial-gradient(circle at top left, rgba(52, 82, 77, 0.1), transparent 32%),
+        linear-gradient(180deg, #f4f6f5 0%, #e8eeeb 100%);
     border-right: 1px solid #cbd8e0;
     transition: margin-left 0.3s ease-in-out;
     position: relative;
@@ -49,8 +49,8 @@
     height: 100%;
     position: relative;
     background:
-        radial-gradient(circle at top left, rgba(160, 209, 197, 0.12), transparent 34%),
-        linear-gradient(180deg, #e4eaed 0%, #d6e0e6 100%);
+        radial-gradient(circle at top left, rgba(52, 82, 77, 0.12), transparent 34%),
+        linear-gradient(180deg, #eef3f1 0%, #dfe8e5 100%);
 }
 
 .toggleButton {
@@ -60,8 +60,8 @@
     transform: translateY(-50%);
     width: 25px;
     height: 50px;
-    background: #9fd2cd;
-    border: 1px solid #8cbdb8;
+    background: #34524D;
+    border: 1px solid #28423E;
     border-left: none;
     border-radius: 0 8px 8px 0;
     cursor: pointer;
@@ -70,13 +70,12 @@
     color: white;
 }
 .availabilityHeader {
-    /* Using your brand light teal */
-    background: rgba(232, 246, 242, 0.82); 
-    padding: 15px;
-    border-radius: 12px;
+    background: #e3ebe8; 
+    padding: 14px;
+    border-radius: 18px;
     margin-bottom: 15px;
-    border: 1px solid #9fd2cd; /* Slightly darker border for depth */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border: 1px solid rgba(52, 82, 77, 0.12);
+    box-shadow: 0 4px 10px rgba(52, 82, 77, 0.08);
 }
 
 .availabilityHeader p { 
@@ -90,7 +89,7 @@
 
 .availabilityHeader strong { 
     font-size: 15px; 
-    color: #59716a; 
+    color: #34524D; 
     display: block;
     margin-top: 4px;
 }

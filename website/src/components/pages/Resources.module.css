@@ -54,7 +54,7 @@
 
 /* The Links */
 .link {
-    color: #4c6d69; /* Teal to match your theme */
+    color: #34524D; /* Teal to match your theme */
     font-weight: 600;
     text-decoration: none;
     border-bottom: 1px solid transparent;
@@ -62,8 +62,8 @@
 }
 
 .link:hover {
-    border-bottom-color: #4c6d69;
-    color: #2a4441;
+    border-bottom-color: #34524D;
+    color: #34524D;
 }
 
 /* Optional: List style if you add more resources later */

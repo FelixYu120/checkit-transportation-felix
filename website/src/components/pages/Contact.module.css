@@ -48,7 +48,7 @@
 }
 
 .inputField:focus, .textArea:focus {
-    border-color: #4c6d69;
+    border-color: #34524D;
 }
 
 .textArea {
@@ -58,7 +58,7 @@
 
 /* SUBMIT BUTTON */
 .submitButton {
-    background-color: #a8d5c8; /* Teal color from screenshot */
+    background-color: #34524D; /* Teal color from screenshot */
     color: #000;
     font-weight: 700;
     border: none;

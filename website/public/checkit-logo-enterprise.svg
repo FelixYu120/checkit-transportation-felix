@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 92" role="img" aria-labelledby="title">
+  <title id="title">CheckIt</title>
+  <g fill="none" stroke="#FAFBFA" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M28 35 L58 18 L88 35 L58 52 Z" stroke-width="12"/>
+    <path d="M28 35 V67 L58 84 L89 67 V45" stroke-width="12"/>
+    <path d="M42 49 L58 58 L75 49" stroke-width="10"/>
+  </g>
+  <text
+    x="112"
+    y="64"
+    fill="#FAFBFA"
+    font-family="Open Sans, Inter, Arial, sans-serif"
+    font-size="42"
+    font-weight="800"
+    font-style="italic"
+    letter-spacing="-1.4"
+  >CheckIt</text>
+</svg>

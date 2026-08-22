@@ -9,7 +9,7 @@
     justify-content: space-between;
     align-items: center;
 
-    background: rgba(159, 210, 205, 0.96);
+    background: rgba(52, 82, 77, 0.96);
     box-sizing: border-box;
     padding: 0 24px;
     height: 72px;
@@ -54,8 +54,8 @@
 
 .activeTab {
     background: rgba(255, 255, 255, 0.94);
-    color: #4e6c66;
-    box-shadow: 0 6px 16px rgba(78, 108, 102, 0.16);
+    color: #34524D;
+    box-shadow: 0 6px 16px rgba(52, 82, 77, 0.16);
 }
 
 .rightSection {

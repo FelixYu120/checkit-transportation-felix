@@ -679,7 +679,7 @@ const AggregateChart = ({
             : ['people_bar', 'combo'].includes(plotType);
 
         return (
-            <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #dce5ea', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
+            <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #cbd8d4', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '2px', color: '#111827', lineHeight: 1.25, fontSize: '0.78rem', fontWeight: 800 }}>
                     <div>{tooltipTitle.date}</div>
                     {tooltipTitle.time ? <div style={{ color: '#475569', fontSize: '0.74rem', fontWeight: 750 }}>{tooltipTitle.time}</div> : null}
@@ -694,7 +694,7 @@ const AggregateChart = ({
                 )}
                 {point.hasData !== false && (plotType === 'direction_bar' || (plotType === 'custom' && (effectiveCustomMetrics.approach || effectiveCustomMetrics.away))) && (
                     <>
-                        {(plotType === 'direction_bar' || effectiveCustomMetrics.approach) && <div style={{ color: '#2f716f', fontSize: '12px', marginTop: '4px' }}>Approach: {point.approach_volume ?? 0}</div>}
+                        {(plotType === 'direction_bar' || effectiveCustomMetrics.approach) && <div style={{ color: '#34524D', fontSize: '12px', marginTop: '4px' }}>Approach: {point.approach_volume ?? 0}</div>}
                         {(plotType === 'direction_bar' || effectiveCustomMetrics.away) && <div style={{ color: '#9fbfb8', fontSize: '12px', marginTop: '4px' }}>Away: {point.away_volume ?? 0}</div>}
                     </>
                 )}
@@ -792,7 +792,7 @@ const AggregateChart = ({
         }
         if (effectiveLegendItems.people && plotType === 'custom') {
             if (effectiveCustomMetrics.volume) entries.push({ key: 'volume', label: 'Traffic volume (right axis)', color: peopleColor, type: 'bar' });
-            if (effectiveCustomMetrics.approach) entries.push({ key: 'approach', label: 'Approach traffic', color: '#2f716f', type: 'bar' });
+            if (effectiveCustomMetrics.approach) entries.push({ key: 'approach', label: 'Approach traffic', color: '#34524D', type: 'bar' });
             if (effectiveCustomMetrics.away) entries.push({ key: 'away', label: 'Away traffic', color: '#9fbfb8', type: 'bar' });
         }
         if (effectiveLegendItems.threshold && thresholdEnabled && Number.isFinite(Number(thresholdValue))) {
@@ -844,7 +844,7 @@ const AggregateChart = ({
                     {(hasSpeedMetric || hasVolumeMetric) && renderThresholdLine({ yAxisId: thresholdAxisId })}
                     <Tooltip content={renderTooltip} />
                     {effectiveCustomMetrics.volume && <Bar yAxisId="people" dataKey="total_people" name="Traffic volume" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.58} />}
-                    {effectiveCustomMetrics.approach && <Bar yAxisId="people" dataKey="approach_volume" name="Approach" fill="#2f716f" radius={[5, 5, 0, 0]} opacity={0.72} />}
+                    {effectiveCustomMetrics.approach && <Bar yAxisId="people" dataKey="approach_volume" name="Approach" fill="#34524D" radius={[5, 5, 0, 0]} opacity={0.72} />}
                     {effectiveCustomMetrics.away && <Bar yAxisId="people" dataKey="away_volume" name="Away" fill="#9fbfb8" radius={[5, 5, 0, 0]} opacity={0.72} />}
                     {effectiveCustomMetrics.avgSpeed && <Line yAxisId="occupancy" type="monotone" dataKey="occupancy" name="Avg speed" stroke={occupancyColor} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
                     {effectiveCustomMetrics.v85Speed && <Line yAxisId="occupancy" type="monotone" dataKey="v85_speed" name="85th speed" stroke="#64748b" strokeWidth={2.2} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}

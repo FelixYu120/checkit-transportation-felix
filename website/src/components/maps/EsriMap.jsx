@@ -53,9 +53,9 @@ const CampusMap = ({ embedded = false }) => {
         type: "simple",
         symbol: {
           type: "simple-fill",
-          color: [47, 113, 111, 0.05],
+          color: [52, 82, 77, 0.05],
           outline: {
-            color: [47, 113, 111, 0.2],
+            color: [52, 82, 77, 0.2],
             width: 1
           }
         }

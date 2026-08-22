@@ -7,8 +7,8 @@
   overflow-y: auto;
   padding: clamp(28px, 4vw, 56px);
   background:
-    radial-gradient(circle at top left, rgba(159, 210, 205, 0.14), transparent 30%),
-    linear-gradient(180deg, #e7eef1 0%, #dde6eb 100%);
+    radial-gradient(circle at top left, rgba(52, 82, 77, 0.14), transparent 30%),
+    linear-gradient(180deg, #f4f6f5 0%, #e8eeeb 100%);
   color: #172033;
 }
 
@@ -23,7 +23,7 @@
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #4e6c66;
+  color: #34524D;
   font-size: 0.78rem;
   font-weight: 900;
   letter-spacing: 0.14em;
@@ -49,10 +49,10 @@
   gap: 8px;
   flex-shrink: 0;
   padding: 10px 14px;
-  border: 1px solid rgba(159, 210, 205, 0.7);
+  border: 1px solid rgba(52, 82, 77, 0.7);
   border-radius: 999px;
   background: rgba(248, 252, 251, 0.82);
-  color: #2f7d78;
+  color: #34524D;
   font-weight: 900;
   box-shadow: 0 10px 28px rgba(100, 116, 139, 0.1);
 }
@@ -69,7 +69,7 @@
   width: min(100%, 460px);
   min-height: 48px;
   padding: 0 16px;
-  border: 1px solid #d9e4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 14px;
   background: rgba(248, 252, 251, 0.86);
   color: #64748b;
@@ -77,8 +77,8 @@
 }
 
 .searchField:focus-within {
-  border-color: #9fd2cd;
-  box-shadow: 0 0 0 4px rgba(159, 210, 205, 0.24);
+  border-color: #34524D;
+  box-shadow: 0 0 0 4px rgba(52, 82, 77, 0.24);
 }
 
 .searchField input {
@@ -136,8 +136,8 @@
   height: 28px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(159, 210, 205, 0.24);
-  color: #2f7d78;
+  background: rgba(52, 82, 77, 0.24);
+  color: #34524D;
   font-size: 0.86rem;
   font-weight: 900;
 }
@@ -150,7 +150,7 @@
   gap: 14px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 14px;
   background: rgba(248, 252, 251, 0.84);
   box-shadow: 0 12px 26px rgba(100, 116, 139, 0.09);
@@ -161,7 +161,7 @@
 }
 
 .memberCard:hover {
-  border-color: rgba(159, 210, 205, 0.8);
+  border-color: rgba(52, 82, 77, 0.8);
   transform: translateY(-1px);
 }
 
@@ -173,7 +173,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  color: #2f7d78;
+  color: #34524D;
   opacity: 0;
   transition: opacity 160ms ease;
 }
@@ -190,8 +190,8 @@
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  background: rgba(159, 210, 205, 0.24);
-  color: #2f7d78;
+  background: rgba(52, 82, 77, 0.24);
+  color: #34524D;
   font-size: 1.1rem;
   font-weight: 900;
 }
@@ -250,21 +250,21 @@
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  border: 1px solid rgba(159, 210, 205, 0.65);
+  border: 1px solid rgba(52, 82, 77, 0.65);
   border-radius: 8px;
-  background: rgba(159, 210, 205, 0.14);
-  color: #2f7d78;
+  background: rgba(52, 82, 77, 0.14);
+  color: #34524D;
   cursor: pointer;
 }
 
 .copyEmailButton:hover {
-  background: rgba(159, 210, 205, 0.26);
+  background: rgba(52, 82, 77, 0.26);
 }
 
 .memberText span {
   display: inline-block;
   margin-top: 8px;
-  color: #2f7d78;
+  color: #34524D;
   font-size: 0.78rem;
   font-weight: 900;
 }
@@ -273,7 +273,7 @@
   max-width: 1120px;
   margin: 0 auto;
   padding: 28px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 16px;
   background: rgba(248, 252, 251, 0.84);
   color: #64748b;
@@ -310,9 +310,9 @@
   max-height: min(720px, calc(100vh - 48px));
   overflow-y: auto;
   padding: 24px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 18px;
-  background: #f8fcfb;
+  background: #fbfcfb;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
 }
 
@@ -343,7 +343,7 @@
   flex: 0 0 auto;
   width: 38px;
   height: 38px;
-  border: 1px solid #dce5ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   color: #64748b;
@@ -351,8 +351,8 @@
 }
 
 .iconButton:hover {
-  border-color: rgba(159, 210, 205, 0.9);
-  color: #2f7d78;
+  border-color: rgba(52, 82, 77, 0.9);
+  color: #34524D;
 }
 
 .fieldLabel {
@@ -368,7 +368,7 @@
   width: 100%;
   min-height: 48px;
   box-sizing: border-box;
-  border: 1px solid #d9e4ea;
+  border: 1px solid #cbd8d4;
   border-radius: 12px;
   background: #ffffff;
   color: #172033;
@@ -386,8 +386,8 @@
 .select:focus,
 .input:focus {
   outline: none;
-  border-color: #9fd2cd;
-  box-shadow: 0 0 0 4px rgba(159, 210, 205, 0.22);
+  border-color: #34524D;
+  box-shadow: 0 0 0 4px rgba(52, 82, 77, 0.22);
 }
 
 .primaryButton,
@@ -407,7 +407,7 @@
 }
 
 .primaryButton {
-  background: #2f7d78;
+  background: #34524D;
   color: #ffffff;
 }
 
@@ -454,7 +454,7 @@
 }
 
 .readOnlyNotice {
-  border: 1px solid #d9e4ea;
+  border: 1px solid #cbd8d4;
   background: #f8fafc;
   color: #64748b;
 }
@@ -470,7 +470,7 @@
 .skeletonLineLarge,
 .skeletonLineSmall {
   border-radius: 999px;
-  background: linear-gradient(90deg, #edf3f6, #f8fafc, #edf3f6);
+  background: linear-gradient(90deg, #e8eeeb, #f8fafc, #e8eeeb);
   background-size: 200% 100%;
   animation: shimmer 1.2s infinite linear;
 }

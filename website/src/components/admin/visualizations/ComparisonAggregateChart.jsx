@@ -18,7 +18,7 @@ import {
     ReferenceLine,
 } from 'recharts';
 
-const PRIMARY_COLOR = '#2f716f';
+const PRIMARY_COLOR = '#34524D';
 const SECONDARY_COLOR = '#8b5cf6';
 const PEOPLE_PRIMARY_COLOR = '#64748b';
 const PEOPLE_SECONDARY_COLOR = '#b8a2f3';
@@ -666,7 +666,7 @@ const ComparisonAggregateChart = ({
         const showsVolume = plotType === 'custom' ? effectiveCustomMetrics.volume : plotType === 'people_bar' || plotType === 'combo';
 
         return (
-            <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #dce5ea', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
+            <div style={{ display: 'flex', minWidth: '220px', flexDirection: 'column', gap: '8px', padding: '10px 12px', border: '1px solid #cbd8d4', borderRadius: '10px', background: '#ffffff', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)', color: '#334155', fontSize: '0.78rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '2px', color: '#111827', lineHeight: 1.25, fontSize: '0.78rem', fontWeight: 800 }}>
                     <div>{tooltipTitle.date}</div>
                     {tooltipTitle.time ? <div style={{ color: '#475569', fontSize: '0.74rem', fontWeight: 750 }}>{tooltipTitle.time}</div> : null}

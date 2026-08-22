@@ -131,7 +131,7 @@ function CreateAccount({ setIsLoggedIn }) {
             <div className={styles.card}>
                 <div className={styles.brandBlock}>
                     <a href="https://checkit.dev" aria-label="Go to CheckIt landing page" className={styles.logoLink}>
-                        <img src="/checkit-logo.png" alt="CheckIt logo" className={styles.icon} />
+                        <img src="/checkit-logo-enterprise.svg" alt="CheckIt logo" className={styles.icon} />
                     </a>
                 </div>
 

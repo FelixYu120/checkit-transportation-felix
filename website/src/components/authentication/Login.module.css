@@ -17,7 +17,7 @@
 
 /* --- 2. THE TEAL CARD --- */
 .card {
-    background-color: #a0d1c5;
+    background-color: #34524D;
     width: 100%;
     max-width: 520px;
     padding: 30px 40px 30px;
@@ -226,7 +226,7 @@
 }
 
 .passwordToggle:hover {
-    color: #2f716f;
+    color: #34524D;
 }
 
 .passwordToggle:focus-visible {

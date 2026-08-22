@@ -11,7 +11,7 @@
   padding: 0 13px;
   font-size: 13px;
   font-weight: 800;
-  color: #2f716f;
+  color: #34524D;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(148, 163, 184, 0.14);
   transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
@@ -30,10 +30,10 @@
 }
 
 .exportButton:hover {
-  border-color: #8fbcb7;
-  background-color: #f4fbfa;
+  border-color: #6f8983;
+  background-color: #fbfcfb;
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(47, 113, 111, 0.14);
+  box-shadow: 0 12px 24px rgba(52, 82, 77, 0.14);
 }
 
 .exportButton:focus-visible {
@@ -43,7 +43,7 @@
 
 .exportButton:disabled {
   background: #f8fafc;
-  border-color: #dbe4ea;
+  border-color: #cbd8d4;
   color: #94a3b8;
   cursor: not-allowed;
   box-shadow: none;

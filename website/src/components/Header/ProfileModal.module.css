@@ -85,7 +85,7 @@
 
 .successMessage {
   color: #ffffff;
-  background-color: #2f716f;
+  background-color: #34524D;
   padding: 10px 12px;
   border-radius: 8px;
   font-weight: 700;
@@ -141,11 +141,11 @@
 }
 
 .passwordToggle:hover {
-  color: #2f716f;
+  color: #34524D;
 }
 
 .passwordToggle:focus-visible {
-  outline: 3px solid rgba(47, 113, 111, 0.25);
+  outline: 3px solid rgba(52, 82, 77, 0.25);
   outline-offset: 3px;
 }
 
@@ -164,7 +164,7 @@
   gap: 8px;
   width: 100%;
   padding: 12px;
-  background-color: #2f716f;
+  background-color: #34524D;
   color: white;
   border: none;
   border-radius: 8px;
@@ -174,7 +174,7 @@
   margin-top: 8px;
 }
 
-.saveBtn:hover { background-color: #275f5e; }
+.saveBtn:hover { background-color: #28423E; }
 .saveBtn:disabled { opacity: 0.7; cursor: not-allowed; }
 .loading { padding: 40px; text-align: center; color: #64748b; }
 
@@ -192,6 +192,6 @@
 }
 
 .accessBadge svg {
-  color: #2f716f;
+  color: #34524D;
   flex-shrink: 0;
 }

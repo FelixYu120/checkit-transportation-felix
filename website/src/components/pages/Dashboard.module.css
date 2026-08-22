@@ -9,7 +9,7 @@
 .dashboardContainer {
     width: 100%;
     overflow-x: hidden; /* Hard stop for horizontal scrolling */
-    background-color: #f5f5f7;
+    background-color: #eef3f1;
     padding: 15px; 
 }
 
@@ -23,15 +23,15 @@
 }
 
 .statusLegend {
-    background-color: #a8d5c8;
+    background-color: #e3ebe8;
     padding: 8px 15px; /* Reduced padding */
     border-radius: 50px;
     display: flex;
     justify-content: space-between; /* Space items out evenly */
     align-items: center;
     gap: 10px; 
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    color: #1a3c34;
+    box-shadow: 0 4px 10px rgba(52, 82, 77, 0.08);
+    color: #34524d;
     font-weight: 600;
     font-size: 0.75rem; /* Shrunk font */
     white-space: nowrap;
@@ -39,11 +39,11 @@
 
 /* Legend */
 .legendItem { display: flex; align-items: center; gap: 5px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.12);}
-.greenDot { background-color: #90ee90; }
-.redDot { background-color: #ff6b6b; }
-.yellowDot { background-color: #ffd700; }
-.orangeDot { background-color: #ffa500; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(52, 82, 77, 0.14);}
+.greenDot { background-color: #74e26d; }
+.redDot { background-color: #ff5a5f; }
+.yellowDot { background-color: #ffd43b; }
+.orangeDot { background-color: #ff9f1c; }
 
 /* =========================================
    2. SEARCH BAR (Fits Sidebar)
@@ -57,31 +57,32 @@
     width: 100%; 
     padding: 10px 18px; /* Reduced padding */
     min-width: 0; /* REMOVED 40vh - this was causing the scroll */
-    font-size: 0.9rem; 
-    border: 1px solid #ddd; 
+    font-size: 16px; 
+    color: #667572;
+    border: 1px solid rgba(52, 82, 77, 0.16); 
     border-radius: 50px;
     outline: none; 
     transition: all 0.2s ease;
-    background: white;
+    background: #fafbfa;
 }
 
 /* =========================================
    3. COLLEGE CARD (Shrunk)
    ========================================= */
 .collegeCard {
-    background: white;
+    background: #fafbfa;
     border-radius: 18px; /* Slightly smaller radius */
     padding: 15px; /* Reduced from 30px */
     width: 100%; /* Changed from 95% to fill container */
     max-width: 100%; 
     margin: 0 0 20px 0; /* Removed auto margins */
-    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+    box-shadow: 0 6px 20px rgba(52, 82, 77, 0.06);
 }
 
 .collegeTitle {
     font-size: 1.2rem; /* Reduced from 1.8rem */
     font-weight: 800;
-    color: #111;
+    color: #15201f;
     margin-top: 0;
     margin-bottom: 15px;
 }
@@ -90,8 +91,8 @@
    4. BUILDING BUTTONS (Reduced)
    ========================================= */
 .buildingCard {
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: #fafbfa;
+    border: 1px solid rgba(52, 82, 77, 0.14);
     border-radius: 12px;
     padding: 15px;
     margin-bottom: 12px;
@@ -112,10 +113,10 @@
     gap: 4px; 
 }
 
-.buildingName { font-size: 1rem; font-weight: 700; color: #000; }
-.buildingSub { font-size: 0.85rem; color: #666; font-weight: 500; }
+.buildingName { font-size: 1rem; font-weight: 700; color: #15201f; }
+.buildingSub { font-size: 0.85rem; color: #667572; font-weight: 500; }
 
-.arrow { font-size: 14px; color: #555; transition: transform 0.3s; }
+.arrow { font-size: 14px; color: #667572; transition: transform 0.3s; }
 .down { transform: rotate(180deg); }
 
 /* =========================================
@@ -126,13 +127,13 @@
     display: flex; 
     flex-direction: column; 
     gap: 10px;
-    border-top: 1px solid #f0f0f0; 
+    border-top: 1px solid rgba(52, 82, 77, 0.1); 
     padding-top: 15px;
 }
 
 .floorCard {
-    background: #fdfdfd;
-    border: 1px solid #ccc;
+    background: #eef3f1;
+    border: 1px solid rgba(52, 82, 77, 0.14);
     border-radius: 12px;
     padding: 14px 18px;
     display: flex; 
@@ -143,7 +144,7 @@
 .floorTitle {
     font-size: 0.96rem;
     font-weight: 500;
-    color: #666;
+    color: #667572;
     letter-spacing: 0.01em;
 }
 
@@ -155,7 +156,7 @@
 
 .roomRow + .roomRow {
     padding-top: 16px;
-    border-top: 1px solid #f3f3f3;
+    border-top: 1px solid rgba(52, 82, 77, 0.1);
 }
 
 .roomInfo {
@@ -173,7 +174,7 @@
 .roomName { 
     font-size: 1rem; 
     font-weight: 600; 
-    color: #222; 
+    color: #15201f; 
     margin: 0;
     line-height: 1.35;
     min-width: 0;
@@ -183,7 +184,7 @@
     margin: 2px 0 0;
     font-size: 0.88rem;
     font-weight: 500;
-    color: #7a7a7a;
+    color: #667572;
     line-height: 1.4;
 }
 
@@ -199,7 +200,7 @@
     font-size: 0.95rem;
     font-weight: 500;
     line-height: 1;
-    color: #2f2f2f;
+    color: #34524d;
 }
 
 .statusDot { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.75); }
