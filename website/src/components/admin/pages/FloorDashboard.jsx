@@ -300,7 +300,7 @@ const FloorDashboard = () => {
             ) : (
                 <>
                     <section className={styles.corridorHeader}>
-                        <div className={styles.sensorStatusLegend} aria-label="Sensor status">
+                        <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
                             <strong>Sensor Status:</strong>
                             {SENSOR_STATUS_OPTIONS.map((status) => (
                                 <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>

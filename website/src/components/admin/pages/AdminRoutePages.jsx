@@ -252,9 +252,12 @@ const TRAFFIC_COMPARISON_METRICS = [
     { key: 'away', label: 'Away', format: (sensor) => sensor.away || 0 },
 ];
 
+const COMPARISON_PAGE_SIZE = 25;
+
 const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
     const [selectedMetric, setSelectedMetric] = useState('totalVolume');
     const [sortDirection, setSortDirection] = useState('desc');
+    const [page, setPage] = useState(1);
     const metric = TRAFFIC_COMPARISON_METRICS.find((item) => item.key === selectedMetric) || TRAFFIC_COMPARISON_METRICS[0];
     const comparisonRows = useMemo(() => (
         [...summaries].sort((left, right) => {
@@ -262,7 +265,13 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
             return sortDirection === 'asc' ? order : -order;
         })
     ), [selectedMetric, sortDirection, summaries]);
-    const maxValue = Math.max(1, ...comparisonRows.map((sensor) => Number(sensor[selectedMetric]) || 0));
+    const totalPages = Math.max(1, Math.ceil(comparisonRows.length / COMPARISON_PAGE_SIZE));
+    const activePage = Math.min(page, totalPages);
+    const visibleComparisonRows = useMemo(() => {
+        const start = (activePage - 1) * COMPARISON_PAGE_SIZE;
+        return comparisonRows.slice(start, start + COMPARISON_PAGE_SIZE);
+    }, [activePage, comparisonRows]);
+    const maxValue = Math.max(1, ...visibleComparisonRows.map((sensor) => Number(sensor[selectedMetric]) || 0));
 
     return (
         <section className={styles.comparisonPanel}>
@@ -275,7 +284,10 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                         <span>Sort</span>
                         <select
                             value={selectedMetric}
-                            onChange={(event) => setSelectedMetric(event.target.value)}
+                            onChange={(event) => {
+                                setPage(1);
+                                setSelectedMetric(event.target.value);
+                            }}
                             aria-label="Sort corridor comparison by"
                         >
                             {TRAFFIC_COMPARISON_METRICS.map((item) => (
@@ -292,7 +304,10 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                 key={value}
                                 type="button"
                                 className={`${styles.sortDirectionButton} ${sortDirection === value ? styles.activeSortDirection : ''}`}
-                                onClick={() => setSortDirection(value)}
+                                onClick={() => {
+                                    setPage(1);
+                                    setSortDirection(value);
+                                }}
                             >
                                 {label}
                             </button>
@@ -309,7 +324,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
             )}
 
             <div className={styles.comparisonRows}>
-                {comparisonRows.map((sensor) => {
+                {visibleComparisonRows.map((sensor) => {
                     const metricValue = Number(sensor[selectedMetric]) || 0;
                     const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
 
@@ -341,6 +356,31 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                     <p className={styles.noData}>No corridor data found for this filter range.</p>
                 )}
             </div>
+            {comparisonRows.length > 0 ? (
+                <div className={styles.comparisonPagination} aria-label="Corridor comparison pages">
+                    <span>
+                        Page {activePage} of {totalPages}
+                    </span>
+                    {totalPages > 1 ? (
+                        <div className={styles.paginationButtons}>
+                            <button
+                                type="button"
+                                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                                disabled={activePage <= 1}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                                disabled={activePage >= totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
         </section>
     );
 };

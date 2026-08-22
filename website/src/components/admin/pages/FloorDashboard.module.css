@@ -170,6 +170,25 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sensorStatusLegend_active {
+  border-color: rgba(16, 185, 129, 0.68);
+  background: rgba(16, 185, 129, 0.07);
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.12);
+}
+
+.sensorStatusLegend_down {
+  border-color: rgba(239, 68, 68, 0.72);
+  background: rgba(239, 68, 68, 0.07);
+  box-shadow: 0 3px 10px rgba(239, 68, 68, 0.12);
+}
+
+.sensorStatusLegend_offline {
+  border-color: rgba(107, 114, 128, 0.72);
+  background: rgba(107, 114, 128, 0.07);
+  box-shadow: 0 3px 10px rgba(107, 114, 128, 0.12);
 }
 
 .sensorStatusLegend strong {
@@ -1015,6 +1034,47 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #7dbbb2, #2f716f);
+}
+
+.comparisonPagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #edf2f5;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 850;
+  padding-top: 12px;
+}
+
+.paginationButtons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paginationButtons button {
+  min-height: 34px;
+  border: 1px solid #d8e2e8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 12px;
+}
+
+.paginationButtons button:hover:not(:disabled) {
+  border-color: #91c7bb;
+  background: #f4fbf8;
+  color: #2f716f;
+}
+
+.paginationButtons button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .sectionTitle {
