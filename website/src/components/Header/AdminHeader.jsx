@@ -13,7 +13,7 @@ function AdminHeader() {
             {/* Logo */}
             <NavLink to={DEFAULT_ADMIN_ROUTE} aria-label="Go to default analytics page">
                 <img 
-                    src="/checkit-logo-enterprise.svg" 
+                    src="/checkit-logo.png" 
                     alt="CheckIt" 
                     className={styles.checkitLogo} 
                 />
