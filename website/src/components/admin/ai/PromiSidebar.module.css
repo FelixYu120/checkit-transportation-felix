@@ -23,19 +23,19 @@
   transform: translateY(-50%);
   width: 48px;
   height: 100px;
-  background-color: #88afa6;
+  background-color: #34524D;
   color: white;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px 0 0 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: -4px 0 10px rgba(0, 0, 0, 0.05);
+  box-shadow: -6px 0 18px rgba(52, 82, 77, 0.18);
   transition: background-color 0.2s;
 }
 
-.pullButton:hover { background-color: #6a8e86; }
+.pullButton:hover { background-color: #28423E; }
 
 .header {
   font-size: 20px;

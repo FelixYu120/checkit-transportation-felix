@@ -76,8 +76,98 @@ const compactSupabaseError = (error) => [
 const isMissingColumnError = (error) =>
   error?.code === "42703" || /column .* does not exist|schema cache|could not find/i.test(compactSupabaseError(error));
 
+const OPTIONAL_SENSOR_COLUMNS = [
+  "needs_review",
+  "created_at",
+  "installation_notes",
+  "wifi_ssid",
+  "commissioned",
+  "commissioned_at",
+  "deployment_id",
+  "paired_flash_serials",
+  "hardware_serial",
+  "heading_degrees",
+  "speed_limit_kmh",
+  "danger_speed_kmh",
+  "emergency_speed_kmh",
+  "speed_threshold",
+  "max_cap",
+  "speed_limit_threshold",
+  "max_speed_cap_threshold",
+];
+
+const OPTIONAL_HEALTH_COLUMNS = [
+  "last_seen_at",
+  "updated_at",
+  "last_radar_frame_at",
+  "last_passage_at",
+  "wifi_ssid",
+  "wifi_rssi",
+  "pending_passages",
+  "storage_free_percent",
+  "storage_errors",
+  "radar_frame_errors",
+  "last_http_status",
+  "firmware_version",
+  "model_version",
+  "last_reset_reason",
+  "provisioning_locked",
+  "ble_active",
+  "alerts",
+];
+
+const fetchOptionalColumns = async (supabase, tableName, idColumn, idValue, columns, sourceLabel) => {
+  if (!supabase || !idValue) return {};
+
+  const entries = await Promise.all(columns.map(async (column) => {
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(`${idColumn}, ${column}`)
+        .eq(idColumn, idValue)
+        .maybeSingle();
+
+      if (error) {
+        if (isMissingColumnError(error)) return null;
+        console.warn(`Unable to load ${sourceLabel} column ${column}:`, getSupabaseErrorContext(error));
+        return null;
+      }
+
+      return [column, data?.[column] ?? null];
+    } catch (error) {
+      console.warn(`Unable to load ${sourceLabel} column ${column}:`, getSupabaseErrorContext(error));
+      return null;
+    }
+  }));
+
+  return entries.reduce((acc, entry) => {
+    if (!entry) return acc;
+    const [key, value] = entry;
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
+const fetchSensorMetadata = async (supabase, sensorId) =>
+  fetchOptionalColumns(supabase, "sensors", "sensor_id", sensorId, OPTIONAL_SENSOR_COLUMNS, "transportation sensor metadata");
+
+const fetchSensorHealth = async (supabase, sensorId) => {
+  const health = await fetchOptionalColumns(
+    supabase,
+    "device_health",
+    "sensor_id",
+    sensorId,
+    OPTIONAL_HEALTH_COLUMNS,
+    "transportation sensor health"
+  );
+
+  return Object.fromEntries(Object.entries(health).map(([key, value]) => [`health_${key}`, value]));
+};
+
 const querySensorRows = async (supabase, instituteId, sensorId) => {
   const selectAttempts = [
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, needs_review, created_at, last_seen_at, updated_at, speed_limit_kmh, danger_speed_kmh, emergency_speed_kmh, installation_notes, wifi_ssid, commissioned, commissioned_at, deployment_id, paired_flash_serials",
+    "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, needs_review, created_at, last_seen_at, updated_at, speed_threshold, max_cap, installation_notes, wifi_ssid, commissioned, commissioned_at, deployment_id, paired_flash_serials",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at, speed_threshold, max_cap",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, last_seen_at, updated_at, speed_limit_threshold, max_speed_cap_threshold",
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, updated_at, speed_threshold, max_cap",
@@ -230,7 +320,22 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
   }
 
   try {
-    return await querySensorRows(supabase, normalizedInstituteId, sensorId) || null;
+    const sensor = await querySensorRows(supabase, normalizedInstituteId, sensorId) || null;
+    if (!sensor) return null;
+
+    const [metadata, health] = await Promise.all([
+      fetchSensorMetadata(supabase, sensor.sensor_id),
+      fetchSensorHealth(supabase, sensor.sensor_id),
+    ]);
+
+    return {
+      ...sensor,
+      ...metadata,
+      ...health,
+      last_seen_at: sensor.last_seen_at || health.health_last_seen_at || null,
+      updated_at: sensor.updated_at || health.health_updated_at || null,
+      wifi_ssid: sensor.wifi_ssid || metadata.wifi_ssid || health.health_wifi_ssid || null,
+    };
   } catch (error) {
     console.warn("Using generated sensor fallback:", getSupabaseErrorContext(error));
     const inferredSensor = await getSensorFromSummaryRows(supabase, normalizedInstituteId, sensorId);

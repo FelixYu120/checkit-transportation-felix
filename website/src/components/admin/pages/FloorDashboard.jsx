@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
+import { Info, X } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -28,6 +30,83 @@ const formatSensorDownTime = (value) => {
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
+
+const formatMetadataValue = (value, fallback = 'Not set') => {
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) return value.length ? value.join(', ') : fallback;
+    if (value && typeof value === 'object') return Object.keys(value).length ? JSON.stringify(value) : fallback;
+    if (value === null || value === undefined) return fallback;
+    const trimmed = String(value).trim();
+    return trimmed || fallback;
+};
+
+const formatMetadataDate = (value) => {
+    if (!value) return 'Not set';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Not set';
+    return date.toLocaleString([], {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+};
+
+const formatNumber = (value, unit = '') => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 'Not set';
+    return `${Math.round(numericValue * 10) / 10}${unit ? ` ${unit}` : ''}`;
+};
+
+const formatSpeedMph = (...values) => {
+    const rawValue = values.find((value) => value !== null && value !== undefined && value !== '');
+    return formatNumber(rawValue, 'mph');
+};
+
+const formatCoordinates = (latitude, longitude) => {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'Not set';
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+};
+
+const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorName) => ([
+    {
+        title: 'Location',
+        rows: [
+            ['Institute', instituteLabel],
+            ['Area', areaName],
+            ['Lane', corridorName],
+            ['Coordinates', formatCoordinates(sensor?.latitude, sensor?.longitude)],
+        ],
+    },
+    {
+        title: 'Speed Setup',
+        rows: [
+            ['Speed Limit', formatSpeedMph(sensor?.speed_threshold, sensor?.speed_limit_threshold, sensor?.speed_limit_kmh)],
+            ['Max Speed Cap', formatSpeedMph(sensor?.max_cap, sensor?.max_speed_cap_threshold, sensor?.max_speed_cap_kmh)],
+            ['Danger Speed', formatSpeedMph(sensor?.danger_speed_kmh)],
+            ['Emergency Speed', formatSpeedMph(sensor?.emergency_speed_kmh)],
+            ['Heading', Number.isFinite(Number(sensor?.heading_degrees)) ? `${sensor.heading_degrees} degrees` : 'Not set'],
+        ],
+    },
+    {
+        title: 'Installation',
+        rows: [
+            ['Sensor ID', sensor?.sensor_id],
+            ['Hardware Serial', sensor?.hardware_serial],
+            ['WiFi', sensor?.wifi_ssid || sensor?.health_wifi_ssid],
+            ['Needs Review', sensor?.needs_review],
+            ['Commissioned', sensor?.commissioned],
+            ['Commissioned At', formatMetadataDate(sensor?.commissioned_at)],
+            ['Installed', formatMetadataDate(sensor?.created_at)],
+            ['Deployment ID', sensor?.deployment_id],
+            ['Paired Flash Serials', sensor?.paired_flash_serials],
+            ['Notes', sensor?.installation_notes],
+        ],
+    },
+]);
 
 const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
     scope_type: 'corridor',
@@ -96,6 +175,7 @@ const FloorDashboard = () => {
     const [activeChartData, setActiveChartData] = useState(null);
     const [drilldownHistory, setDrilldownHistory] = useState([]);
     const [drilldownForwardHistory, setDrilldownForwardHistory] = useState([]);
+    const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
     const filterSignature = useMemo(() => JSON.stringify({
         startDate: filters?.startDate || '',
         endDate: filters?.endDate || '',
@@ -278,6 +358,53 @@ const FloorDashboard = () => {
     const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView) || TRAFFIC_VIEW_PRESETS[0];
     const maxSpeedThreshold = Number(sensor?.max_cap ?? sensor?.max_speed_cap_threshold);
     const summaryThreshold = Number.isFinite(maxSpeedThreshold) ? maxSpeedThreshold : undefined;
+    const sensorMetadataGroups = sensor ? buildSensorMetadataGroups(sensor, instituteLabel, areaName, corridorName) : [];
+    const metadataModal = isMetadataModalOpen && sensor ? (
+        <div
+            className={styles.metadataModalOverlay}
+            role="presentation"
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setIsMetadataModalOpen(false);
+            }}
+        >
+            <section
+                className={styles.metadataModal}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="transportation-sensor-metadata-title"
+            >
+                <div className={styles.metadataModalHeader}>
+                    <div>
+                        <p className={styles.metadataEyebrow}>Sensor Information</p>
+                        <h2 id="transportation-sensor-metadata-title">{corridorName}</h2>
+                    </div>
+                    <button
+                        type="button"
+                        className={styles.metadataCloseButton}
+                        onClick={() => setIsMetadataModalOpen(false)}
+                        aria-label="Close sensor information"
+                    >
+                        <X size={18} strokeWidth={2.4} />
+                    </button>
+                </div>
+                <div className={styles.metadataModalBody}>
+                    {sensorMetadataGroups.map((group) => (
+                        <div key={group.title} className={styles.metadataGroup}>
+                            <h3>{group.title}</h3>
+                            <div className={styles.metadataRows}>
+                                {group.rows.map(([label, value]) => (
+                                    <div key={label} className={styles.metadataRow}>
+                                        <span>{label}:</span>
+                                        <strong>{formatMetadataValue(value)}</strong>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        </div>
+    ) : null;
 
     return (
         <div className={styles.container}>
@@ -300,6 +427,7 @@ const FloorDashboard = () => {
             ) : (
                 <>
                     <section className={styles.corridorHeader}>
+                        <div className={styles.sensorStatusRow}>
                         <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
                             <strong>Sensor Status:</strong>
                             {SENSOR_STATUS_OPTIONS.map((status) => (
@@ -314,7 +442,19 @@ const FloorDashboard = () => {
                                 </em>
                             ) : null}
                         </div>
+                            <button
+                                type="button"
+                                className={styles.metadataInfoButton}
+                                onClick={() => setIsMetadataModalOpen(true)}
+                                aria-label={`View information for ${corridorName}`}
+                                title="View sensor information"
+                            >
+                                <Info size={15} strokeWidth={2.4} />
+                            </button>
+                        </div>
                     </section>
+
+                    {metadataModal ? createPortal(metadataModal, document.body) : null}
 
                     <AnalyticsControlBar
                         filters={filters}

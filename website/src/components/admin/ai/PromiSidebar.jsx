@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Send } from 'lucide-react'; 
+import { Menu, Send } from 'lucide-react'; 
 import supabase from '../../helper/SupabaseClients';
 import styles from './PromiSidebar.module.css';
 
@@ -117,8 +117,8 @@ const PromiSidebar = ({ floorId }) => {
   return (
     <div className={`${styles.sidebarWrapper} ${isOpen ? styles.open : styles.closed}`}>
       
-      <button className={styles.pullButton} onClick={toggleSidebar}>
-        {isOpen ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
+      <button className={styles.pullButton} onClick={toggleSidebar} aria-label={isOpen ? 'Close Promi' : 'Open Promi'}>
+        <Menu size={23} strokeWidth={2.5} />
       </button>
 
       <div className={styles.header}>Promi Assistant</div>
