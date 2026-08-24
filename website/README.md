@@ -99,6 +99,54 @@ These metrics are calculated inside the active dashboard filter window: selected
 | Approach Share | Percent of directional traffic moving in the approach direction. | `approach_volume / (approach_volume + away_volume) * 100`. |
 | Away Share | Percent of directional traffic moving away from the approach direction. | `away_volume / (approach_volume + away_volume) * 100`, or `100 - approach_share` when both directions are present. |
 | Direction Split | How total movement divides between approach and away. | Approach and away are summed separately from directional summary rows, then shown as bars or shares. |
+| Traffic Change | Change between the first and latest sampled movement value in a comparison/report window. | `latest_volume - earliest_volume`. Positive values are shown as increases. |
+| Group Average | Average movement across selected comparison targets. | For each target, calculate `avg(volume)` across its filtered rows. Then average those target averages. |
+| Top Volume Corridor / Lane | Highest-volume target in a comparison set. | Sort selected targets by `sum(volume)` and choose the largest. |
+| Top Average Corridor / Lane | Highest-average target in a comparison set. | Sort selected targets by `avg(volume)` and choose the largest. |
+| Traffic Spread | Difference between the highest and lowest selected comparison target. | `highest_avg_volume - lowest_avg_volume` for the selected comparison set. |
+| Approach | Directional movement toward the configured approach direction. | `sum(approach_volume)` or count rows whose direction is `approach`, depending on source shape. |
+| Away | Directional movement away from the configured approach direction. | `sum(away_volume)` or count rows whose direction is `away`, depending on source shape. |
+| Sensor Status: Active | Transportation sensor is reporting recent data/health. | Derived from `last_seen_at`, `updated_at`, or latest traffic summary freshness. |
+| Sensor Status: Down | Sensor is known but has stopped reporting recently. | Derived from stale health/summary timestamps. The UI can show when it went down when that timestamp is available. |
+| Sensor Status: Offline | Sensor has no usable recent health signal. | Derived from missing or stale status/health information. |
+| Needs Review | Field/deployment flag for sensors that require follow-up. | Boolean setup metadata. It does not change traffic calculations. |
+
+### Transportation Chart Views
+
+| View | What It Shows | Data Source |
+| --- | --- | --- |
+| 24 hr | Recent movement, speed, and direction over the current 24-hour view. | Traffic summary rows from Supabase, usually ten-minute summaries grouped for display. |
+| Weekly | Daily traffic pattern across a seven-day window. | Traffic summary rows grouped by local day. |
+| Monthly | Calendar-style traffic pattern. Multi-month ranges can drill into a selected month. | Traffic summary rows grouped by local day/month. |
+| Flow | Movement volume. | `volume`, plus `approach_volume` and `away_volume` when directional data exists. |
+| Speed | Average, 85th percentile, and max speed. | `avg_speed`, `v85_speed`, and `max_speed` from summary rows. |
+| Direction | Approach versus away movement. | Directional row fields or direction-specific summary fields. |
+
+### Transportation Field Metadata
+
+| Field | What It Represents | Used In Math Today |
+| --- | --- | --- |
+| Sensor ID / Unique Identifier | Human-entered identifier for the lane sensor record. | Used to find and organize the sensor. |
+| Hardware Serial | Physical sensor serial once available. | Used for hardware identity/field verification, not traffic math. |
+| Institute | Organization/campus that owns the sensor. | Used for access and navigation scope. |
+| Area | Campus area where the sensor belongs. | Used for filtering, tree navigation, and comparison scope. |
+| Lane / Corridor | Named traffic location being monitored. | Used as the primary display entity and comparison target. |
+| Latitude / Longitude | Sensor or lane coordinates. | Used for map placement. |
+| Speed Limit Threshold | Normal speed limit/reference threshold in mph. | Stored for context and future threshold logic. |
+| Max Speed Cap Threshold | Maximum allowed/review threshold in mph. | Used by `Over Threshold Count`: `max_speed > max_speed_cap_threshold`. |
+| Danger Speed / Emergency Speed | Higher severity speed thresholds when configured. | Stored as context unless a chart/report explicitly uses them. |
+| Heading | Direction/orientation of the sensor or lane. | Used as context for interpreting approach/away direction. |
+| WiFi SSID | Network configured in the field app. | Deployment/debug context only. |
+| Installation Notes | Technician notes from setup. | Human context only. |
+
+### Metric Interpretation Notes
+
+- **Flow** answers "how much movement happened?"
+- **Average Speed** answers "how fast was movement typically going, weighted by volume?"
+- **Max Speed** answers "what was the highest observed speed?"
+- **Over Threshold Count** answers "how often did speed exceed the configured cap?"
+- **Low/No Movement Periods** answers "how many buckets had no observed traffic?"
+- **Approach/Away** only make sense after the sensor orientation/heading is understood.
 
 Future scale TODOs:
 
