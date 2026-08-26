@@ -356,6 +356,7 @@ const createEmptyAggregate = (bucket) => ({
   away: 0,
   volume: 0,
   sampleCount: 0,
+  periods: new Map(),
   speedWeightedSum: 0,
   v85WeightedSum: 0,
   speedWeight: 0,
@@ -378,10 +379,14 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
     });
     const directionKey = row.direction === 'away' ? 'away' : 'approach';
     const volume = Number(row.volume) || 0;
+    const periodKey = `${row.sensor_id || ''}-${row.observed_at || row.time_bucket || ''}`;
+    const period = group.periods.get(periodKey) || { volume: 0, maxSpeed: 0 };
 
     group[directionKey] += volume;
     group.volume += volume;
-    group.sampleCount += 1;
+    period.volume += volume;
+    period.maxSpeed = Math.max(period.maxSpeed, Number(row.max_speed) || 0);
+    group.periods.set(periodKey, period);
     if (volume > 0) {
       group.speedWeightedSum += (Number(row.avg_speed) || 0) * volume;
       group.v85WeightedSum += (Number(row.v85_speed) || 0) * volume;
@@ -393,18 +398,24 @@ const aggregateSummariesByBucket = (rows = [], buckets = [], getBucketKey) => {
 
   return Array.from(groups.values())
     .sort((a, b) => String(a.key).localeCompare(String(b.key)))
-    .map((group) => ({
-      key: group.key,
-      time: group.time,
-      fullTime: group.fullTime,
-      approach: group.approach,
-      away: group.away,
-      volume: group.volume,
-      sampleCount: group.sampleCount,
-      avgSpeed: weightedAverageSpeed(group.speedWeightedSum, group.speedWeight),
-      v85Speed: weightedAverageSpeed(group.v85WeightedSum, group.speedWeight),
-      maxSpeed: roundOne(group.maxSpeed),
-    }));
+    .map((group) => {
+      const periods = Array.from(group.periods.values());
+
+      return {
+        key: group.key,
+        time: group.time,
+        fullTime: group.fullTime,
+        approach: group.approach,
+        away: group.away,
+        volume: group.volume,
+        sampleCount: periods.length,
+        lowNoMovementPeriods: periods.filter((period) => period.volume <= 0).length,
+        periodMaxSpeeds: periods.map((period) => roundOne(period.maxSpeed)),
+        avgSpeed: weightedAverageSpeed(group.speedWeightedSum, group.speedWeight),
+        v85Speed: weightedAverageSpeed(group.v85WeightedSum, group.speedWeight),
+        maxSpeed: roundOne(group.maxSpeed),
+      };
+    });
 };
 
 const buildChartData = (rows, type, filters) => {

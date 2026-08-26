@@ -155,6 +155,34 @@ const getSensorTrafficSummaries = (sensors = [], rows = []) => {
     });
 };
 
+const getDuplicateAwareSensorLabels = (sensors = []) => {
+    const groups = sensors.reduce((nextGroups, sensor) => {
+        const areaName = sensor.area_name || '';
+        const corridorName = sensor.corridor_name || sensor.sensor_id || 'Unnamed Lane';
+        const key = `${areaName.trim().toLowerCase()}::${String(corridorName).trim().toLowerCase()}`;
+        if (!nextGroups.has(key)) nextGroups.set(key, []);
+        nextGroups.get(key).push(sensor);
+        return nextGroups;
+    }, new Map());
+
+    const labelsBySensorId = new Map();
+    groups.forEach((groupSensors) => {
+        const sortedSensors = groupSensors
+            .slice()
+            .sort((left, right) => String(left.sensor_id || '').localeCompare(String(right.sensor_id || '')));
+
+        sortedSensors.forEach((sensor, index) => {
+            const corridorName = sensor.corridor_name || 'Unnamed Lane';
+            labelsBySensorId.set(
+                sensor.sensor_id,
+                sortedSensors.length > 1 ? `${corridorName} ${index + 1}` : corridorName
+            );
+        });
+    });
+
+    return labelsBySensorId;
+};
+
 const getAreaById = (sensors = [], areaId) => {
     const areas = groupSensorsByArea(sensors);
     const normalizedAreaId = normalizeAdminPathSegment(areaId);
@@ -259,6 +287,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
     const [sortDirection, setSortDirection] = useState('desc');
     const [page, setPage] = useState(1);
     const metric = TRAFFIC_COMPARISON_METRICS.find((item) => item.key === selectedMetric) || TRAFFIC_COMPARISON_METRICS[0];
+    const labelsBySensorId = useMemo(() => getDuplicateAwareSensorLabels(summaries), [summaries]);
     const comparisonRows = useMemo(() => (
         [...summaries].sort((left, right) => {
             const order = (Number(left[selectedMetric]) || 0) - (Number(right[selectedMetric]) || 0);
@@ -335,7 +364,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     className={styles.comparisonLink}
                                     to={getAdminFloorPath(collegeId, sensor.sensor_id)}
                                 >
-                                    {sensor.corridor_name || sensor.sensor_id}
+                                    {labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane'}
                                 </Link>
                                 <span>{sensor.area_name || sensor.institute_id || ''}</span>
                             </div>

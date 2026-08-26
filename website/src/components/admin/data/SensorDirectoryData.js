@@ -66,6 +66,28 @@ const getFallbackInstitute = (instituteId) => {
   };
 };
 
+const dedupeSensorsById = (sensors = []) => {
+  const byId = new Map();
+
+  sensors.forEach((sensor) => {
+    const sensorId = sensor?.sensor_id;
+    if (!sensorId) return;
+    if (!byId.has(sensorId)) {
+      byId.set(sensorId, sensor);
+      return;
+    }
+
+    byId.set(sensorId, {
+      ...byId.get(sensorId),
+      ...Object.fromEntries(
+        Object.entries(sensor).filter(([, value]) => value !== null && value !== undefined && value !== "")
+      ),
+    });
+  });
+
+  return Array.from(byId.values());
+};
+
 const compactSupabaseError = (error) => [
   error?.code,
   error?.message,
@@ -300,7 +322,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
 
     return {
       institutes: instituteId ? (institutes ? [institutes] : []) : (institutes || []),
-      sensors: sensors || [],
+      sensors: dedupeSensorsById(sensors || []),
     };
   } catch (error) {
     console.warn("Using generated sensor directory fallback:", getSupabaseErrorContext(error));

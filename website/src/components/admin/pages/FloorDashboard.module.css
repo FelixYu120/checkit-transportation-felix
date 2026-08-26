@@ -156,7 +156,7 @@
 
 .sensorStatusRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 10px;
   width: fit-content;
@@ -200,6 +200,20 @@
   box-shadow: 0 3px 10px rgba(107, 114, 128, 0.12);
 }
 
+.sensorStatusStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.sensorStatusControls {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .sensorStatusLegend strong {
   color: #374151;
   font-size: 14px;
@@ -218,6 +232,32 @@
   font-style: normal;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.sensorStatusControls > em {
+  color: #b91c1c;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sensorStatusLegend .sensorIdMeta {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  padding-left: 2px;
+}
+
+.sensorIdMeta {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  padding-left: 4px;
 }
 
 .sensorStatusLegend .currentStatus {
@@ -252,8 +292,8 @@
 }
 
 .metadataInfoButton {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: 1px solid rgba(52, 82, 77, 0.32);
   border-radius: 999px;
   background: rgba(52, 82, 77, 0.06);
@@ -261,6 +301,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
@@ -270,6 +311,30 @@
   background: rgba(52, 82, 77, 0.12);
   border-color: rgba(52, 82, 77, 0.52);
   box-shadow: 0 8px 18px rgba(52, 82, 77, 0.14);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.chartRefreshButton {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(52, 82, 77, 0.22);
+  border-radius: 999px;
+  background: rgba(52, 82, 77, 0.05);
+  color: #34524D;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.chartRefreshButton:hover,
+.chartRefreshButton:focus-visible {
+  background: rgba(52, 82, 77, 0.1);
+  border-color: rgba(52, 82, 77, 0.42);
+  box-shadow: 0 8px 18px rgba(52, 82, 77, 0.12);
   outline: none;
   transform: translateY(-1px);
 }
@@ -1388,8 +1453,12 @@
     width: 100%;
   }
 
+  .sensorStatusControls {
+    justify-content: flex-start;
+  }
+
   .metadataInfoButton {
-    margin-left: auto;
+    margin-left: 0;
   }
 
   .metadataModalOverlay {

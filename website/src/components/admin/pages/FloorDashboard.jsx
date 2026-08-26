@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
-import { Info, X } from 'lucide-react';
+import { Info, RefreshCw, X } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -176,6 +176,7 @@ const FloorDashboard = () => {
     const [drilldownHistory, setDrilldownHistory] = useState([]);
     const [drilldownForwardHistory, setDrilldownForwardHistory] = useState([]);
     const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
+    const [refreshVersion, setRefreshVersion] = useState(0);
     const filterSignature = useMemo(() => JSON.stringify({
         startDate: filters?.startDate || '',
         endDate: filters?.endDate || '',
@@ -340,6 +341,11 @@ const FloorDashboard = () => {
         setActiveTrafficTimeframe('monthly');
     }, [pushDrilldownHistory]);
 
+    const handleRefreshAnalytics = useCallback(() => {
+        setActiveChartData(null);
+        setRefreshVersion((version) => version + 1);
+    }, []);
+
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
     const corridorName = sensor?.corridor_name || formatAdminRouteLabel(corridorId);
@@ -428,29 +434,38 @@ const FloorDashboard = () => {
                 <>
                     <section className={styles.corridorHeader}>
                         <div className={styles.sensorStatusRow}>
-                        <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
-                            <strong>Sensor Status:</strong>
-                            {SENSOR_STATUS_OPTIONS.map((status) => (
-                                <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>
-                                    <i className={`${styles.statusDot} ${sensor.status === status ? styles[status] : ''}`} aria-hidden="true" />
-                                    {formatAdminRouteLabel(status)}
-                                </span>
-                            ))}
-                            {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at || sensor.updated_at) ? (
-                                <em title={formatDateTime(sensor.last_seen_at || sensor.updated_at)}>
-                                    Down at {formatSensorDownTime(sensor.last_seen_at || sensor.updated_at)}
-                                </em>
-                            ) : null}
-                        </div>
-                            <button
-                                type="button"
-                                className={styles.metadataInfoButton}
-                                onClick={() => setIsMetadataModalOpen(true)}
-                                aria-label={`View information for ${corridorName}`}
-                                title="View sensor information"
-                            >
-                                <Info size={15} strokeWidth={2.4} />
-                            </button>
+                            <div className={styles.sensorStatusStack}>
+                                {sensor.sensor_id ? (
+                                    <span className={styles.sensorIdMeta}>
+                                        Sensor ID: {sensor.sensor_id}
+                                    </span>
+                                ) : null}
+                                <div className={styles.sensorStatusControls}>
+                                    <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
+                                        <strong>Sensor Status:</strong>
+                                        {SENSOR_STATUS_OPTIONS.map((status) => (
+                                            <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>
+                                                <i className={`${styles.statusDot} ${sensor.status === status ? styles[status] : ''}`} aria-hidden="true" />
+                                                {formatAdminRouteLabel(status)}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at || sensor.updated_at) ? (
+                                        <em title={formatDateTime(sensor.last_seen_at || sensor.updated_at)}>
+                                            Down at {formatSensorDownTime(sensor.last_seen_at || sensor.updated_at)}
+                                        </em>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        className={styles.metadataInfoButton}
+                                        onClick={() => setIsMetadataModalOpen(true)}
+                                        aria-label={`View information for ${corridorName}`}
+                                        title="View sensor information"
+                                    >
+                                        <Info size={15} strokeWidth={2.4} />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
@@ -467,6 +482,7 @@ const FloorDashboard = () => {
                     <OperatingLens filters={filters} onChange={setFilters} onLensNavigate={handleOperatingLensNavigate} />
 
                     <SummaryMetrics
+                        key={`summary-${sensor.sensor_id}-${activeTrafficTimeframe}-${filterSignature}-${activeView}-${refreshVersion}`}
                         level="floor"
                         id={sensor.sensor_id}
                         filters={filters}
@@ -487,6 +503,15 @@ const FloorDashboard = () => {
                                 <strong>{activePreset.label}</strong>
                             </div>
                             <div className={styles.chartControls}>
+                                <button
+                                    type="button"
+                                    className={styles.chartRefreshButton}
+                                    onClick={handleRefreshAnalytics}
+                                    aria-label="Refresh chart and summary cards"
+                                    title="Refresh chart and summary cards"
+                                >
+                                    <RefreshCw size={15} strokeWidth={2.4} />
+                                </button>
                                 <div className={styles.timeframeSegment} aria-label="Traffic chart timeframe">
                                     {TRAFFIC_TIMEFRAMES.map((timeframe) => (
                                         <button
@@ -514,6 +539,7 @@ const FloorDashboard = () => {
                             </div>
                         </div>
                         <TrafficTrendChart
+                            key={`${sensor.sensor_id}-${activeTrafficTimeframe}-${activeView}-${filterSignature}-${refreshVersion}`}
                             sensorId={sensor.sensor_id}
                             filters={filters}
                             type={activeTrafficTimeframe}

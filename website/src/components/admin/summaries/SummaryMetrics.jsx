@@ -17,16 +17,14 @@ const formatBusiestDayLabel = (date) =>
         day: 'numeric',
     });
 
-const getBestAverageGroup = (groups) => {
+const getBestTotalGroup = (groups) => {
     const entries = Object.entries(groups).filter(([, group]) => group.count > 0);
     if (entries.length === 0) return null;
 
     return entries.reduce((best, current) => {
         const [, bestGroup] = best;
         const [, currentGroup] = current;
-        return (currentGroup.total / currentGroup.count) > (bestGroup.total / bestGroup.count)
-            ? current
-            : best;
+        return currentGroup.total > bestGroup.total ? current : best;
     });
 };
 
@@ -39,19 +37,23 @@ const getTimeframeLabel = (timeframe) => {
 
 const getMetricConfig = (timeframe) => {
     const windowLabel = getTimeframeLabel(timeframe);
+    const peakLabel = timeframe === 'daily' ? 'Peak Hour' : 'Peak Day';
+    const peakDetail = timeframe === 'daily'
+        ? 'Highest movement count in one visible hour.'
+        : 'Highest movement count in one visible day.';
 
     return {
-        total: { label: 'Volume', unit: 'movements', detail: `Total traffic volume in the ${windowLabel} report window.` },
-        current: { label: 'Recent Movement', unit: 'movements', detail: 'Most recent movement count in the active report window.' },
-        peak: { label: 'Peak', unit: 'movements', detail: `Highest movement point in the ${windowLabel} report window.` },
+        total: { label: 'Total Movements', unit: 'movements', detail: `All movements added up across the ${windowLabel} report window.` },
+        current: { label: 'Latest Period', unit: 'movements', detail: 'Most recent movement count in the active report window.' },
+        peak: { label: peakLabel, unit: 'movements', detail: peakDetail },
         averageSpeed: { label: 'Avg Speed', unit: 'mph', detail: `Weighted average speed across the ${windowLabel} report window.` },
         v85Speed: { label: '85th Speed', unit: 'mph', detail: `Average 85th percentile speed across the ${windowLabel} report window.` },
         maxSpeed: { label: 'Max Speed', unit: 'mph', detail: `Highest speed observed in the ${windowLabel} report window.` },
-        overThresholdCount: { label: 'Over Threshold Count', unit: 'periods', detail: `Number of ${windowLabel} periods where max speed exceeded the lane's max speed cap threshold.` },
-        lowNoMovementPeriods: { label: 'Low/No Movement Periods', unit: 'periods', detail: `Number of ${windowLabel} periods with little or no observed movement.` },
+        overThresholdCount: { label: 'Over-Speed Periods', unit: 'periods', detail: `Number of ${windowLabel} periods where max speed exceeded the lane's max speed cap threshold.` },
+        lowNoMovementPeriods: { label: 'Low-Movement Periods', unit: 'periods', detail: `Number of ${windowLabel} periods with little or no observed movement.` },
         approachShare: { label: 'Approach Share', unit: '%', detail: `Share of directional traffic moving toward approach in the ${windowLabel} report window.` },
         busiestDay: { label: 'Busiest Day', unit: '', detail: `Day with the highest traffic volume in the ${windowLabel} report window.` },
-        busiestTime: { label: 'Busiest Time', unit: '', detail: `Time with the highest traffic volume in the ${windowLabel} report window.` },
+        busiestTime: { label: 'Busiest Hour', unit: '', detail: `Hour with the highest traffic volume in the ${windowLabel} report window.` },
     };
 };
 
@@ -125,9 +127,18 @@ const getChartMetrics = (sourceChartData, timeframe, thresholdValue) => {
     const maxSpeed = Math.max(0, ...dataPoints.map((point) => Number(point.maxSpeed ?? point.max_speed) || 0));
     const threshold = Number(thresholdValue);
     const overThresholdCount = Number.isFinite(threshold)
-        ? dataPoints.filter((point) => (Number(point.maxSpeed ?? point.max_speed) || 0) > threshold).length
+        ? dataPoints.reduce((sum, point) => {
+            const periodSpeeds = Array.isArray(point.periodMaxSpeeds) ? point.periodMaxSpeeds : null;
+            if (periodSpeeds) {
+                return sum + periodSpeeds.filter((speed) => (Number(speed) || 0) > threshold).length;
+            }
+            return sum + (((Number(point.maxSpeed ?? point.max_speed) || 0) > threshold) ? 1 : 0);
+        }, 0)
         : '-';
-    const lowNoMovementPeriods = dataPoints.filter((point) => getVolume(point) <= 0).length;
+    const lowNoMovementPeriods = dataPoints.reduce((sum, point) => {
+        const periodCount = Number(point.lowNoMovementPeriods);
+        return sum + (Number.isFinite(periodCount) ? periodCount : (getVolume(point) <= 0 ? 1 : 0));
+    }, 0);
     const approachVolume = dataPoints.reduce((sum, point) => sum + (Number(point.approach ?? point.approach_volume) || 0), 0);
     const awayVolume = dataPoints.reduce((sum, point) => sum + (Number(point.away ?? point.away_volume) || 0), 0);
     const approachShare = approachVolume + awayVolume > 0
@@ -246,8 +257,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     ? Math.round((approachVolume / (approachVolume + awayVolume)) * 100)
                     : 0;
                 let peak = 0;
-                
-                // Match the weekly chart: daily cards use averages, not raw sums.
+
                 const dayCounts = {};
                 const dayLabels = {};
 
@@ -265,12 +275,12 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     dayCounts[day].count += 1;
                 });
 
-                const busiestDayGroup = getBestAverageGroup(dayCounts);
+                const busiestDayGroup = getBestTotalGroup(dayCounts);
                 const busiestDayKey = busiestDayGroup?.[0];
-                const busiestDayAverage = busiestDayGroup
-                    ? busiestDayGroup[1].total / busiestDayGroup[1].count
+                const busiestDayTotal = busiestDayGroup
+                    ? busiestDayGroup[1].total
                     : 0;
-                peak = Math.round(busiestDayAverage);
+                peak = Math.round(busiestDayTotal);
                 const busiestDay = busiestDayKey ? dayLabels[busiestDayKey] : '-';
 
                 const timeSourceRows = effectiveFilters.startDate || effectiveFilters.endDate
@@ -292,8 +302,14 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                     visibleChartHourCounts[hour].count += 1;
                 });
 
-                const busiestTimeGroup = getBestAverageGroup(visibleChartHourCounts);
+                const busiestTimeGroup = getBestTotalGroup(visibleChartHourCounts);
                 const busiestTime = busiestTimeGroup ? busiestTimeGroup[0] : '-';
+                if (timeframe === 'daily') {
+                    const peakRow = filteredData.reduce((best, row) => (
+                        getCount(row) > getCount(best) ? row : best
+                    ), filteredData[0]);
+                    peak = Math.round(getCount(peakRow));
+                }
 
                 const nextMetrics = {
                     total,
@@ -337,8 +353,9 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        minHeight: 'clamp(82px, 6.5vw, 108px)',
-        minWidth: 0
+        minHeight: 'clamp(94px, 7vw, 118px)',
+        minWidth: 0,
+        overflow: 'hidden'
     };
     const skeletonStyle = {
         display: 'block',
@@ -346,8 +363,8 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         background: 'linear-gradient(90deg, #edf4f7 0%, #f8fbfc 50%, #edf4f7 100%)',
     };
 
-    const labelStyle = { fontSize: 'clamp(0.66rem, 0.68vw, 0.76rem)', color: '#888', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' };
-    const valueStyle = { fontSize: 'clamp(1.2rem, 1.45vw, 1.55rem)', fontWeight: '700', color: '#333', margin: 0, lineHeight: 1.1 };
+    const labelStyle = { fontSize: 'clamp(0.62rem, 0.66vw, 0.74rem)', color: '#888', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.2, overflowWrap: 'anywhere' };
+    const valueStyle = { fontSize: 'clamp(1.08rem, 1.25vw, 1.42rem)', fontWeight: '700', color: '#333', margin: 0, lineHeight: 1.12, overflowWrap: 'anywhere' };
     const activeConfig = activeDetailKey ? metricConfig[activeDetailKey] : null;
     const modalValue = activeDetailKey ? metrics[activeDetailKey] : '';
 
@@ -358,7 +375,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     ));
     const gridStyle = {
         display: 'grid',
-        gridTemplateColumns: `repeat(${Math.max(selectedVisibleMetrics.length, 1)}, minmax(150px, 1fr))`,
+        gridTemplateColumns: `repeat(${Math.max(selectedVisibleMetrics.length, 1)}, minmax(140px, 1fr))`,
         alignContent: 'start',
         gap: 'clamp(8px, 1vw, 12px)',
         width: '100%',
@@ -385,7 +402,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                                 ) : null}
                                 <div style={{
                                     ...gridStyle,
-                                    gridTemplateColumns: `repeat(${Math.max(groupMetrics.length, 1)}, minmax(150px, 1fr))`,
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                                 }}>
                                     {groupMetrics.map((metricKey) => (
                                         <div key={metricKey} style={{ ...cardStyle, gap: '10px' }}>
@@ -523,7 +540,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                             ) : null}
                             <div style={{
                                 ...gridStyle,
-                                gridTemplateColumns: `repeat(${Math.max(groupMetrics.length, 1)}, minmax(150px, 1fr))`,
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                             }}>
                                 {groupMetrics.map(renderMetricCard)}
                             </div>
@@ -538,7 +555,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     return (
         <div style={{
             ...gridStyle,
-            gridTemplateColumns: `repeat(${Math.max(renderedMetrics.length, 1)}, minmax(150px, 1fr))`,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         }}>
             {renderedMetrics.map(renderMetricCard)}
             {modal}
