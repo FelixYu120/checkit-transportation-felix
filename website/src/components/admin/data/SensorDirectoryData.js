@@ -28,9 +28,69 @@ export const FALLBACK_SENSORS = [
 ];
 
 const USE_LOCAL_DIRECTORY = shouldUseLocalData;
+const ACTIVE_SENSOR_WINDOW_MINUTES = 30;
+const SENSOR_STATUSES = new Set(["active", "down", "offline"]);
 
 export const normalizeInstituteId = (instituteId) =>
   LEGACY_INSTITUTE_ALIASES[instituteId] || instituteId || "ucsd";
+
+const parseTimestampMs = (value) => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const getMostRecentTimestamp = (...values) => {
+  const latest = values
+    .map((value) => ({ value, timestamp: parseTimestampMs(value) }))
+    .filter((entry) => entry.timestamp !== null)
+    .sort((left, right) => right.timestamp - left.timestamp)[0];
+
+  return latest?.value || null;
+};
+
+const getTimestampAgeMinutes = (value) => {
+  const timestamp = parseTimestampMs(value);
+  if (timestamp === null) return Number.POSITIVE_INFINITY;
+  return (Date.now() - timestamp) / 60000;
+};
+
+const getNormalizedStoredStatus = (status) => {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  return SENSOR_STATUSES.has(normalizedStatus) ? normalizedStatus : "";
+};
+
+export const getEffectiveSensorStatus = (sensor = {}) => {
+  const latestSignalAt = getMostRecentTimestamp(
+    sensor.health_last_seen_at,
+    sensor.last_seen_at,
+    sensor.health_updated_at,
+    sensor.updated_at
+  );
+  const storedStatus = getNormalizedStoredStatus(sensor.status);
+
+  if (!latestSignalAt) {
+    return storedStatus && storedStatus !== "active" ? storedStatus : "offline";
+  }
+
+  if (getTimestampAgeMinutes(latestSignalAt) <= ACTIVE_SENSOR_WINDOW_MINUTES) {
+    return "active";
+  }
+
+  return "down";
+};
+
+const normalizeSensorHealthStatus = (sensor = {}) => {
+  const latestSeenAt = getMostRecentTimestamp(sensor.health_last_seen_at, sensor.last_seen_at);
+  const latestUpdatedAt = getMostRecentTimestamp(sensor.health_updated_at, sensor.updated_at);
+
+  return {
+    ...sensor,
+    status: getEffectiveSensorStatus(sensor),
+    last_seen_at: latestSeenAt,
+    updated_at: latestUpdatedAt,
+  };
+};
 
 const formatSensorLabel = (sensorId) =>
   String(sensorId || "")
@@ -186,6 +246,36 @@ const fetchSensorHealth = async (supabase, sensorId) => {
   return Object.fromEntries(Object.entries(health).map(([key, value]) => [`health_${key}`, value]));
 };
 
+const fetchSensorHealthRows = async (supabase, sensorIds = []) => {
+  const ids = [...new Set(sensorIds.filter(Boolean))];
+  if (!supabase || !ids.length) return new Map();
+
+  try {
+    const { data, error } = await supabase
+      .from("device_health")
+      .select("sensor_id, last_seen_at, updated_at, wifi_ssid")
+      .in("sensor_id", ids);
+
+    if (error) {
+      if (isMissingColumnError(error)) return new Map();
+      console.warn("Unable to load transportation sensor health rows:", getSupabaseErrorContext(error));
+      return new Map();
+    }
+
+    return new Map((data || []).map((row) => [
+      row.sensor_id,
+      {
+        health_last_seen_at: row.last_seen_at || null,
+        health_updated_at: row.updated_at || null,
+        health_wifi_ssid: row.wifi_ssid || null,
+      },
+    ]));
+  } catch (error) {
+    console.warn("Unable to load transportation sensor health rows:", getSupabaseErrorContext(error));
+    return new Map();
+  }
+};
+
 const querySensorRows = async (supabase, instituteId, sensorId) => {
   const selectAttempts = [
     "sensor_id, institute_id, area_name, corridor_name, latitude, longitude, status, needs_review, created_at, last_seen_at, updated_at, speed_limit_kmh, danger_speed_kmh, emergency_speed_kmh, installation_notes, wifi_ssid, commissioned, commissioned_at, deployment_id, paired_flash_serials",
@@ -320,9 +410,19 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
       }
     }
 
+    const dedupedSensors = dedupeSensorsById(sensors || []);
+    const healthBySensorId = await fetchSensorHealthRows(
+      supabase,
+      dedupedSensors.map((sensor) => sensor.sensor_id)
+    );
+
     return {
       institutes: instituteId ? (institutes ? [institutes] : []) : (institutes || []),
-      sensors: dedupeSensorsById(sensors || []),
+      sensors: dedupedSensors.map((sensor) => normalizeSensorHealthStatus({
+        ...sensor,
+        ...(healthBySensorId.get(sensor.sensor_id) || {}),
+        wifi_ssid: sensor.wifi_ssid || healthBySensorId.get(sensor.sensor_id)?.health_wifi_ssid || null,
+      })),
     };
   } catch (error) {
     console.warn("Using generated sensor directory fallback:", getSupabaseErrorContext(error));
@@ -350,14 +450,14 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
       fetchSensorHealth(supabase, sensor.sensor_id),
     ]);
 
-    return {
+    return normalizeSensorHealthStatus({
       ...sensor,
       ...metadata,
       ...health,
-      last_seen_at: sensor.last_seen_at || health.health_last_seen_at || null,
-      updated_at: sensor.updated_at || health.health_updated_at || null,
+      last_seen_at: getMostRecentTimestamp(health.health_last_seen_at, sensor.last_seen_at),
+      updated_at: getMostRecentTimestamp(health.health_updated_at, sensor.updated_at),
       wifi_ssid: sensor.wifi_ssid || metadata.wifi_ssid || health.health_wifi_ssid || null,
-    };
+    });
   } catch (error) {
     console.warn("Using generated sensor fallback:", getSupabaseErrorContext(error));
     const inferredSensor = await getSensorFromSummaryRows(supabase, normalizedInstituteId, sensorId);
