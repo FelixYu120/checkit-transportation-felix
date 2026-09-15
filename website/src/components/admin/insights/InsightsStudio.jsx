@@ -782,6 +782,70 @@ const getChartDisplayName = (chartElement, index = 0) => (
   chartElement?.label?.trim() || `Chart ${index + 1}`
 );
 
+const getTimeframeDisplayLabel = (timeframe) => (
+  timeframe === 'daily' ? '24hr'
+    : timeframe === 'weekly' ? 'Weekly'
+    : timeframe === 'monthly' ? 'Monthly'
+    : 'Custom'
+);
+
+const TimeframeOverrideControls = ({ element, reportTimeframe, onToggle, onTimeframeChange, onFieldChange, onReset }) => (
+  <div className={styles.sidebarSection}>
+    <h4 className={styles.sidebarSectionTitle}>Timeframe</h4>
+    <label className={styles.checkboxRow}>
+      <input type="checkbox" checked={element.useReportTimeframe ?? true} onChange={(e) => onToggle(e.target.checked)} />
+      Use report timeframe ({getTimeframeDisplayLabel(reportTimeframe)})
+    </label>
+
+    {element.useReportTimeframe === false && (
+      <>
+        <label className={styles.inputLabel}>This Widget's Timeframe</label>
+        <select className={styles.inputField} value={element.timeType || 'weekly'} onChange={(e) => onTimeframeChange(e.target.value)}>
+          <option value="daily">24hr</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="custom">Custom</option>
+        </select>
+
+        {element.timeType === 'custom' && (
+          <>
+            <button type="button" onClick={onReset} className={styles.timeframeResetBtn}>
+              <RefreshCw size={14} /> Reset custom range
+            </button>
+            <div className={styles.twoColumnFields}>
+              <div>
+                <label className={styles.inputLabel}>Start Date</label>
+                <input type="date" value={element.startDate || ''} onChange={(e) => onFieldChange('startDate', e.target.value)} className={styles.inputField} />
+              </div>
+              <div>
+                <label className={styles.inputLabel}>End Date</label>
+                <input type="date" value={element.endDate || ''} onChange={(e) => onFieldChange('endDate', e.target.value)} className={styles.inputField} />
+              </div>
+            </div>
+            <div className={styles.twoColumnFields}>
+              <div>
+                <label className={styles.inputLabel}>Start Time</label>
+                <input type="time" value={element.startTime || ''} onChange={(e) => onFieldChange('startTime', e.target.value)} className={styles.inputField} />
+              </div>
+              <div>
+                <label className={styles.inputLabel}>End Time</label>
+                <input type="time" value={element.endTime || ''} onChange={(e) => onFieldChange('endTime', e.target.value)} className={styles.inputField} />
+              </div>
+            </div>
+          </>
+        )}
+
+        <label className={styles.inputLabel}>Days</label>
+        <select className={styles.inputField} value={element.dayPreset || 'all'} onChange={(e) => onFieldChange('dayPreset', e.target.value)}>
+          <option value="all">All days</option>
+          <option value="weekdays">Weekdays only</option>
+          <option value="weekends">Weekends only</option>
+        </select>
+      </>
+    )}
+  </div>
+);
+
 const ChartFrame = ({ title, children }) => {
   const frameRef = useRef(null);
 
@@ -1365,6 +1429,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [elements, setElements] = useState(() => (reportId ? [] : createTemplateElements(templateConfig.id, isComparison)));
   const [pageCount, setPageCount] = useState(DEFAULT_PAGE_COUNT);
 
+  // Only gate entry behind a scope prompt for a genuinely new, non-blank report —
+  // loading a saved report or starting from the blank template should never show this.
+  const [showTargetPrompt, setShowTargetPrompt] = useState(() => !reportId && templateConfig.id !== 'blank');
+
   const [selectedElementId, setSelectedElementId] = useState(null);
   const activeElement = elements.find(el => el.id === selectedElementId);
   const isCoverSelected = selectedElementId === 'cover';
@@ -1585,10 +1653,27 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     });
   };
 
+  const updateElementTimeframe = (id, timeType) => {
+    updateElement(id,
+      timeType === 'custom'
+        ? { timeType }
+        : { timeType, startDate: '', endDate: '', startTime: '00:00', endTime: '23:59' }
+    );
+  };
+
+  const resetElementCustomTimeframe = (id) => {
+    updateElement(id, {
+      startDate: '',
+      endDate: '',
+      startTime: '00:00',
+      endTime: '23:59',
+    });
+  };
+
   const updateElement = (id, updates) => {
     if (isReadOnlyReport) return;
     pushUndoSnapshot();
-    const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId'].some((key) => key in updates);
+    const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId', 'useReportTimeframe', 'timeType', 'startDate', 'endDate', 'startTime', 'endTime', 'dayPreset'].some((key) => key in updates);
     setElements(elements.map((el) => {
       if (el.id !== id) return el;
       return { ...el, ...(shouldRefreshSnapshot ? { snapshotData: undefined, snapshotKey: undefined } : {}), ...updates };
@@ -1696,6 +1781,40 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const getElementComparisonSelections = (element) => {
     const attachedChart = getAttachedChart(element);
     return attachedChart?.comparisonSelections || element?.comparisonSelections || comparisonSelections;
+  };
+
+  // A summary attached to a chart always mirrors that chart's timeframe (it's
+  // describing that chart's data); otherwise an element with useReportTimeframe
+  // === false runs on its own timeframe instead of the report's default.
+  const getElementTimeframe = (element) => {
+    const attachedChart = getAttachedChart(element);
+    if (attachedChart) return getElementTimeframe(attachedChart);
+    return element?.useReportTimeframe === false ? (element.timeType || 'weekly') : reportSettings.timeframe;
+  };
+
+  const getElementFilters = (element) => {
+    const attachedChart = getAttachedChart(element);
+    if (attachedChart) return getElementFilters(attachedChart);
+
+    if (element?.useReportTimeframe === false) {
+      return element.timeType === 'custom'
+        ? {
+          startDate: element.startDate || '',
+          endDate: element.endDate || '',
+          startTime: element.startTime || '',
+          endTime: element.endTime || '',
+          dayPreset: element.dayPreset || 'all',
+        }
+        : {
+          startDate: '',
+          endDate: '',
+          startTime: '',
+          endTime: '',
+          dayPreset: element.dayPreset || 'all',
+        };
+    }
+
+    return reportFilters;
   };
 
   const getElementComparisonSelectionList = (element) => {
@@ -2777,6 +2896,55 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
   };
 
+  // Setting `selections`/`comparisonSelections` here is enough on its own — every
+  // chart/summary created by createTemplateElements has no `selections` field of its
+  // own, so getElementPrimarySelections/getElementComparisonSelections fall back to
+  // these report-level values for every element at once.
+  const renderTargetPromptModal = () => {
+    if (!showTargetPrompt || typeof document === 'undefined') return null;
+
+    return createPortal((
+      <div className={styles.modalOverlay} role="presentation">
+        <div className={styles.confirmDialog} role="dialog" aria-modal="true" aria-labelledby="insights-target-prompt-title" onMouseDown={(event) => event.stopPropagation()} style={{ width: 'min(460px, 100%)', maxHeight: '85vh', overflowY: 'auto' }}>
+          <h2 id="insights-target-prompt-title">What would you like to analyze?</h2>
+          <p>Pick the institute and corridor this report's charts should start with. You can still change any chart individually later.</p>
+
+          {renderTargetControls({
+            title: isComparison ? 'Primary data source' : 'Data source',
+            targetSelections: selections,
+            targetFloors: getFloorsForSelections(selections),
+            onChange: setSelections,
+          })}
+
+          {isComparison && renderTargetControls({
+            title: 'Compare against',
+            targetSelections: comparisonSelections,
+            targetFloors: getFloorsForSelections(comparisonSelections),
+            onChange: setComparisonSelections,
+          })}
+
+          <div className={styles.confirmActions}>
+            <button type="button" className={styles.secondaryBtn} onClick={() => setShowTargetPrompt(false)}>
+              I'll set this up later
+            </button>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={() => setShowTargetPrompt(false)}
+              // Comparison charts render "Select at least two data sources to compare"
+              // until both sides are set, so confirming with only the primary target
+              // filled in would leave every comparison chart/summary in that same
+              // placeholder state — defeating the point of setting them all up at once.
+              disabled={!hasSelectionValue(selections) || (isComparison && !hasSelectionValue(comparisonSelections))}
+            >
+              Use this target
+            </button>
+          </div>
+        </div>
+      </div>
+    ), document.body);
+  };
+
   const renderElementContent = (el) => {
     const elementPrimarySelections = getElementPrimarySelections(el);
     const elementComparisonSelections = getElementComparisonSelections(el);
@@ -2785,13 +2953,15 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const elementComparisonTargets = isComparison ? getElementComparisonTargets(el) : [elementPrimaryTarget, elementSecondaryTarget];
     const elementHasSoloTarget = Boolean(elementPrimaryTarget.id);
     const elementHasComparisonTargets = elementComparisonTargets.filter((target) => target.id).length >= 2;
+    const elementFilters = getElementFilters(el);
+    const elementTimeframe = getElementTimeframe(el);
     const elementSnapshotKey = getSnapshotKey({
       mode: type,
       target: elementPrimaryTarget,
       secondaryTarget: elementSecondaryTarget,
       targets: isComparison ? elementComparisonTargets : undefined,
-      filters: reportFilters,
-      timeframe: reportSettings.timeframe,
+      filters: elementFilters,
+      timeframe: elementTimeframe,
     });
 
     if (el.type === 'text') {
@@ -2875,27 +3045,27 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       </div>
     );
 
-    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={reportFilters} timeframe={reportSettings.timeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
     if (el.type === 'summary') {
       const attachedChart = getAttachedChart(el);
       const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
         mode: type,
         target: getTargetFromSelections(getElementPrimarySelections(attachedChart), ''),
         secondaryTarget: getTargetFromSelections(getElementComparisonSelections(attachedChart), ''),
-        filters: reportFilters,
-        timeframe: reportSettings.timeframe,
+        filters: getElementFilters(attachedChart),
+        timeframe: getElementTimeframe(attachedChart),
       }) : '';
       const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
-      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={reportFilters} timeframe={reportSettings.timeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, reportSettings.timeframe)} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
     }
     if (el.type === 'chart' && isComparison) return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <ComparisonAggregateChart targets={elementComparisonTargets} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={reportFilters} type={reportSettings.timeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -3120,7 +3290,21 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           
           <label className={styles.inputLabel}>Date</label>
           <input type="text" value={docMeta.date} onChange={(e) => updateDocMeta({ date: e.target.value })} className={styles.inputField} />
-          
+
+          <h3 className={styles.sidebarTitle}>Default Data Source</h3>
+          {renderTargetControls({
+            title: isComparison ? 'Primary data source' : 'Data source',
+            targetSelections: selections,
+            targetFloors: getFloorsForSelections(selections),
+            onChange: setSelections,
+          })}
+          {isComparison && renderTargetControls({
+            title: 'Compare against',
+            targetSelections: comparisonSelections,
+            targetFloors: getFloorsForSelections(comparisonSelections),
+            onChange: setComparisonSelections,
+          })}
+
           <h3 className={styles.sidebarTitle}>Report Timeframe</h3>
           <label className={styles.inputLabel}>Default Timeframe</label>
           <select className={styles.inputField} value={reportSettings.timeframe} onChange={(e) => updateReportTimeframe(e.target.value)}>
@@ -3645,6 +3829,15 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
                   {renderModuleTargetControls(activeElement)}
 
+                  <TimeframeOverrideControls
+                    element={activeElement}
+                    reportTimeframe={reportSettings.timeframe}
+                    onToggle={(checked) => updateElement(activeElement.id, { useReportTimeframe: checked })}
+                    onTimeframeChange={(value) => updateElementTimeframe(activeElement.id, value)}
+                    onFieldChange={(field, value) => updateElement(activeElement.id, { [field]: value })}
+                    onReset={() => resetElementCustomTimeframe(activeElement.id)}
+                  />
+
                   <label className={styles.inputLabel}>Plot Type</label>
                   <select value={activeElement.chartType || (isComparison ? 'line' : 'combo')} onChange={(e) => updateElement(activeElement.id, { chartType: e.target.value })} className={styles.inputField}>
                     {(isComparison ? COMPARISON_CHART_TYPES : AGGREGATE_CHART_TYPES).map((chartType) => (
@@ -3866,6 +4059,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   ) : (
                     <>
                       {renderModuleTargetControls(activeElement)}
+                      <TimeframeOverrideControls
+                        element={activeElement}
+                        reportTimeframe={reportSettings.timeframe}
+                        onToggle={(checked) => updateElement(activeElement.id, { useReportTimeframe: checked })}
+                        onTimeframeChange={(value) => updateElementTimeframe(activeElement.id, value)}
+                        onFieldChange={(field, value) => updateElement(activeElement.id, { [field]: value })}
+                        onReset={() => resetElementCustomTimeframe(activeElement.id)}
+                      />
                     </>
                   )}
 
@@ -3918,6 +4119,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   ) : (
                     <>
                       {renderModuleTargetControls(activeElement)}
+                      <TimeframeOverrideControls
+                        element={activeElement}
+                        reportTimeframe={reportSettings.timeframe}
+                        onToggle={(checked) => updateElement(activeElement.id, { useReportTimeframe: checked })}
+                        onTimeframeChange={(value) => updateElementTimeframe(activeElement.id, value)}
+                        onFieldChange={(field, value) => updateElement(activeElement.id, { [field]: value })}
+                        onReset={() => resetElementCustomTimeframe(activeElement.id)}
+                      />
                     </>
                   )}
 
@@ -3970,6 +4179,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       </div>
       <SavingReportOverlay isOpen={isSavingAndLeaving} />
       <ConfirmDialog dialog={confirmDialog} onClose={resolveConfirmation} />
+      {renderTargetPromptModal()}
       <ExportPreviewModal
         isOpen={Boolean(exportPreviewImage)}
         pageCount={exportPreviewPages.length || totalVisiblePageCount}
