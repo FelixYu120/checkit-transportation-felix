@@ -32,21 +32,33 @@ function Login({ setIsLoggedIn }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrorMessage('');
+
+        if (!supabase) {
+            setErrorMessage('Login is not configured. Please contact an administrator.');
+            return;
+        }
+
         setLoading(true);
 
-        // Standard Email & Password Login
-        const { error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
+        try {
+            // Standard Email & Password Login
+            const { error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
 
-        if (error) {
-            setErrorMessage(error.message);
+            if (error) {
+                setErrorMessage(error.message);
+            } else {
+                // Success! Log the user in and route them to the app
+                setIsLoggedIn(true);
+                navigate('/map');
+                return;
+            }
+        } catch (err) {
+            setErrorMessage(err?.message || 'Something went wrong. Please try again.');
+        } finally {
             setLoading(false);
-        } else {
-            // Success! Log the user in and route them to the app
-            setIsLoggedIn(true);
-            navigate('/map');
         }
     };
 
