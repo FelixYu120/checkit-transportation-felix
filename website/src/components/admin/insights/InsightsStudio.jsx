@@ -51,6 +51,7 @@ const PAGE_WIDTH = 820;
 const DEFAULT_REPORT_WIDTH = 720;
 const DEFAULT_SUMMARY_HEIGHT = 240;
 const DEFAULT_CHART_HEIGHT = 480;
+const SINGLE_SUMMARY_CARD_WIDTH = 216;
 const SUMMARY_CARD_ROW_HEIGHT = 108;
 const SUMMARY_CARD_GAP = 12;
 const SUMMARY_CARD_MIN_HEIGHT = 132;
@@ -81,6 +82,7 @@ const DEFAULT_REPORT_SETTINGS = {
   coverSubtitleY: 312,
   coverMetaX: 72,
   coverMetaY: 1040,
+  coverLocation: '',
   coverEyebrowFontSize: '13px',
   coverTitleFontSize: '62px',
   coverSubtitleFontSize: '18px',
@@ -103,6 +105,7 @@ const DEFAULT_SUMMARY_METRICS = ['total', 'current', 'peak', 'busiestDay'];
 const DAILY_SUMMARY_METRICS = ['total', 'current', 'peak', 'busiestTime'];
 const SUMMARY_METRIC_OPTIONS = [
   { value: 'total', label: 'Total Traffic Volume' },
+  { value: 'current', label: 'Latest Period' },
   { value: 'peak', label: 'Peak Traffic Volume' },
   { value: 'averageSpeed', label: 'Average Speed' },
   { value: 'v85Speed', label: '85th Speed' },
@@ -1073,54 +1076,103 @@ const createDividerElement = (id, x, y, width = DEFAULT_REPORT_WIDTH, height = 2
   style: { line: '2px solid #e2e8f0', borderBottom: '2px solid #e2e8f0' },
 });
 
-const createDefaultTemplateElements = (isComparison) => [
-  ...(isComparison ? [] : [{ id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_SUMMARY_HEIGHT, summaryMetrics: DEFAULT_SUMMARY_METRICS, useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } }]),
-  createDividerElement('divider-1', 48, isComparison ? 168 : 432),
-  { id: 'chart-1', type: 'chart', x: 48, y: isComparison ? 192 : 456, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_CHART_HEIGHT, timeType: 'weekly', chartType: isComparison ? 'line' : 'combo', style: { background: 'transparent', borderRadius: '12px' } },
-];
+// Lays out one single-metric card per previously-bundled metric, in place of
+// where a multi-metric banner used to sit — wraps to another row if the cards
+// (each fixed at SINGLE_SUMMARY_CARD_WIDTH) don't fit side by side within the
+// banner's original width. Returns the block's total height too, since every
+// template below positions its dividers/charts/text relative to wherever the
+// summary block ends — replacing a banner with a taller or shorter card block
+// means shifting all of that by the same difference.
+const createSummaryCardRow = (metrics, { idPrefix, x, y, attachedChartId, isComparison = false, maxWidth = DEFAULT_REPORT_WIDTH }) => {
+  const columns = Math.max(1, Math.floor((maxWidth + SUMMARY_CARD_GAP) / (SINGLE_SUMMARY_CARD_WIDTH + SUMMARY_CARD_GAP)));
+  const cardHeight = getAutoSummaryHeight({ summaryMetrics: [metrics[0]] }, isComparison, SINGLE_SUMMARY_CARD_WIDTH);
+  const rows = Math.ceil(metrics.length / columns);
+  const elements = metrics.map((metric, index) => ({
+    id: `${idPrefix}-${index + 1}`,
+    type: 'summary',
+    x: x + (index % columns) * (SINGLE_SUMMARY_CARD_WIDTH + SUMMARY_CARD_GAP),
+    y: y + Math.floor(index / columns) * (cardHeight + SUMMARY_CARD_GAP),
+    width: SINGLE_SUMMARY_CARD_WIDTH,
+    height: cardHeight,
+    useReportTimeframe: true,
+    summaryMetrics: [metric],
+    summaryMetric: isComparison ? metric : undefined,
+    isIndividualMetricCard: true,
+    attachedChartId,
+    style: { background: 'transparent', borderRadius: '12px' },
+  }));
+  return { elements, height: rows * cardHeight + Math.max(0, rows - 1) * SUMMARY_CARD_GAP };
+};
+
+const createDefaultTemplateElements = (isComparison) => {
+  if (isComparison) {
+    return [
+      createDividerElement('divider-1', 48, 168),
+      { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_CHART_HEIGHT, timeType: 'weekly', chartType: 'line', style: { background: 'transparent', borderRadius: '12px' } },
+    ];
+  }
+
+  const summaryRow = createSummaryCardRow(DEFAULT_SUMMARY_METRICS, { idPrefix: 'summary', x: 48, y: 192, attachedChartId: 'chart-1' });
+  const dividerY = 192 + summaryRow.height + (432 - 192 - DEFAULT_SUMMARY_HEIGHT);
+  return [
+    ...summaryRow.elements,
+    createDividerElement('divider-1', 48, dividerY),
+    { id: 'chart-1', type: 'chart', x: 48, y: dividerY + 24, width: DEFAULT_REPORT_WIDTH, height: DEFAULT_CHART_HEIGHT, timeType: 'weekly', chartType: 'combo', style: { background: 'transparent', borderRadius: '12px' } },
+  ];
+};
 
 const createTemplateElements = (templateId, isComparison) => {
   if (templateId === 'blank') return [];
 
   if (!isComparison && templateId === 'operations') {
+    const summaryRow = createSummaryCardRow(['total', 'peak', 'busiestTime'], { idPrefix: 'summary', x: 48, y: 192, attachedChartId: 'chart-1' });
+    const dividerY = 192 + summaryRow.height + 12;
+    const rowY = dividerY + 24;
     return [
-      { id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 168, summaryMetrics: ['total', 'peak', 'busiestTime'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
-      createDividerElement('divider-1', 48, 372),
-      { id: 'chart-1', type: 'chart', x: 48, y: 396, width: 432, height: 360, timeType: 'daily', chartType: 'bar', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
-      createDividerElement('divider-2', 488, 396, 24, 360, 'vertical'),
-      { id: 'text-1', type: 'text', x: 512, y: 396, width: 256, height: 168, content: 'Operational notes', style: { fontSize: '22px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
-      { id: 'text-2', type: 'text', x: 512, y: 588, width: 256, height: 168, content: 'Add sensor maintenance, signal timing, or corridor-use observations here.', style: { fontSize: '15px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: '#475569', background: DEFAULT_CARD_BACKGROUND, fontWeight: 'normal', textAlign: 'left' } },
+      ...summaryRow.elements,
+      createDividerElement('divider-1', 48, dividerY),
+      { id: 'chart-1', type: 'chart', x: 48, y: rowY, width: 432, height: 360, timeType: 'daily', chartType: 'bar', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
+      createDividerElement('divider-2', 488, rowY, 24, 360, 'vertical'),
+      { id: 'text-1', type: 'text', x: 512, y: rowY, width: 256, height: 168, content: 'Operational notes', style: { fontSize: '22px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
+      { id: 'text-2', type: 'text', x: 512, y: rowY + 192, width: 256, height: 168, content: 'Add sensor maintenance, signal timing, or corridor-use observations here.', style: { fontSize: '15px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: '#475569', background: DEFAULT_CARD_BACKGROUND, fontWeight: 'normal', textAlign: 'left' } },
     ];
   }
 
   if (!isComparison && templateId === 'trend-review') {
+    const summaryRow = createSummaryCardRow(['total', 'peak'], { idPrefix: 'summary', x: 48, y: 756, attachedChartId: 'chart-1', maxWidth: 336 });
     return [
       { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 528, timeType: 'weekly', chartType: 'combo', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-1', 48, 732),
-      { id: 'summary-1', type: 'summary', x: 48, y: 756, width: 336, height: 216, summaryMetrics: ['total', 'peak'], useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
+      ...summaryRow.elements,
       createDividerElement('divider-2', 396, 756, 24, 216, 'vertical'),
       { id: 'text-1', type: 'text', x: 420, y: 756, width: 348, height: 216, content: 'Key takeaways', style: { fontSize: '24px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
     ];
   }
 
   if (isComparison && templateId === 'executive-compare') {
+    const summaryRow = createSummaryCardRow(['average'], { idPrefix: 'summary', x: 48, y: 192, attachedChartId: 'chart-1', isComparison: true });
+    const dividerY = 192 + summaryRow.height + 12;
+    const chartY = dividerY + 24;
+    const divider2Y = chartY + 432 + 12;
     return [
-      { id: 'summary-1', type: 'summary', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 132, summaryMetric: 'average', useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
-      createDividerElement('divider-1', 48, 336),
-      { id: 'chart-1', type: 'chart', x: 48, y: 360, width: DEFAULT_REPORT_WIDTH, height: 432, timeType: 'weekly', chartType: 'combo', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
-      createDividerElement('divider-2', 48, 804),
-      { id: 'text-1', type: 'text', x: 48, y: 828, width: DEFAULT_REPORT_WIDTH, height: 120, content: 'Executive interpretation', style: { fontSize: '24px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
+      ...summaryRow.elements,
+      createDividerElement('divider-1', 48, dividerY),
+      { id: 'chart-1', type: 'chart', x: 48, y: chartY, width: DEFAULT_REPORT_WIDTH, height: 432, timeType: 'weekly', chartType: 'combo', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
+      createDividerElement('divider-2', 48, divider2Y),
+      { id: 'text-1', type: 'text', x: 48, y: divider2Y + 24, width: DEFAULT_REPORT_WIDTH, height: 120, content: 'Executive interpretation', style: { fontSize: '24px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
     ];
   }
 
   if (isComparison && templateId === 'corridor-benchmark') {
+    const summaryRow = createSummaryCardRow(['peak'], { idPrefix: 'summary', x: 48, y: 588, attachedChartId: 'chart-1', isComparison: true });
+    const textY = 588 + summaryRow.height + 36;
     return [
       { id: 'chart-1', type: 'chart', x: 48, y: 192, width: 336, height: 360, timeType: 'daily', chartType: 'bar', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-1', 396, 192, 24, 360, 'vertical'),
       { id: 'chart-2', type: 'chart', x: 432, y: 192, width: 336, height: 360, timeType: 'weekly', chartType: 'line', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-2', 48, 564),
-      { id: 'summary-1', type: 'summary', x: 48, y: 588, width: DEFAULT_REPORT_WIDTH, height: 156, summaryMetric: 'peak', useReportTimeframe: true, attachedChartId: 'chart-1', style: { background: 'transparent', borderRadius: '12px' } },
-      { id: 'text-1', type: 'text', x: 48, y: 780, width: DEFAULT_REPORT_WIDTH, height: 120, content: 'Benchmark notes', style: { fontSize: '22px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
+      ...summaryRow.elements,
+      { id: 'text-1', type: 'text', x: 48, y: textY, width: DEFAULT_REPORT_WIDTH, height: 120, content: 'Benchmark notes', style: { fontSize: '22px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: '700', textAlign: 'left' } },
     ];
   }
 
@@ -1137,6 +1189,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const reportRef = useRef(null);
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
+  const summaryCardsMenuRef = useRef(null);
   const hasLoadedReportRef = useRef(false);
   const lastCleanSnapshotRef = useRef(null);
   const confirmResolveRef = useRef(null);
@@ -1432,6 +1485,19 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   // Only gate entry behind a scope prompt for a genuinely new, non-blank report —
   // loading a saved report or starting from the blank template should never show this.
   const [showTargetPrompt, setShowTargetPrompt] = useState(() => !reportId && templateConfig.id !== 'blank');
+
+  const [isSummaryCardsMenuOpen, setIsSummaryCardsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isSummaryCardsMenuOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!summaryCardsMenuRef.current?.contains(event.target)) setIsSummaryCardsMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [isSummaryCardsMenuOpen]);
 
   const [selectedElementId, setSelectedElementId] = useState(null);
   const activeElement = elements.find(el => el.id === selectedElementId);
@@ -1923,14 +1989,23 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         newX,
         newY
       );
-      const finalHeight = newHeight;
+      // Narrowing a MULTI-metric summary card's row can push its cards onto more
+      // rows than fit in the widget's current height, which then get clipped by
+      // the widget box's `overflow: hidden` — floor the height at whatever the
+      // card grid actually needs for the new width, same as what's used when the
+      // widget is first created. A single-metric card is always exactly one row
+      // regardless of width, so it has no such floor and can be resized freely.
+      const summaryMetricCount = Array.isArray(resizedElement?.summaryMetrics) ? resizedElement.summaryMetrics.length : 1;
+      const finalHeight = resizedElement?.type === 'summary' && summaryMetricCount > 1
+        ? Math.max(newHeight, getAutoSummaryHeight({ ...resizedElement, width: newWidth }, isComparison, newWidth))
+        : newHeight;
       const finalX = snappedPosition.x;
       let finalY = snappedPosition.y;
       const startPage = Math.floor(finalY / PAGE_HEIGHT);
       const endPage = Math.floor((finalY + finalHeight - 1) / PAGE_HEIGHT);
 
       if (startPage !== endPage) finalY = (endPage * PAGE_HEIGHT) + 48;
-      
+
       updateElement(id, { x: finalX, y: finalY, width: newWidth, height: finalHeight });
       setSnapGuides({ vertical: [], horizontal: [] });
       setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
@@ -2007,6 +2082,40 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     pushUndoSnapshot();
     setElements([...elements, newEl]);
     setSelectedElementId(newId);
+    markDirty();
+  };
+
+  // A single-metric summary card — `isIndividualMetricCard` tells the properties
+  // panel to offer a one-metric picker instead of the multi-select checkboxes a
+  // combined banner uses, since swapping the metric here should replace it, not
+  // add to it.
+  const createSummaryMetricElement = (metricValue, position, zIndex) => {
+    const newEl = {
+      id: `summary-${metricValue}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'summary',
+      x: position.x,
+      y: position.y,
+      zIndex,
+      style: { borderRadius: '12px', background: '#ffffff' },
+      width: SINGLE_SUMMARY_CARD_WIDTH,
+      useReportTimeframe: true,
+      timeType: reportSettings.timeframe,
+      summaryMetric: isComparison ? metricValue : undefined,
+      summaryMetrics: [metricValue],
+      isIndividualMetricCard: true,
+      selections,
+      comparisonSelections,
+      comparisonSelectionList: [],
+    };
+    newEl.height = getAutoSummaryHeight(newEl, isComparison, newEl.width);
+    return newEl;
+  };
+
+  const addSummaryMetricCard = (metricValue) => {
+    const newEl = createSummaryMetricElement(metricValue, getNewElementPosition(), getNextZIndex());
+    pushUndoSnapshot();
+    setElements([...elements, newEl]);
+    setSelectedElementId(newEl.id);
     markDirty();
   };
 
@@ -3145,10 +3254,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 className={styles.coverMeta}
                 style={{
                   position: 'absolute',
-                  left: `${reportSettings.coverMetaX ?? 72}px`,
-                  top: `${reportSettings.coverMetaY ?? 1040}px`,
+                  left: '72px',
+                  bottom: '72px',
                   width: '704px',
-                  height: '88px',
                   fontSize: reportSettings.coverMetaFontSize,
                   fontFamily: reportSettings.coverFontFamily,
                 }}
@@ -3242,10 +3350,28 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           </span>
         </div>
         
-        {canUseBuilderTools && <div className={styles.navGroup}>
+        {canUseBuilderTools && <div className={`${styles.navGroup} ${styles.toolbarGroup}`}>
           <button onClick={() => addNewElement('text')} className={styles.toolbarBtn}><Type size={14} /> Text</button>
           <button onClick={() => addNewElement('chart')} className={styles.toolbarBtn}><BarChart2 size={14} /> Chart</button>
-          <button onClick={() => addNewElement('summary')} className={styles.toolbarBtn}><Layers size={14} /> Banner</button>
+          <div className={styles.toolbarBtnGroup} ref={summaryCardsMenuRef}>
+            <button onClick={() => setIsSummaryCardsMenuOpen((isOpen) => !isOpen)} className={styles.toolbarBtn}>
+              <Layers size={14} /> Summary Cards
+            </button>
+            {isSummaryCardsMenuOpen && (
+              <div className={styles.toolbarDropdownMenu}>
+                {(isComparison ? COMPARISON_SUMMARY_MODES : SUMMARY_METRIC_OPTIONS).map((metric) => (
+                  <button
+                    key={metric.value}
+                    type="button"
+                    className={styles.toolbarDropdownItem}
+                    onClick={() => { addSummaryMetricCard(metric.value); setIsSummaryCardsMenuOpen(false); }}
+                  >
+                    <Layers size={14} /> {metric.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button onClick={() => uploadInputRef.current?.click()} className={styles.toolbarBtn}><ImagePlus size={14} /> Insert</button>
           <button onClick={addLinkElement} className={styles.toolbarBtn}><Link2 size={14} /> Link</button>
           <button onClick={() => addNewElement('divider')} className={styles.toolbarBtn}><MinusSquare size={14} /> Divider</button>
@@ -3501,32 +3627,21 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     {reportSettings.coverSubtitle || 'Add a short report subtitle'}
                   </p>
                 </Rnd>
-                <Rnd
-                  bounds="parent"
-                  size={{ width: 704, height: 88 }}
-                  position={{ x: reportSettings.coverMetaX ?? 72, y: reportSettings.coverMetaY ?? 1040 }}
-                  dragGrid={[GRID_SIZE, GRID_SIZE]}
-                  enableResizing={false}
-                  disableDragging={isReadOnlyReport}
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (isReadOnlyReport) return;
-                    setSelectedElementId('cover');
+                <div
+                  className={styles.coverMeta}
+                  style={{
+                    position: 'absolute',
+                    left: '72px',
+                    bottom: '72px',
+                    width: '704px',
+                    fontSize: reportSettings.coverMetaFontSize,
+                    fontFamily: reportSettings.coverFontFamily,
                   }}
-                  onDragStop={(event, data) => updateReportSettings({ coverMetaX: data.x, coverMetaY: data.y })}
                 >
-                  <div
-                    className={styles.coverMeta}
-                    style={{
-                      fontSize: reportSettings.coverMetaFontSize,
-                      fontFamily: reportSettings.coverFontFamily,
-                    }}
-                  >
-                    <span>Prepared by {docMeta.author}</span>
-                    <span>{docMeta.date}</span>
-                    <span>{primaryTarget.label || docMeta.title}</span>
-                  </div>
-                </Rnd>
+                  <span>Prepared by {docMeta.author}</span>
+                  <span>{docMeta.date}</span>
+                  <span>{primaryTarget.label || docMeta.title}</span>
+                </div>
               </section>
             )}
 
@@ -4070,29 +4185,46 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     </>
                   )}
 
-                  <label className={styles.inputLabel}>Cards to Show</label>
-                  <div className={`${styles.checkboxGroup} ${styles.compactCheckboxGroup}`}>
-                    {SUMMARY_METRIC_OPTIONS.map((metric) => {
-                      const selectedMetrics = Array.isArray(activeElement.summaryMetrics) && activeElement.summaryMetrics.length > 0
-                        ? activeElement.summaryMetrics
-                        : DEFAULT_SUMMARY_METRICS;
-                      return (
-                        <label key={metric.value} className={`${styles.checkboxRow} ${styles.compactCheckboxRow}`}>
-                          <input
-                            type="checkbox"
-                            checked={selectedMetrics.includes(metric.value)}
-                            onChange={(e) => {
-                              const nextMetrics = e.target.checked
-                                ? [...selectedMetrics, metric.value]
-                                : selectedMetrics.filter((value) => value !== metric.value);
-                              updateElement(activeElement.id, { summaryMetrics: nextMetrics.length ? nextMetrics : [metric.value] });
-                            }}
-                          />
-                          <span>{metric.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {activeElement.isIndividualMetricCard ? (
+                    <>
+                      <label className={styles.inputLabel}>Metric</label>
+                      <select
+                        className={styles.inputField}
+                        value={activeElement.summaryMetrics?.[0] || SUMMARY_METRIC_OPTIONS[0].value}
+                        onChange={(e) => updateElement(activeElement.id, { summaryMetrics: [e.target.value] })}
+                      >
+                        {SUMMARY_METRIC_OPTIONS.map((metric) => (
+                          <option key={metric.value} value={metric.value}>{metric.label}</option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <label className={styles.inputLabel}>Cards to Show</label>
+                      <div className={`${styles.checkboxGroup} ${styles.compactCheckboxGroup}`}>
+                        {SUMMARY_METRIC_OPTIONS.map((metric) => {
+                          const selectedMetrics = Array.isArray(activeElement.summaryMetrics) && activeElement.summaryMetrics.length > 0
+                            ? activeElement.summaryMetrics
+                            : DEFAULT_SUMMARY_METRICS;
+                          return (
+                            <label key={metric.value} className={`${styles.checkboxRow} ${styles.compactCheckboxRow}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectedMetrics.includes(metric.value)}
+                                onChange={(e) => {
+                                  const nextMetrics = e.target.checked
+                                    ? [...selectedMetrics, metric.value]
+                                    : selectedMetrics.filter((value) => value !== metric.value);
+                                  updateElement(activeElement.id, { summaryMetrics: nextMetrics.length ? nextMetrics : [metric.value] });
+                                }}
+                              />
+                              <span>{metric.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
                     <RefreshCw size={14} /> Refresh snapshot
                   </button>
@@ -4130,32 +4262,49 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     </>
                   )}
 
-                  <label className={styles.inputLabel}>Cards to Show</label>
-                  <div className={`${styles.checkboxGroup} ${styles.compactCheckboxGroup}`}>
-                    {COMPARISON_SUMMARY_MODES.map((mode) => {
-                      const selectedMetrics = Array.isArray(activeElement.summaryMetrics) && activeElement.summaryMetrics.length > 0
-                        ? activeElement.summaryMetrics
-                        : DEFAULT_COMPARISON_SUMMARY_METRICS;
-                      return (
-                        <label key={mode.value} className={`${styles.checkboxRow} ${styles.compactCheckboxRow}`}>
-                          <input
-                            type="checkbox"
-                            checked={selectedMetrics.includes(mode.value)}
-                            onChange={(e) => {
-                              const nextMetrics = e.target.checked
-                                ? [...selectedMetrics, mode.value]
-                                : selectedMetrics.filter((value) => value !== mode.value);
-                              updateElement(activeElement.id, {
-                                summaryMetrics: nextMetrics.length ? nextMetrics : [mode.value],
-                                summaryMetric: nextMetrics[0] || mode.value,
-                              });
-                            }}
-                          />
-                          <span>{mode.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {activeElement.isIndividualMetricCard ? (
+                    <>
+                      <label className={styles.inputLabel}>Metric</label>
+                      <select
+                        className={styles.inputField}
+                        value={activeElement.summaryMetrics?.[0] || COMPARISON_SUMMARY_MODES[0].value}
+                        onChange={(e) => updateElement(activeElement.id, { summaryMetrics: [e.target.value], summaryMetric: e.target.value })}
+                      >
+                        {COMPARISON_SUMMARY_MODES.map((mode) => (
+                          <option key={mode.value} value={mode.value}>{mode.label}</option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <label className={styles.inputLabel}>Cards to Show</label>
+                      <div className={`${styles.checkboxGroup} ${styles.compactCheckboxGroup}`}>
+                        {COMPARISON_SUMMARY_MODES.map((mode) => {
+                          const selectedMetrics = Array.isArray(activeElement.summaryMetrics) && activeElement.summaryMetrics.length > 0
+                            ? activeElement.summaryMetrics
+                            : DEFAULT_COMPARISON_SUMMARY_METRICS;
+                          return (
+                            <label key={mode.value} className={`${styles.checkboxRow} ${styles.compactCheckboxRow}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectedMetrics.includes(mode.value)}
+                                onChange={(e) => {
+                                  const nextMetrics = e.target.checked
+                                    ? [...selectedMetrics, mode.value]
+                                    : selectedMetrics.filter((value) => value !== mode.value);
+                                  updateElement(activeElement.id, {
+                                    summaryMetrics: nextMetrics.length ? nextMetrics : [mode.value],
+                                    summaryMetric: nextMetrics[0] || mode.value,
+                                  });
+                                }}
+                              />
+                              <span>{mode.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
                     <RefreshCw size={14} /> Refresh snapshot
                   </button>
