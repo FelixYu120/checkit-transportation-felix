@@ -92,7 +92,7 @@ These metrics are calculated inside the active dashboard filter window: selected
 | Busiest Time | Time bucket with the highest movement in a 24 hr/custom view. | Group samples by hour or visible chart bucket, compute movement per bucket, choose the bucket with the highest `volume`. |
 | Busiest Day | Day with the highest movement in a weekly/monthly view. | Group samples by day, compute total or average visible movement per day depending on the chart bucket, choose the highest day. |
 | Average Speed | Volume-weighted traffic speed. | `sum(avg_speed * volume) / sum(volume)`. If there is no movement volume, the value is `0` or hidden as no data depending on the chart. |
-| 85th Speed | Approximate 85th percentile speed carried by the summary table. | The firmware/pipeline provides `v85_speed` per period. Dashboard rollups use `sum(v85_speed * volume) / sum(volume)`. |
+| 85th Speed | Legacy approximation carried by the current summary table. | The firmware/pipeline provides `v85_speed` per period. Current dashboard rollups use `sum(v85_speed * volume) / sum(volume)`, which is **not** a true merged percentile. V2 must replace long-window values with a percentile derived from merged `traffic_daily.speed_histogram` bins. |
 | Max Speed | Highest speed observed in the active window. | `max(max_speed)` across sampled periods. |
 | Over Threshold Count | Number of sampled periods where speed exceeded the configured max speed cap threshold. | `count(period where max_speed > max_speed_cap_threshold)`. If the sensor has no threshold configured, the card shows `-`. |
 | Low/No Movement Periods | Number of sampled periods with little or no traffic. | `count(period where volume <= 0)`. |

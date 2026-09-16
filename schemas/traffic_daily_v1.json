@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://checkit.example/schemas/traffic_daily_v1.json",
+  "title": "CheckIt daily traffic aggregate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sensor_id", "day", "volume", "approach_volume", "away_volume",
+    "motor_vehicle_volume", "micromobility_volume", "unknown_volume",
+    "speed_count", "speed_sum_kmh", "max_speed_kmh", "speed_histogram",
+    "histogram_bin_size_kmh", "histogram_version", "speeding_count",
+    "accepted_count", "review_count", "rejected_count", "snr_sum", "snr_count",
+    "source_passage_count", "updated_at"
+  ],
+  "properties": {
+    "sensor_id": {"type": "string"},
+    "day": {"type": "string", "format": "date"},
+    "volume": {"type": "integer", "minimum": 0},
+    "approach_volume": {"type": "integer", "minimum": 0},
+    "away_volume": {"type": "integer", "minimum": 0},
+    "motor_vehicle_volume": {"type": "integer", "minimum": 0},
+    "micromobility_volume": {"type": "integer", "minimum": 0},
+    "unknown_volume": {"type": "integer", "minimum": 0},
+    "speed_count": {"type": "integer", "minimum": 0},
+    "speed_sum_kmh": {"type": "integer", "minimum": 0},
+    "max_speed_kmh": {"type": "integer", "minimum": 0},
+    "speed_histogram": {
+      "description": "5 km/h bins [0,5) through [115,120), plus 120+ overflow",
+      "type": "array", "minItems": 25, "maxItems": 25,
+      "items": {"type": "integer", "minimum": 0}
+    },
+    "histogram_bin_size_kmh": {"const": 5},
+    "histogram_version": {"const": 1},
+    "speeding_count": {"type": "integer", "minimum": 0},
+    "accepted_count": {"type": "integer", "minimum": 0},
+    "review_count": {"type": "integer", "minimum": 0},
+    "rejected_count": {"type": "integer", "minimum": 0},
+    "snr_sum": {"type": "integer"},
+    "snr_count": {"type": "integer", "minimum": 0},
+    "source_passage_count": {"type": "integer", "minimum": 0},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}

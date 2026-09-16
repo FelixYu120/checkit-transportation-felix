@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://checkit.example/schemas/archive_manifest_v1.json",
+  "title": "CheckIt historical archive manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "archive_id", "dataset", "sensor_id", "started_at", "ended_at", "row_count",
+    "object_key", "format", "schema_version", "byte_count", "sha256_hex", "status",
+    "created_at", "verified_at", "deleted_from_hot_at"
+  ],
+  "properties": {
+    "archive_id": {"type": "string", "format": "uuid"},
+    "dataset": {"enum": ["traffic_passages", "reference_measurements"]},
+    "sensor_id": {"type": "string"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": "string", "format": "date-time"},
+    "row_count": {"type": "integer", "minimum": 0},
+    "object_key": {"type": "string", "minLength": 1},
+    "format": {"enum": ["parquet", "jsonl.gz"]},
+    "schema_version": {"type": "integer", "minimum": 1},
+    "byte_count": {"type": "integer", "minimum": 0},
+    "sha256_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["building", "uploaded", "verified", "deleted_from_hot", "failed"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "verified_at": {"type": ["string", "null"], "format": "date-time"},
+    "deleted_from_hot_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

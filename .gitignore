@@ -1,6 +1,23 @@
 node_modules/
 website/node_modules/
 
+# Python backend and local data artifacts
+.venv/
+*.egg-info/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.pio/
+*.parquet
+*.csv
+*.cbor
+*.cbor.gz
+*.bin
+*.bin.gz
+data/*
+!data/.gitkeep
+
 dist/
 build/
 website/dist/
@@ -11,8 +28,8 @@ coverage/
 website/coverage/
 
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.local
 website/.env
 website/.env.local
