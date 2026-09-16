@@ -96,3 +96,38 @@ export const removeTeamMember = async (supabase, memberId) => {
   if (error) throw error;
   return data;
 };
+
+export const inviteTeamMember = async (supabase, { email, role }) => {
+  if (!supabase) {
+    throw new Error("The invite service is not available right now.");
+  }
+
+  const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  const accessToken = sessionResult?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Sign in before inviting team members.");
+  }
+
+  let response;
+  try {
+    response = await fetch("/api/team/invite", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ email, role })
+    });
+  } catch {
+    throw new Error("The invite service could not be reached. Make sure the transportation website was redeployed.");
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || "Invite could not be sent.");
+  }
+
+  return payload;
+};

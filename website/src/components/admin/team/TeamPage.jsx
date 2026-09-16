@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Search, Trash2, UserCog, Users, X } from "lucide-react";
+import { Check, Copy, Plus, Search, Send, Trash2, UserCog, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
-import { fetchInstitutionTeamMembers, removeTeamMember, updateTeamMemberRole } from "./TeamData";
+import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember, updateTeamMemberRole } from "./TeamData";
 import styles from "./TeamPage.module.css";
 
 const matchesSearch = (member, query) => {
@@ -106,6 +106,11 @@ const TeamPage = () => {
   const [confirmationName, setConfirmationName] = useState("");
   const [actionError, setActionError] = useState("");
   const [savingAction, setSavingAction] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -163,6 +168,7 @@ const TeamPage = () => {
   const selectedMemberName = selectedMember?.full_name || selectedMember?.email || "this member";
   const canEditSelectedMember = canManageMember(currentUserRole, currentUserId, selectedMember);
   const availableRoleOptions = getRoleOptionsForManager(currentUserRole);
+  const canInviteMembers = ["checkit_admin", "admin"].includes(normalizeRole(currentUserRole));
 
   const copyEmail = async (email) => {
     if (!email) return;
@@ -194,6 +200,21 @@ const TeamPage = () => {
     setSelectedMember(null);
     setConfirmationName("");
     setActionError("");
+  };
+
+  const openInviteModal = () => {
+    const roleOptions = getRoleOptionsForManager(currentUserRole);
+    setInviteRole(roleOptions[roleOptions.length - 1]?.value || "viewer");
+    setInviteEmail("");
+    setInviteError("");
+    setInviteOpen(true);
+  };
+
+  const closeInviteModal = () => {
+    if (inviteLoading) return;
+    setInviteOpen(false);
+    setInviteEmail("");
+    setInviteError("");
   };
 
   const refreshMembers = async () => {
@@ -241,15 +262,43 @@ const TeamPage = () => {
     }
   };
 
+  const sendInvite = async (event) => {
+    event.preventDefault();
+    if (!inviteEmail.trim()) return;
+
+    setInviteLoading(true);
+    setInviteError("");
+
+    try {
+      await inviteTeamMember(supabase, {
+        email: inviteEmail,
+        role: inviteRole
+      });
+      await refreshMembers();
+      closeInviteModal();
+    } catch (err) {
+      setInviteError(err.message || "Invite could not be sent.");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   return (
     <main className={styles.teamShell}>
       <section className={styles.teamHeader}>
         <div>
           <h1>Team</h1>
         </div>
-        <div className={styles.countPill}>
-          <Users size={18} aria-hidden="true" />
-          <span>{memberCountLabel}</span>
+        <div className={styles.headerActions}>
+          <div className={styles.countPill}>
+            <Users size={18} aria-hidden="true" />
+            <span>{memberCountLabel}</span>
+          </div>
+          {canInviteMembers ? (
+            <button className={styles.addMemberButton} type="button" onClick={openInviteModal} aria-label="Invite member">
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -421,6 +470,62 @@ const TeamPage = () => {
 
             {actionError ? <div className={styles.actionError}>{actionError}</div> : null}
           </section>
+        </div>
+      ) : null}
+
+      {inviteOpen ? (
+        <div className={styles.modalBackdrop} onClick={closeInviteModal}>
+          <form
+            className={`${styles.memberModal} ${styles.inviteModal}`}
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="team-invite-title"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={sendInvite}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h2 id="team-invite-title">Invite member</h2>
+              </div>
+              <button className={styles.iconButton} type="button" onClick={closeInviteModal} aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className={styles.inviteModalFields}>
+              <label className={styles.inviteModalField}>
+                <span>Email</span>
+                <input
+                  className={styles.input}
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="name@example.com"
+                  required
+                />
+              </label>
+
+              <label className={styles.inviteModalField}>
+                <span>Role</span>
+                <select
+                  className={styles.select}
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value)}
+                >
+                  {availableRoleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <button className={styles.primaryButton} type="submit" disabled={inviteLoading || !inviteEmail.trim()}>
+              <Send size={16} aria-hidden="true" />
+              {inviteLoading ? "Sending..." : "Send invite"}
+            </button>
+
+            {inviteError ? <div className={styles.actionError}>{inviteError}</div> : null}
+          </form>
         </div>
       ) : null}
     </main>
