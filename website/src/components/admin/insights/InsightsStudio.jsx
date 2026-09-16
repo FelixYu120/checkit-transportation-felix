@@ -82,7 +82,6 @@ const DEFAULT_REPORT_SETTINGS = {
   coverSubtitleY: 312,
   coverMetaX: 72,
   coverMetaY: 1040,
-  coverLocation: '',
   coverEyebrowFontSize: '13px',
   coverTitleFontSize: '62px',
   coverSubtitleFontSize: '18px',
