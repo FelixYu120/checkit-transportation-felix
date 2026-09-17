@@ -13,24 +13,35 @@ function CreateAccount({ setIsLoggedIn }) {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+    const [errorMessage, setErrorMessage] = useState(() => (
+        supabase ? '' : 'Account creation is not configured. Please contact an administrator.'
+    ));
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [hasInviteSession, setHasInviteSession] = useState(false);
+    const [authReady, setAuthReady] = useState(() => !supabase);
 
     useEffect(() => {
         let mounted = true;
 
-        supabase.auth.getSession().then(({ data }) => {
+        if (!supabase) {
+            return undefined;
+        }
+
+        supabase.auth.getSession().then(({ data, error }) => {
             if (mounted) {
+                if (error) setErrorMessage(error.message);
                 setHasInviteSession(Boolean(data.session));
                 setEmail(data.session?.user?.email || '');
+                setAuthReady(true);
             }
         });
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!mounted) return;
             setHasInviteSession(Boolean(session));
             if (session?.user?.email) setEmail(session.user.email);
+            setAuthReady(true);
         });
 
         return () => {
@@ -43,6 +54,11 @@ function CreateAccount({ setIsLoggedIn }) {
         event.preventDefault();
         setErrorMessage('');
         setSuccessMessage('');
+
+        if (!supabase || !authReady) {
+            setErrorMessage('Account verification is still loading. Please try again.');
+            return;
+        }
 
         const trimmedFirstName = firstName.trim();
         const trimmedLastName = lastName.trim();
@@ -92,13 +108,19 @@ function CreateAccount({ setIsLoggedIn }) {
         } else if (hasInviteSession) {
             const userId = data?.user?.id;
             if (userId) {
-                await supabase
+                const { error: profileError } = await supabase
                     .from('profile')
                     .upsert({
                         id: userId,
                         email: normalizedEmail,
                         full_name: fullName
                     });
+
+                if (profileError) {
+                    setErrorMessage(`Your password was saved, but your profile could not be completed: ${profileError.message}`);
+                    setLoading(false);
+                    return;
+                }
             }
 
             setSuccessMessage('Account created. Redirecting to your dashboard...');
@@ -249,8 +271,8 @@ function CreateAccount({ setIsLoggedIn }) {
 
                         <div className={styles.navrow}>
                             <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>BACK</button>
-                            <button type="submit" className={styles.continuebutton} disabled={loading}>
-                                {loading ? 'CREATING...' : hasInviteSession ? 'SAVE PASSWORD' : 'CREATE'}
+                            <button type="submit" className={styles.continuebutton} disabled={loading || !authReady || !supabase}>
+                                {!authReady ? 'CHECKING INVITE...' : loading ? 'CREATING...' : hasInviteSession ? 'SAVE PASSWORD' : 'CREATE'}
                             </button>
                         </div>
                     </form>

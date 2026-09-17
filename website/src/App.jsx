@@ -12,6 +12,7 @@ import Login from "./components/authentication/Login.jsx";
 import CreateAccount from "./components/authentication/CreateAccount.jsx";
 import ForgotPassword from "./components/authentication/ForgotPassword.jsx";
 import SetPassword from "./components/authentication/SetPassword.jsx";
+import { getSupabaseAuthRedirectPath } from "./components/authentication/authRedirect.js";
 
 // --- Admin Dashboard Component (Protected Area) ---
 import AdminLayout from './components/admin/layout/AdminLayout.jsx';
@@ -35,29 +36,6 @@ const ANALYTICS_ALLOWED_ROLES = new Set([
 const normalizeAnalyticsRole = (role) => {
     const normalized = String(role || 'viewer').trim().toLowerCase();
     return normalized === 'user' ? 'viewer' : normalized;
-};
-
-const getSupabaseAuthRedirectPath = () => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const searchParams = new URLSearchParams(window.location.search);
-    const authType = hashParams.get('type') || searchParams.get('type');
-    const hasAuthCode = searchParams.has('code');
-    const hasAuthToken = hashParams.has('access_token') || hashParams.has('refresh_token');
-    const isPasswordPath = window.location.pathname === '/set-password' || window.location.pathname === '/forgot-password';
-
-    if (authType === 'invite') {
-        return '/create-account';
-    }
-
-    if (authType === 'recovery') {
-        return '/set-password';
-    }
-
-    if ((hasAuthCode || hasAuthToken) && !isPasswordPath) {
-        return '/create-account';
-    }
-
-    return null;
 };
 
 function AnalyticsAccessRoute({ isLoggedIn, children }) {
@@ -221,7 +199,7 @@ function App() {
             return undefined;
         }
 
-        const authRedirectPath = getSupabaseAuthRedirectPath();
+        const authRedirectPath = getSupabaseAuthRedirectPath(window.location);
         if (authRedirectPath && window.location.pathname !== authRedirectPath) {
             window.location.replace(`${authRedirectPath}${window.location.search}${window.location.hash}`);
             return undefined;
