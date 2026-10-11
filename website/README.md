@@ -31,11 +31,26 @@ Create `.env.local` in this folder:
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 VITE_SENSOR_DIRECTORY_SOURCE=supabase
+
+# Server-side only; required by /api/team/invite.
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+APP_PUBLIC_URL=https://your-transportation-site.example
 ```
 
 Use `VITE_SENSOR_DIRECTORY_SOURCE=supabase` for real local data. Setting it to
 `local` forces the app to use the small built-in fallback dataset, which is only
 useful for offline UI work.
+
+`APP_PUBLIC_URL/create-account` must also be listed in Supabase Authentication
+URL Configuration under Redirect URLs. Never prefix the service-role key with
+`VITE_`; Vite variables are exposed to the browser.
+
+Run the invite and authentication-routing tests with:
+
+```bash
+npm test
+```
 
 ## Main Areas
 
