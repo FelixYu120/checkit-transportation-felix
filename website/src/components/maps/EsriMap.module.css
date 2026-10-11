@@ -3,9 +3,7 @@
   width: 100%;
   height: calc(100vh - 64px);
   overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(52, 82, 77, 0.12), transparent 34%),
-    linear-gradient(180deg, #eef3f1 0%, #dfe8e5 100%);
+  background: #f0f1f2;
 }
 
 .embedded {
@@ -21,15 +19,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.mapDiv :global(canvas) {
-  filter: grayscale(0.12) saturate(0.58) brightness(0.9) contrast(0.88);
-}
-
 .mapDiv :global(.esri-view-root),
 .mapDiv :global(.esri-view-surface) {
-  background:
-    radial-gradient(circle at top left, rgba(52, 82, 77, 0.1), transparent 34%),
-    #dfe8e5;
+  background: #f0f1f2;
 }
 
 .mapDiv :global(.esri-widget),
@@ -60,4 +52,18 @@
   outline: none !important;
   border: 0 !important;
   box-shadow: none !important;
+}
+
+.sensorStatus {
+  position: absolute;
+  bottom: 30px;
+  left: 55px;
+  right: 12px;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(248, 252, 251, 0.95);
+  color: #172033;
+  font-size: 12px;
+  pointer-events: none;
 }

@@ -19,6 +19,7 @@ import OperatingLens from '../controls/OperatingLens';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
 import SummaryMetrics from '../summaries/SummaryMetrics';
+import { getSensorCoordinates } from '../../maps/TrafficSensorData';
 
 const formatDateTime = (value) => value
     ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -54,6 +55,7 @@ const formatMetadataDate = (value) => {
 };
 
 const formatNumber = (value, unit = '') => {
+    if (value === null || value === undefined || String(value).trim() === '') return 'Not set';
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) return 'Not set';
     return `${Math.round(numericValue * 10) / 10}${unit ? ` ${unit}` : ''}`;
@@ -65,10 +67,9 @@ const formatSpeedMph = (...values) => {
 };
 
 const formatCoordinates = (latitude, longitude) => {
-    const lat = Number(latitude);
-    const lng = Number(longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'Not set';
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    const coordinates = getSensorCoordinates({ latitude, longitude });
+    if (!coordinates) return 'Not set';
+    return `${coordinates.latitude.toFixed(7)}, ${coordinates.longitude.toFixed(7)}`;
 };
 
 const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorName) => ([
@@ -88,7 +89,7 @@ const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorNam
             ['Max Speed Cap', formatSpeedMph(sensor?.max_cap, sensor?.max_speed_cap_threshold, sensor?.max_speed_cap_kmh)],
             ['Danger Speed', formatSpeedMph(sensor?.danger_speed_kmh)],
             ['Emergency Speed', formatSpeedMph(sensor?.emergency_speed_kmh)],
-            ['Heading', Number.isFinite(Number(sensor?.heading_degrees)) ? `${sensor.heading_degrees} degrees` : 'Not set'],
+            ['Heading', formatNumber(sensor?.heading_degrees, 'degrees')],
         ],
     },
     {

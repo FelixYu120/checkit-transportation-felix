@@ -110,9 +110,14 @@ export const inviteTeamMember = async (supabase, { email, role }) => {
     throw new Error("Sign in before inviting team members.");
   }
 
+  const configuredBaseUrl = String(import.meta.env.VITE_TEAM_API_URL || "").trim().replace(/\/$/, "");
+  const inviteUrl = configuredBaseUrl
+    ? `${configuredBaseUrl}/api/team/invite`
+    : "/api/team/invite";
+
   let response;
   try {
-    response = await fetch("/api/team/invite", {
+    response = await fetch(inviteUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -124,9 +129,22 @@ export const inviteTeamMember = async (supabase, { email, role }) => {
     throw new Error("The invite service could not be reached. Make sure the transportation website was redeployed.");
   }
 
-  const payload = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  let payload = {};
+  try {
+    payload = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    payload = {};
+  }
   if (!response.ok) {
-    throw new Error(payload.error || "Invite could not be sent.");
+    const responseDetail = responseText && !/<(?:!doctype|html)/i.test(responseText)
+      ? responseText.slice(0, 180)
+      : "";
+    throw new Error(
+      payload.error ||
+      responseDetail ||
+      `Invite service returned HTTP ${response.status}. Check VITE_TEAM_API_URL in Vercel.`
+    );
   }
 
   return payload;

@@ -76,7 +76,7 @@ const Sidebar = () => {
                     <Search size={18} className={styles.searchIcon} />
                     <input
                         type="text"
-                        placeholder='Search transportation network...'
+                        placeholder='Search'
                         className={styles.searchInput}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}

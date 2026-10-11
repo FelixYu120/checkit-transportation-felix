@@ -87,6 +87,18 @@ async function getProfileById(userId) {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
+async function getProfileByEmail(email) {
+  const rows = await callSupabase("/rest/v1/profile", {
+    query: {
+      email: `ilike.${email}`,
+      select: "id,email,role,assigned_institute",
+      limit: "1",
+    },
+  });
+
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
 async function upsertInviteProfile({ userId, email, role, assignedInstitute }) {
   return callSupabase("/rest/v1/profile", {
     method: "POST",
@@ -104,6 +116,9 @@ async function upsertInviteProfile({ userId, email, role, assignedInstitute }) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Allow", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
@@ -125,6 +140,11 @@ export default async function handler(req, res) {
     const requestedRole = normalizeRole(body?.role);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Enter a valid email address." });
+    }
+
+    const existingProfile = await getProfileByEmail(email);
+    if (existingProfile?.id) {
+      return res.status(409).json({ error: "A user with that email already exists in the platform." });
     }
 
     const currentUser = await callSupabase("/auth/v1/user", { token: accessToken });
