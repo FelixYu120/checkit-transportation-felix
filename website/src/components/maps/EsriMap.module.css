@@ -67,3 +67,19 @@
   font-size: 12px;
   pointer-events: none;
 }
+
+.sensorTooltip {
+  position: absolute;
+  z-index: 2;
+  max-width: min(240px, calc(100% - 24px));
+  padding: 7px 10px;
+  border: 1px solid #cbd8d4;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #34524d;
+  box-shadow: 0 4px 14px rgba(21, 32, 31, 0.12);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

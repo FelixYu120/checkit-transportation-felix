@@ -1,0 +1,149 @@
+{
+  "type": "FeatureCollection",
+  "source": "https://www.openstreetmap.org/copyright",
+  "license": "ODbL-1.0",
+  "source_timestamp": "2026-07-15T15:22:01Z",
+  "description": "Selected major campus landmarks only. Public map data, separate from live sensor coordinates.",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2394425,
+          32.8777424
+        ]
+      },
+      "properties": {
+        "name": "Mandeville Auditorium",
+        "osm_id": "node/368167399"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2402408,
+          32.8799873
+        ]
+      },
+      "properties": {
+        "name": "Peterson Hall",
+        "osm_id": "way/31807101"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.239976,
+          32.8745313
+        ]
+      },
+      "properties": {
+        "name": "York Hall",
+        "osm_id": "way/31816207"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2396298,
+          32.8853488
+        ]
+      },
+      "properties": {
+        "name": "RIMAC Arena",
+        "osm_id": "way/31816488"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2352671,
+          32.8817363
+        ]
+      },
+      "properties": {
+        "name": "Jacobs Hall",
+        "osm_id": "way/31818824"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2365045,
+          32.8796679
+        ]
+      },
+      "properties": {
+        "name": "Price Center",
+        "osm_id": "way/31819709"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2369685,
+          32.8752832
+        ]
+      },
+      "properties": {
+        "name": "WongAvery Library",
+        "osm_id": "way/42854054"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2375802,
+          32.8811382
+        ]
+      },
+      "properties": {
+        "name": "Geisel Library",
+        "osm_id": "way/159385495"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.2264598,
+          32.8778074
+        ]
+      },
+      "properties": {
+        "name": "Jacobs Medical Center",
+        "osm_id": "way/370126090"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.24156,
+          32.876505
+        ]
+      },
+      "properties": {
+        "name": "Tata Hall for the Sciences",
+        "osm_id": "way/821246683"
+      }
+    }
+  ]
+}

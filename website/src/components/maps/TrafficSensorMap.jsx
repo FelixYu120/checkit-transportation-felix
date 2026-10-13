@@ -2,34 +2,49 @@ import { useEffect, useRef, useState } from 'react';
 import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import GeoJSONLayer from '@arcgis/core/layers/GeoJSONLayer';
+import * as reactiveUtils from '@arcgis/core/core/reactiveUtils';
 import Graphic from '@arcgis/core/Graphic';
 import '@arcgis/core/assets/esri/themes/light/main.css';
 import supabase from '../helper/SupabaseClients';
+import { prepareSensorLogo, replaceSensorGlyph, preloadMarkerImages } from './TrafficSensorSymbols';
 import { normalizeInstituteId } from '../admin/data/SensorDirectoryData';
-import { fetchMapSensors, getSensorCoordinates } from './TrafficSensorData';
+import { addHeadingPointer, fetchMapSensors, getSensorCoordinates, getSensorHeading } from './TrafficSensorData';
 import styles from './EsriMap.module.css';
-import sensorBadge from './assets/sensor.svg';
-import selectedSensorBadge from './assets/sensor-selected.svg';
+import { getSensorCountBadge, getSensorOverview, SENSOR_CLUSTER_SIZE, SENSOR_OVERVIEW_ZOOM } from './TrafficSensorOverview';
+import { colorSensorBadge, fetchMapSensorHealth, getAggregateMapHealth, getMapSensorHealth, SENSOR_HEALTH_COLORS } from './TrafficSensorHealth';
+import sensorBadgeSvg from './assets/sensor.svg?raw';
+import selectedSensorBadgeSvg from './assets/sensor-selected.svg?raw';
 
 export default function TrafficSensorMap({ embedded = false, instituteId, sensorId, onSensorClick }) {
   const mapDiv = useRef(null);
   const selectionRef = useRef({ sensorId, onSensorClick });
   const [errorMessage, setErrorMessage] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
   useEffect(() => {
     selectionRef.current = { sensorId, onSensorClick };
   }, [sensorId, onSensorClick]);
 
   useEffect(() => {
-    const markerSymbol = (selected) => ({
-      type: 'picture-marker',
-      url: selected ? selectedSensorBadge : sensorBadge,
-      width: selected ? '52px' : '40px',
-      height: selected ? '52px' : '40px',
-    });
+    let savedGraphics = new globalThis.Map();
+    const logoReady = prepareSensorLogo(`${import.meta.env.BASE_URL}checkmark.png`);
+    let logoDataUrl;
+    const markerSymbol = (selected, heading, health = 'unknown') => {
+      const svg = replaceSensorGlyph(colorSensorBadge(selected ? selectedSensorBadgeSvg : sensorBadgeSvg, health), logoDataUrl);
+      return {
+        type: 'picture-marker',
+        url: addHeadingPointer(svg, heading, selected, SENSOR_HEALTH_COLORS[health]) ||
+          `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+        width: '44px', height: '44px',
+      };
+    };
     const sensorRenderer = () => ({
-      type: 'unique-value', field: 'sensor_id', defaultSymbol: markerSymbol(false),
-      uniqueValueInfos: selectionRef.current.sensorId
-        ? [{ value: selectionRef.current.sensorId, symbol: markerSymbol(true) }] : [],
+      type: 'unique-value', field: 'sensor_id',
+      uniqueValueInfos: Array.from(savedGraphics.values(), (graphic) => ({
+        value: graphic.attributes.sensor_id,
+        symbol: markerSymbol(graphic.attributes.sensor_id === selectionRef.current.sensorId, graphic.attributes.heading_degrees, graphic.attributes.map_health),
+      })),
     });
     const layer = new FeatureLayer({
       title: 'Transportation sensors', source: [],
@@ -40,35 +55,85 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         ...['sensor_id', 'institute_id', 'area_name', 'corridor_name']
           .map((name) => ({ name, type: 'string' })),
         { name: 'latitude', type: 'double' }, { name: 'longitude', type: 'double' },
+        { name: 'heading_degrees', type: 'double' },
+        { name: 'map_health', type: 'string' },
+        { name: 'health_bad', type: 'integer' }, { name: 'health_known', type: 'integer' },
       ],
       renderer: sensorRenderer(),
       featureReduction: {
         type: 'cluster', clusterRadius: '70px',
-        clusterMinSize: '32px', clusterMaxSize: '48px', maxScale: 5000,
-        renderer: {
-          type: 'simple', symbol: {
-            type: 'simple-marker', color: '#234e48',
-            outline: { color: '#ffffff', width: 2 },
-          },
-        },
-        labelingInfo: [{
-          where: 'cluster_count > 1', labelPlacement: 'center-center',
-          labelExpressionInfo: { expression: "Text($feature.cluster_count, '#,###')" },
-          symbol: { type: 'text', color: '#ffffff',
-            font: { family: 'Arial', size: 11, weight: 'bold' } },
-        }],
+        clusterMinSize: SENSOR_CLUSTER_SIZE, clusterMaxSize: SENSOR_CLUSTER_SIZE, maxScale: 5000,
+        fields: [
+          { name: 'sensor_count', statisticType: 'count', onStatisticField: 'ObjectID' },
+          { name: 'unhealthy_count', statisticType: 'sum', onStatisticField: 'health_bad' },
+          { name: 'known_count', statisticType: 'sum', onStatisticField: 'health_known' },
+        ],
+        labelingInfo: [],
+        // Count and circle share one image; no separately delayed cluster labels.
+        renderer: { type: 'unique-value', valueExpression: "$feature.sensor_count + ':' + When($feature.unhealthy_count > 0, 'down', $feature.known_count == $feature.sensor_count, 'active', 'unknown')", uniqueValueInfos: [] },
         popupEnabled: false,
       },
     });
+    const landmarksLayer = new GeoJSONLayer({
+      title: 'Major campus landmarks',
+      url: `${import.meta.env.BASE_URL}campus-landmarks.geojson`,
+      copyright: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL)',
+      outFields: ['name'], popupEnabled: false, minScale: 22000,
+      renderer: { type: 'simple', symbol: { type: 'simple-marker',
+        size: 3, color: '#8b7964', outline: { color: '#fffaf4', width: 0.5 } } },
+      labelingInfo: [{ labelPlacement: 'above-center', deconflictionStrategy: 'static',
+        labelExpressionInfo: { expression: '$feature.name' },
+        symbol: { type: 'text', color: '#74614b', haloColor: '#fffaf4', haloSize: 1.5,
+          font: { family: 'Arial', size: 10 } } }],
+    });
+    const overviewLayer = new GraphicsLayer({ title: 'All mapped sensors', listMode: 'hide' });
     const view = new MapView({
       container: mapDiv.current,
-      map: new Map({ basemap: 'gray-vector', layers: [layer] }),
+      map: new Map({ basemap: 'streets-vector', layers: [landmarksLayer, layer, overviewLayer] }),
       center: [-117.234, 32.8801], zoom: 15,
       constraints: { rotationEnabled: false },
       popupEnabled: false,
       ui: { components: ['zoom', 'attribution'] },
     });
     let disposed = false;
+    // Keep streets and city names, without the dense business/place labels.
+    void view.map.basemap.load().then(async () => {
+      await Promise.all(view.map.basemap.baseLayers.map(async (basemapLayer) => {
+        await basemapLayer.load();
+        if (disposed) return;
+        for (const styleLayer of basemapLayer.currentStyleInfo?.style?.layers || []) {
+          const source = styleLayer['source-layer'] || '';
+          const keepLabel = /^(Road|City|Admin)/.test(source);
+          // Warm land and building tones, with quiet olive greens and ivory roads.
+          const warmFills = {
+            Land: '#f5eee2', 'Urban area': '#eee5d7', Education: '#e9dec9',
+            Retail: '#eadbc5', Government: '#e8dece', Medical: '#eee0ce',
+            'Openspace or forest': '#cbd3b5', 'Park or farming': '#cbd3b5',
+            'Vegetation small scale': '#cbd3b5', 'Golf course': '#d3d9bd',
+            'Admin0 forest or park': '#cbd3b5', 'Admin1 forest or park': '#cbd3b5',
+            Beach: '#efdfbd', Pedestrian: '#f3e9d9',
+          };
+          let paint;
+          if (styleLayer.id === 'Building/fill') {
+            paint = { 'fill-color': '#d7c9b8', 'fill-outline-color': '#c4b6a3' };
+          } else if (styleLayer.type === 'fill' && warmFills[source] && styleLayer.id !== 'Land/Ice') {
+            paint = { 'fill-color': warmFills[source] };
+          } else if (styleLayer.type === 'line' && /^Road/.test(source)) {
+            const mainRoad = /Major|Highway|Freeway/.test(styleLayer.id);
+            paint = { 'line-color': styleLayer.id.includes('/casing')
+              ? '#d4c5b2' : mainRoad ? '#ecd7b8' : '#fffaf2' };
+          } else if (styleLayer.type === 'symbol' && keepLabel && styleLayer.layout?.['text-field']) {
+            paint = { 'text-color': '#66594a', 'text-halo-color': '#fffaf4' };
+          }
+          if (paint) basemapLayer.setPaintProperties(styleLayer.id, { ...styleLayer.paint, ...paint });
+          if (styleLayer.type === 'symbol' && !keepLabel) {
+            basemapLayer.setStyleLayerVisibility(styleLayer.id, 'none');
+          }
+        }
+      }));
+    }).catch((error) => {
+      if (!disposed) console.warn('Map style could not be applied:', error);
+    });
     let loading = false;
     let pending = false;
     let fitted = false;
@@ -77,24 +142,75 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     let hoverRequest = 0;
     const objectIds = new globalThis.Map();
     let nextObjectId = 1;
-    let savedGraphics = new globalThis.Map();
-    const updateSelection = () => { layer.renderer = sensorRenderer(); };
+    let symbolRevision = 0;
+    const updateSelection = async () => {
+      const revision = ++symbolRevision;
+      const renderer = sensorRenderer();
+      const clusterRenderer = {
+        type: 'unique-value',
+        valueExpression: "$feature.sensor_count + ':' + When($feature.unhealthy_count > 0, 'down', $feature.known_count == $feature.sensor_count, 'active', 'unknown')",
+        uniqueValueInfos: Array.from({ length: savedGraphics.size }, (_, index) => index + 1)
+          .flatMap((count) => Object.keys(SENSOR_HEALTH_COLORS).map((health) => ({
+            value: `${count}:${health}`,
+            symbol: { type: 'picture-marker', url: getSensorCountBadge(count, health),
+              width: SENSOR_CLUSTER_SIZE, height: SENSOR_CLUSTER_SIZE },
+          }))),
+      };
+      await preloadMarkerImages([
+        ...renderer.uniqueValueInfos.map(({ symbol }) => symbol.url),
+        ...clusterRenderer.uniqueValueInfos.map(({ symbol }) => symbol.url),
+      ]);
+      if (disposed || revision !== symbolRevision) return;
+      layer.renderer = renderer;
+      layer.featureReduction.renderer = clusterRenderer;
+    };
+    const updateOverview = () => {
+      if (disposed) return;
+      const overview = getSensorOverview(Array.from(savedGraphics.values(), (graphic) => graphic.attributes));
+      const merged = view.zoom <= SENSOR_OVERVIEW_ZOOM && overview?.count > 0;
+      layer.visible = !merged;
+      overviewLayer.visible = Boolean(merged);
+      overviewLayer.removeAll();
+      if (merged) {
+        const geometry = { type: 'point', latitude: overview.latitude,
+          longitude: overview.longitude, spatialReference: { wkid: 4326 } };
+        overviewLayer.add(new Graphic({
+          geometry, attributes: { overview: true, sensor_count: overview.count },
+          symbol: { type: 'picture-marker', url: getSensorCountBadge(overview.count, getAggregateMapHealth(Array.from(savedGraphics.values(), (graphic) => graphic.attributes))),
+            width: SENSOR_CLUSTER_SIZE, height: SENSOR_CLUSTER_SIZE },
+        }));
+      }
+      if (layer.featureReduction) {
+        layer.featureReduction.clusterRadius = view.zoom >= 16 ? 70 : view.zoom >= 15 ? 100 : 140;
+      }
+      ++hoverRequest;
+      setTooltip(null);
+    };
+    const zoomWatch = reactiveUtils.watch(() => view.zoom, updateOverview, { initial: true });
     const scope = instituteId ? normalizeInstituteId(instituteId) : undefined;
     const refresh = async () => {
       if (disposed) return;
       if (loading) { pending = true; return; }
       loading = true;
+      const previousGraphics = savedGraphics;
+      let editsCommitted = false;
       try {
         const sensors = await fetchMapSensors(supabase, scope);
+        const healthRows = await fetchMapSensorHealth(supabase, sensors.map((sensor) => sensor.sensor_id));
+        logoDataUrl = await logoReady;
         await view.when();
         if (disposed) return;
         const graphics = sensors.flatMap((sensor) => {
           const coordinates = getSensorCoordinates(sensor);
           if (!coordinates) return [];
+          const health = getMapSensorHealth({ ...sensor, ...healthRows.get(sensor.sensor_id) });
           if (!objectIds.has(sensor.sensor_id)) objectIds.set(sensor.sensor_id, nextObjectId++);
           return [new Graphic({
             geometry: { type: 'point', ...coordinates, spatialReference: { wkid: 4326 } },
-            attributes: { ...sensor, ObjectID: objectIds.get(sensor.sensor_id) },
+            attributes: { ...sensor, ...coordinates,
+              map_health: health, health_bad: health === 'down' ? 1 : 0, health_known: health === 'unknown' ? 0 : 1,
+              heading_degrees: getSensorHeading(sensor.heading_degrees),
+              ObjectID: objectIds.get(sensor.sensor_id) },
           })];
         });
         const nextGraphics = new globalThis.Map(graphics.map((graphic) => [graphic.attributes.sensor_id, graphic]));
@@ -109,6 +225,8 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         savedGraphics.forEach((graphic, id) => {
           if (!nextGraphics.has(id)) deleteFeatures.push(graphic);
         });
+        savedGraphics = nextGraphics;
+        await updateSelection();
         if (addFeatures.length || updateFeatures.length || deleteFeatures.length) {
           await layer.load();
           if (disposed) return;
@@ -117,9 +235,9 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
             .find((entry) => entry.error);
           if (failure) throw failure.error;
         }
+        editsCommitted = true;
         if (disposed) return;
-        savedGraphics = nextGraphics;
-        updateSelection();
+        updateOverview();
         setErrorMessage(null);
         const selected = graphics.find((graphic) => graphic.attributes.sensor_id === selectionRef.current.sensorId);
         const position = selected ? `${selected.geometry.latitude},${selected.geometry.longitude}` : '';
@@ -133,6 +251,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         previousSelection = selectionRef.current.sensorId;
         previousPosition = position;
       } catch (error) {
+        if (!editsCommitted) savedGraphics = previousGraphics;
         if (!disposed) {
           console.error('Transportation map refresh failed:', error);
           setErrorMessage('Sensor locations could not refresh. Retrying automatically…');
@@ -144,11 +263,13 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     };
     const click = view.on('click', async (event) => {
       try {
-        const result = await view.hitTest(event, { include: [layer] });
+        const result = await view.hitTest(event, { include: [layer, overviewLayer] });
         if (disposed) return;
-        const graphic = result.results.find((hit) => hit.graphic?.layer === layer)?.graphic;
+        const graphic = result.results.find((hit) => [layer, overviewLayer].includes(hit.graphic?.layer))?.graphic;
         if (!graphic) return;
-        if (graphic.isAggregate) {
+        if (graphic.attributes?.overview) {
+          await view.goTo({ target: Array.from(savedGraphics.values()), zoom: SENSOR_OVERVIEW_ZOOM + 1 });
+        } else if (graphic.isAggregate) {
           const layerView = await view.whenLayerView(layer);
           const query = layerView.createQuery();
           query.aggregateIds = [graphic.getObjectId()];
@@ -167,10 +288,16 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     const hover = view.on('pointer-move', async (event) => {
       const request = ++hoverRequest;
       try {
-        const result = await view.hitTest(event, { include: [layer] });
+        const result = await view.hitTest(event, { include: [layer, overviewLayer] });
         if (disposed || request !== hoverRequest) return;
-        const graphic = result.results.find((hit) => hit.graphic?.layer === layer)?.graphic;
+        const graphic = result.results.find((hit) => [layer, overviewLayer].includes(hit.graphic?.layer))?.graphic;
         view.container.style.cursor = graphic ? 'pointer' : '';
+        const name = graphic && !graphic.isAggregate && !graphic.attributes?.overview ? graphic.attributes.corridor_name : null;
+        const tooltipWidth = name ? Math.min(240, String(name).length * 7 + 20) : 0;
+        setTooltip(name ? { name,
+          x: Math.max(12, Math.min(event.x + 14, view.width - tooltipWidth - 12)),
+          y: Math.max(12, Math.min(event.y + 18, view.height - 48)),
+        } : null);
 
       } catch (error) {
         if (!disposed) console.error('Sensor hover failed:', error);
@@ -179,16 +306,21 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     const clearHover = () => {
       ++hoverRequest;
       view.container.style.cursor = '';
+      setTooltip(null);
     };
     mapDiv.current.addEventListener('pointerleave', clearHover);
+    mapDiv.current.addEventListener('pointerdown', clearHover);
+    mapDiv.current.addEventListener('wheel', clearHover, { passive: true });
     // Polling also covers projects where sensors are not enabled for Realtime.
     const interval = setInterval(refresh, 10000);
     const channel = supabase?.channel(`traffic-map-${scope || 'all'}-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sensors' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'device_health' }, refresh)
       .subscribe();
     window.addEventListener('focus', refresh);
     const selectionChanged = () => {
-      updateSelection();
+      clearHover();
+      void updateSelection().catch((error) => console.error('Sensor symbols failed:', error));
       void refresh();
     };
     mapDiv.current.addEventListener('sensor-selection', selectionChanged);
@@ -200,9 +332,12 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       window.removeEventListener('focus', refresh);
       container.removeEventListener('sensor-selection', selectionChanged);
       container.removeEventListener('pointerleave', clearHover);
+      container.removeEventListener('pointerdown', clearHover);
+      container.removeEventListener('wheel', clearHover);
       if (channel) void supabase.removeChannel(channel);
       click.remove();
       hover.remove();
+      zoomWatch.remove();
       view.destroy();
     };
   }, [instituteId]);
@@ -213,6 +348,8 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
 
   return <div className={`${styles.mapWrapper} ${embedded ? styles.embedded : ''}`}>
     <div ref={mapDiv} className={styles.mapDiv} />
+    {tooltip && <div className={styles.sensorTooltip} role="tooltip"
+      style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.name}</div>}
     {errorMessage && <div className={styles.sensorStatus} role="status">{errorMessage}</div>}
   </div>;
 }
