@@ -13,6 +13,9 @@ export const slugifyAdminPathSegment = (text) => {
     .replace(/^_+|_+$/g, "");
 };
 
+// Area links and URL parameters must use the same canonical segment format.
+export const normalizeAdminPathSegment = (text) => slugifyAdminPathSegment(text);
+
 export const getFloorRouteSegment = (floorId) => {
   const value = String(floorId || "").trim();
   if (!value) return "corridors";
