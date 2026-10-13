@@ -16,6 +16,8 @@
 #include "FlashRouter.h"
 #include "Ld2415hProtocol.h"
 #include "Ld2451Protocol.h"
+#include "LonelyBinaryDisplay.h"
+#include "SpeedDisplayPolicy.h"
 #include "OperatingMode.h"
 #include "ProvisioningManager.h"
 #include "RadarDashboardPage.h"
@@ -55,7 +57,14 @@ using namespace CheckIt;
 
 namespace {
 
+LonelyBinaryDisplay speedDisplay(
+    CHECKIT_SPEED_DISPLAY_DATA_PIN,
+    CHECKIT_SPEED_DISPLAY_LATCH_PIN,
+    CHECKIT_SPEED_DISPLAY_CLOCK_PIN,
+    CHECKIT_SPEED_DISPLAY_REVERSE_DIGIT_ORDER != 0);
+
 HardwareSerial radarSerial(2);
+constexpr uint32_t radarUartBaud = CHECKIT_RADAR_UART_BAUD;
 #if CHECKIT_ENABLE_REFERENCE_RADAR
 // USB diagnostics use native USB CDC. UART0 is therefore available for the
 // independent LD2415H reference channel on GPIO10/GPIO12.
@@ -108,6 +117,104 @@ const TargetQualityConfig targetQualityConfig{
     CHECKIT_TARGET_CONFIRMATION_MAX_SPEED_DELTA_KMH,
     CHECKIT_TARGET_CONFIRMATION_MAX_FRAME_GAP_MS};
 TargetConfirmationFilter targetConfirmationFilter(targetQualityConfig);
+// Warning/display intake is separate from the >=7 km/h traffic classifier.
+TargetQualityConfig makeWarningQualityConfig() {
+  TargetQualityConfig config = targetQualityConfig;
+  config.minSpeedKmh = 1;
+  config.maxSpeedDeltaKmh = 4;
+#if CHECKIT_SPEED_DISPLAY_ROOM_TEST
+  config.minDistanceM = 1;
+#endif
+  return config;
+}
+StableSpeedFilter warningSpeedFilter(makeWarningQualityConfig());
+SpeedDisplayState speedDisplayState(
+    CHECKIT_SPEED_DISPLAY_FLASH_DURATION_MS, CHECKIT_SPEED_DISPLAY_FLASH_HALF_PERIOD_MS);
+uint32_t lastRadarByteMs = 0;
+uint32_t lastRadarProtocolFrameMs = 0;
+uint8_t protocolReportedTargets = 0;
+Ld2451LinkState radarCheckState(uint32_t nowMs) {
+  return classifyLd2451Link(radarParser.stats().validFrames > 0,
+      static_cast<uint32_t>(nowMs - lastRadarProtocolFrameMs), protocolReportedTargets,
+      radarParser.stats().bytesSeen > 0,
+      static_cast<uint32_t>(nowMs - lastRadarByteMs), CHECKIT_RADAR_ACTIVE_TIMEOUT_MS);
+}
+// Keep a contiguous prefix rather than disconnected first-32-byte samples.
+// Capture is passive: the same bytes still enter the normal report parser.
+struct RadarCapture {
+  static constexpr uint32_t durationMs = 15000UL;
+  uint8_t bytes[512]{};
+  uint16_t count = 0;
+  uint32_t startedMs = 0;
+  bool active = false;
+  bool automatic = false;
+  Ld2451ParserStats baseline{};
+} radarCapture;
+
+void startRadarCapture(uint32_t nowMs, bool automatic) {
+  radarCapture.count = 0;
+  radarCapture.startedMs = nowMs;
+  radarCapture.baseline = radarParser.stats();
+  radarCapture.automatic = automatic;
+  radarCapture.active = true;
+  Serial.println("[RADAR CAPTURE] started; 15 seconds; normal detection continues");
+}
+
+void finishRadarCapture(uint32_t nowMs) {
+  if (!radarCapture.active ||
+      static_cast<uint32_t>(nowMs - radarCapture.startedMs) < RadarCapture::durationMs)
+    return;
+  radarCapture.active = false;
+  const Ld2451ParserStats &stats = radarParser.stats();
+  const Ld2451ParserStats &before = radarCapture.baseline;
+  const uint32_t valid = stats.validFrames - before.validFrames;
+  Serial.printf("[RADAR CAPTURE] bytes=%lu headers=%lu valid=%lu bad_length=%lu bad_payload=%lu bad_trailer=%lu retained=%u/512\n",
+      static_cast<unsigned long>(stats.bytesSeen - before.bytesSeen),
+      static_cast<unsigned long>(stats.headersSeen - before.headersSeen),
+      static_cast<unsigned long>(valid),
+      static_cast<unsigned long>(stats.invalidLengths - before.invalidLengths),
+      static_cast<unsigned long>(stats.invalidPayloads - before.invalidPayloads),
+      static_cast<unsigned long>(stats.invalidTrailers - before.invalidTrailers),
+      radarCapture.count);
+  // A healthy automatic check needs no hex dump. Manual r always prints it.
+  if (!radarCapture.automatic || valid == 0) {
+    for (uint16_t offset = 0; offset < radarCapture.count; offset += 32) {
+      Serial.printf("[RADAR CAPTURE +%03u]", offset);
+      for (uint16_t i = offset; i < radarCapture.count && i < offset + 32; ++i)
+        Serial.printf(" %02X", radarCapture.bytes[i]);
+      Serial.println();
+    }
+    if (stats.bytesSeen > before.bytesSeen && stats.headersSeen == before.headersSeen)
+      Serial.println("[RADAR CAPTURE] no documented F4 F3 F2 F1 report header received; speed filtering has not been reached");
+  }
+  Serial.println("[RADAR CAPTURE] finished; type r for another 15-second capture");
+}
+
+uint8_t radarRawSample[32]{};
+uint8_t radarRawSampleCount = 0;
+uint32_t lastSpeedDiagnosticMs = 0;
+bool hasSpeedSample = false;
+RadarTarget latestSpeedSample{};
+uint32_t latestSpeedSampleMs = 0;
+const char *latestSpeedSampleState = "no_target";
+
+void updateSpeedDisplay(uint32_t nowMs) {
+  static int previousValue = -99;
+  const int value = speedDisplayState.value(nowMs);
+  if (value == previousValue) return;
+  previousValue = value;
+  if (value < 0) speedDisplay.clear();
+  else speedDisplay.showNumber(value, false);
+}
+
+void startSpeedFlash(uint8_t speedKmh, uint32_t nowMs) {
+  if (!speedDisplayState.start(speedKmh, nowMs)) return;
+  speedDisplay.showNumber(speedDisplayState.speedMph(), false);
+  Serial.printf("[SPEED DISPLAY] %u km/h -> %u mph; flash %lu ms, then blank\n",
+      speedKmh, speedDisplayState.speedMph(),
+      static_cast<unsigned long>(CHECKIT_SPEED_DISPLAY_FLASH_DURATION_MS));
+}
+
 
 const TrafficTrackerConfig trafficTrackerConfig{
     CHECKIT_TRACKER_MAX_ASSOCIATION_GAP_MS,
@@ -382,6 +489,24 @@ bool hasConfiguredValue(const char *value) {
       strstr(value, "YOUR_") == nullptr;
 }
 
+// Normal operation uses the network saved by the logistics app. Only the
+// explicitly selected room-test build uses compiled hotspot credentials.
+const char *internetWifiSsid() {
+#if CHECKIT_SPEED_DISPLAY_ROOM_TEST
+  return CHECKIT_WIFI_SSID;
+#else
+  return runtimeSettings().wifiSsid;
+#endif
+}
+
+const char *internetWifiPassword() {
+#if CHECKIT_SPEED_DISPLAY_ROOM_TEST
+  return CHECKIT_WIFI_PASSWORD;
+#else
+  return runtimeSettings().wifiPassword;
+#endif
+}
+
 void resetInternetWiFiRecoveryState() {
   wifiDisconnectedSinceMs = 0;
   wifiReconnectFailures = 0;
@@ -401,7 +526,7 @@ bool connectInternetWiFi() {
   return false;
 #else
   if (!provisioningManager.provisioned() ||
-      !hasConfiguredValue(runtimeSettings().wifiSsid)) {
+      !hasConfiguredValue(internetWifiSsid())) {
     Serial.println(
         "[CLOUD] Internet Wi-Fi not configured; local AP remains available");
     return false;
@@ -411,17 +536,17 @@ bool connectInternetWiFi() {
     Serial.printf(
         "[CLOUD] connecting to 2.4 GHz Wi-Fi '%s'; mode=%s accepts any "
         "channel\n",
-        runtimeSettings().wifiSsid,
+        internetWifiSsid(),
         operatingModeName(provisioningManager.operatingMode()));
   } else {
     Serial.printf(
         "[CLOUD] connecting to 2.4 GHz Wi-Fi '%s' on channel %u\n",
-        runtimeSettings().wifiSsid,
+        internetWifiSsid(),
         CHECKIT_ESPNOW_CHANNEL);
   }
   WiFi.begin(
-      runtimeSettings().wifiSsid,
-      runtimeSettings().wifiPassword);
+      internetWifiSsid(),
+      internetWifiPassword());
 
   const uint32_t startedMs = millis();
   while (WiFi.status() != WL_CONNECTED &&
@@ -468,7 +593,7 @@ bool connectInternetWiFi() {
 void maintainInternetWiFi(uint32_t nowMs) {
 #if CHECKIT_ENABLE_CLOUD_UPLOAD
   if (!provisioningManager.provisioned() ||
-      !hasConfiguredValue(runtimeSettings().wifiSsid)) {
+      !hasConfiguredValue(internetWifiSsid())) {
     resetInternetWiFiRecoveryState();
     return;
   }
@@ -533,24 +658,29 @@ void maintainInternetWiFi(uint32_t nowMs) {
   Serial.printf(
       "[CLOUD] Wi-Fi reconnect attempt %u to '%s'\n",
       static_cast<unsigned int>(wifiReconnectFailures),
-      runtimeSettings().wifiSsid);
+      internetWifiSsid());
 
   if (wifiReconnectFailures % CHECKIT_CLOUD_WIFI_RADIO_RESET_ATTEMPTS == 0) {
+#if CHECKIT_ENABLE_RADAR_WEB
+    // Keep the commissioning AP and its clients alive. Switching WIFI_OFF
+    // also shuts down the local dashboard, not just the failed Internet link.
+    Serial.printf(
+        "[CLOUD] resetting station connection after %u failures; local AP retained\n",
+        static_cast<unsigned int>(wifiReconnectFailures));
+    WiFi.disconnect(false, false);
+#else
     Serial.printf(
         "[CLOUD] resetting Wi-Fi radio after %u failed reconnect attempts\n",
         static_cast<unsigned int>(wifiReconnectFailures));
     WiFi.disconnect(true, false);
     WiFi.mode(WIFI_OFF);
     delay(500);
-#if CHECKIT_ENABLE_RADAR_WEB
-    WiFi.mode(WIFI_AP_STA);
-#else
     WiFi.mode(WIFI_STA);
-#endif
     delay(250);
+#endif
   }
 
-  WiFi.begin(runtimeSettings().wifiSsid, runtimeSettings().wifiPassword);
+  WiFi.begin(internetWifiSsid(), internetWifiPassword());
 #else
   (void)nowMs;
 #endif
@@ -701,6 +831,11 @@ void sendRadarStatusJson() {
   json += nowMs;
   json += F(",\"radar_active\":");
   json += radarActive ? F("true") : F("false");
+  json += F(",\"radar_check\":{\"state\":");
+  appendJsonStringValue(json, ld2451LinkStateName(radarCheckState(nowMs)));
+  json += F(",\"reported_targets\":");
+  json += protocolReportedTargets;
+  json += F("}");
   json += F(",\"has_frame\":");
   json += hasRadarFrame ? F("true") : F("false");
   json += F(",\"last_frame_age_ms\":");
@@ -739,6 +874,26 @@ void sendRadarStatusJson() {
   json += decisionConfig.dangerSpeedKmh;
   json += F(",\"emergency_speed_kmh\":");
   json += decisionConfig.emergencySpeedKmh;
+  json += F("}");
+  json += F(",\"speed_display\":{\"units\":\"mph\",\"active\":");
+  json += speedDisplayState.active() ? F("true") : F("false");
+  json += F(",\"value_mph\":");
+  json += speedDisplayState.active() ? String(speedDisplayState.speedMph()) : String(F("null"));
+  json += F(",\"startup_active\":");
+  json += F("false");  // Retained for dashboard API compatibility.
+  json += F(",\"room_override\":");
+  json += CHECKIT_SPEED_DISPLAY_ROOM_TEST ? F("true") : F("false");
+  json += F("}");
+  json += F(",\"speed_input\":{\"recent\":");
+  json += hasSpeedSample && nowMs - latestSpeedSampleMs <= 2000UL ? F("true") : F("false");
+  json += F(",\"raw_mph\":");
+  json += SpeedDisplayState::mph(latestSpeedSample.speedKmh);
+  json += F(",\"distance_m\":");
+  json += latestSpeedSample.distanceM;
+  json += F(",\"snr\":");
+  json += latestSpeedSample.snr;
+  json += F(",\"state\":");
+  appendJsonStringValue(json, latestSpeedSampleState);
   json += F("}");
   json += F(",\"internet_wifi_connected\":");
   json += WiFi.status() == WL_CONNECTED ? F("true") : F("false");
@@ -838,8 +993,12 @@ void sendRadarStatusJson() {
   json += F(",\"maximum_reported_targets\":");
   json += static_cast<unsigned int>(maximumReportedTargets);
   json += F("}");
-  json += F(",\"parser\":{\"bytes_seen\":");
+  json += F(",\"parser\":{\"uart_baud\":");
+  json += radarUartBaud;
+  json += F(",\"bytes_seen\":");
   json += stats.bytesSeen;
+  json += F(",\"headers_seen\":");
+  json += stats.headersSeen;
   json += F(",\"valid_frames\":");
   json += stats.validFrames;
   json += F(",\"empty_frames\":");
@@ -866,6 +1025,11 @@ void sendRadarStatusJson() {
   radarWebServer.send(200, "application/json", json);
 }
 
+void requestDisplayStartup() {
+  radarWebServer.send(410, "application/json",
+      "{\"ok\":false,\"message\":\"startup flashing disabled; sign responds only to radar\"}");
+}
+
 void startRadarOutputTest() {
   if (!warningOutputsEnabled()) {
     radarWebServer.send(
@@ -881,11 +1045,11 @@ void startRadarOutputTest() {
       WARN_INFO,
       CHECKIT_OUTPUT_TEST_DURATION_MS,
       nowMs);
-  Serial.println("[OUTPUT] local matrix flash test started");
+  Serial.println("[OUTPUT] local display flash test started");
   radarWebServer.send(
       200,
       "application/json",
-      "{\"ok\":true,\"message\":\"local matrix flash test started\"}");
+      "{\"ok\":true,\"message\":\"local display flash test started\"}");
 }
 
 void startRemoteOutputTest() {
@@ -925,8 +1089,20 @@ void startRemoteOutputTest() {
     return;
   }
 
+  pendingRemoteFallback.active = true;
+  pendingRemoteFallback.sequence = sequence;
+  pendingRemoteFallback.target = testTarget;
+  pendingRemoteFallback.decision = WarningDecision{
+      false,
+      true,
+      WARN_INFO,
+      CHECKIT_OUTPUT_TEST_DURATION_MS};
+  pendingRemoteFallback.deadlineMs =
+      nowMs + CHECKIT_ESPNOW_ALERT_ACK_TIMEOUT_MS;
+
   Serial.printf(
-      "[OUTPUT] remote flashing-node test sent sequence=%u node=%u\n",
+      "[OUTPUT] remote flashing-node test sent sequence=%u node=%u; "
+      "local fallback armed\n",
       sequence,
       CHECKIT_TARGET_FLASH_NODE_ID);
   radarWebServer.send(
@@ -996,6 +1172,7 @@ void setupRadarWeb() {
   });
   radarWebServer.on("/api/status", HTTP_GET, sendRadarStatusJson);
   radarWebServer.on("/api/test-output", HTTP_POST, startRadarOutputTest);
+  radarWebServer.on("/api/display-startup", HTTP_POST, requestDisplayStartup);
   radarWebServer.on(
       "/api/test-remote-output",
       HTTP_POST,
@@ -1071,6 +1248,7 @@ void maintainRemoteAlertFallback(uint32_t nowMs) {
     return;
   }
   pendingRemoteFallback.active = false;
+  startSpeedFlash(pendingRemoteFallback.target.speedKmh, nowMs);
   localOutputs.start(
       pendingRemoteFallback.target.speedKmh,
       pendingRemoteFallback.target.direction,
@@ -1089,7 +1267,7 @@ bool waitForRadarAck(
   Ld2451AckParser parser;
   const uint32_t startedMs = millis();
   while (static_cast<uint32_t>(millis() - startedMs) < timeoutMs) {
-    while (radarSerial.available() > 0) {
+    for (uint16_t batch = 0; batch < 128 && radarSerial.available() > 0; ++batch) {
       Ld2451Ack ack{};
       const Ld2451ParseResult parseResult =
           parser.push(static_cast<uint8_t>(radarSerial.read()), ack);
@@ -1112,63 +1290,61 @@ bool waitForRadarAck(
   return false;
 }
 
-bool runRadarCommand(const Ld2451CommandFrame &command) {
-  if (command.length == 0) {
-    return false;
-  }
-  for (uint8_t attempt = 1;
-       attempt <= CHECKIT_RADAR_COMMAND_ATTEMPTS;
-       ++attempt) {
-    while (radarSerial.available() > 0) {
-      radarSerial.read();
-    }
-    radarSerial.write(command.bytes, command.length);
-    radarSerial.flush();
-    const bool success = waitForRadarAck(
-        command.command,
-        CHECKIT_RADAR_COMMAND_TIMEOUT_MS);
-    Serial.printf(
-        "[RADAR CONFIG] command=0x%04X attempt=%u/%u %s\n",
-        command.command,
-        attempt,
-        CHECKIT_RADAR_COMMAND_ATTEMPTS,
-        success ? "ok" : "failed");
-    if (success) {
-      return true;
-    }
-    delay(50);
-  }
-  return false;
+// Used only by the explicit X command. Normal startup sends no radar commands.
+bool runRadarCommand(const Ld2451CommandFrame &command,
+    Ld2451Ack *reply = nullptr) {
+  while (radarSerial.available() > 0) radarSerial.read();
+  radarSerial.write(command.bytes, command.length);
+  radarSerial.flush();
+  const bool success = waitForRadarAck(
+      command.command, CHECKIT_RADAR_COMMAND_TIMEOUT_MS, reply);
+  Serial.printf("[RADAR RESET] command=0x%04X %s\n",
+      command.command, success ? "acknowledged" : "failed");
+  return success;
 }
 
-bool configureRadar() {
-#if !CHECKIT_CONFIGURE_RADAR_ON_BOOT
-  Serial.println("[RADAR CONFIG] startup configuration disabled");
-  return true;
-#else
-  while (radarSerial.available() > 0) {
-    radarSerial.read();
+// Restore sensor settings only when explicitly requested from USB. Do not
+// reapply app thresholds: the sensor must remain at its factory defaults.
+void recoverRadarSettings() {
+  if (speedDisplayState.active()) {
+    Serial.println("[RADAR RESET] sign busy; try uppercase X when blank");
+    return;
   }
-
+  Serial.println("[RADAR RESET] restoring LD2451 settings; firmware version stays unchanged");
   if (!runRadarCommand(Ld2451Commands::enableConfiguration())) {
-    return false;
+    runRadarCommand(Ld2451Commands::endConfiguration());
+    Serial.println("[RADAR RESET] configuration unconfirmed; no reset sent");
+    return;
   }
-
-  bool success = runRadarCommand(Ld2451Commands::setTargetParameters(
-      CHECKIT_RADAR_MAX_DISTANCE_M,
-      static_cast<Ld2451DirectionFilter>(CHECKIT_RADAR_DIRECTION_BOTH),
-      CHECKIT_RADAR_MIN_SPEED_KMH,
-      CHECKIT_RADAR_NO_TARGET_DELAY_SEC));
-
-  success = runRadarCommand(Ld2451Commands::setSensitivity(
-                CHECKIT_RADAR_TRIGGER_COUNT,
-                CHECKIT_RADAR_SNR_THRESHOLD_LEVEL)) &&
-      success;
-
-  success = runRadarCommand(Ld2451Commands::endConfiguration()) &&
-      success;
-  return success;
-#endif
+  Ld2451Ack version{};
+  if (!runRadarCommand(Ld2451Commands::readFirmwareVersion(), &version) ||
+      version.payloadLength != 8 || version.payload[0] != 0x51 || version.payload[1] != 0x24) {
+    runRadarCommand(Ld2451Commands::endConfiguration());
+    Serial.println("[RADAR RESET] model 0x2451 unconfirmed; no reset sent");
+    return;
+  }
+  if (!runRadarCommand(Ld2451Commands::factoryReset())) {
+    runRadarCommand(Ld2451Commands::endConfiguration());
+    Serial.println("[RADAR RESET] reset unconfirmed; settings may be unchanged");
+    return;
+  }
+  const bool rebooted = runRadarCommand(Ld2451Commands::reboot());
+  if (!rebooted) runRadarCommand(Ld2451Commands::endConfiguration());
+  radarSerial.updateBaudRate(CHECKIT_RADAR_UART_BAUD);
+  radarParser.reset();
+  hasRadarFrame = false;
+  hasValidRadarFrame = false;
+  hasSpeedSample = false;
+  protocolReportedTargets = 0;
+  lastRadarByteMs = 0;
+  lastRadarProtocolFrameMs = 0;
+  targetConfirmationFilter.reset();
+  // No boot probe or new settings writes. The normal loop reads reports,
+  // keeping the dashboard and network responsive while the sensor restarts.
+  startRadarCapture(millis(), true);
+  Serial.println(rebooted
+      ? "[RADAR RESET] reset and reboot acknowledged; listening at 115200 with factory settings"
+      : "[RADAR RESET] reset acknowledged, reboot unconfirmed; power-cycle radar to apply defaults");
 }
 
 void logTargetJson(
@@ -1450,6 +1626,7 @@ void emitAlert(
   }
 
   if (flashLocal) {
+    startSpeedFlash(target.speedKmh, nowMs);
     localOutputs.start(
         target.speedKmh,
         target.direction,
@@ -1482,6 +1659,7 @@ void emitAlert(
     } else {
       // A radio initialization/enqueue failure must not leave the site with no
       // warning at all. Use the local output as an immediate fallback.
+      startSpeedFlash(target.speedKmh, nowMs);
       localOutputs.start(
           target.speedKmh,
           target.direction,
@@ -1510,6 +1688,60 @@ void emitAlert(
       localFallbackUsed ? "yes" : "no");
 }
 
+// Confirm warnings independently of passage classification, so the app can
+// select a low display threshold without counting a person as a vehicle.
+bool findWarningCandidate(const Ld2451Frame &frame, uint32_t nowMs,
+    RadarTarget &bestTarget, WarningDecision &bestDecision) {
+  warningSpeedFilter.beginFrame(nowMs);
+  bool found = false;
+  const bool diagnosticDue = nowMs - lastSpeedDiagnosticMs >= 1000UL;
+  for (uint8_t i = 0; i < frame.targetCount; ++i) {
+    RadarTarget stable{};
+    const RadarTarget &raw = frame.targets[i];
+    const bool confirmed = warningSpeedFilter.observe(raw, stable);
+    WarningDecision decision{};
+    if (confirmed) decision = evaluateTarget(stable, decisionConfig);
+#if CHECKIT_SPEED_DISPLAY_ROOM_TEST
+    if (confirmed && stable.speedKmh > CHECKIT_SPEED_DISPLAY_LIMIT_KMH) {
+      speedDisplayState.qualifiedTarget(nowMs);
+      startSpeedFlash(stable.speedKmh, nowMs);
+    }
+#endif
+    const bool eligible = confirmed && warningOutputsEnabled() &&
+        (decision.shouldFlashLocal || decision.shouldFlashRemote);
+    if (eligible) {
+      speedDisplayState.qualifiedTarget(nowMs);
+      // Prefer severity, then proximity, instead of the fastest reflection.
+      if (!found || decision.level > bestDecision.level ||
+          (decision.level == bestDecision.level && stable.distanceM < bestTarget.distanceM)) {
+        found = true;
+        bestTarget = stable;
+        bestDecision = decision;
+      }
+    }
+    if (i == 0) {
+      const char *reason = !passesTargetQualityGate(raw, makeWarningQualityConfig())
+          ? "quality_rejected" : !confirmed ? "stabilizing"
+          : !warningOutputsEnabled() ? "warnings_disabled_by_app"
+          : !eligible ? "below_limit_or_outside_warning_gate" : "eligible";
+      hasSpeedSample = true;
+      latestSpeedSample = raw;
+      latestSpeedSampleMs = nowMs;
+      latestSpeedSampleState = reason;
+      if (diagnosticDue) {
+        Serial.printf("[SPEED TARGET] raw=%u km/h (%u mph) median=%u km/h "
+            "distance=%u m angle=%d SNR=%u direction=%s state=%s\n",
+            raw.speedKmh, SpeedDisplayState::mph(raw.speedKmh),
+            confirmed ? stable.speedKmh : 0, raw.distanceM, int(raw.angleDeg),
+            raw.snr, directionName(raw.direction), reason);
+        lastSpeedDiagnosticMs = nowMs;
+      }
+    }
+  }
+  warningSpeedFilter.endFrame();
+  return found;
+}
+
 void handleRadarFrame(const Ld2451Frame &frame, uint32_t nowMs) {
   ++radarFrameNumber;
   hasValidRadarFrame = true;
@@ -1532,9 +1764,9 @@ void handleRadarFrame(const Ld2451Frame &frame, uint32_t nowMs) {
         frame.targetCount);
   }
 
-  bool foundCandidate = false;
   RadarTarget bestTarget{};
   WarningDecision bestDecision{};
+  const bool foundCandidate = findWarningCandidate(frame, nowMs, bestTarget, bestDecision);
   Ld2451Frame reliableFrame{};
   reliableFrame.alarm = frame.alarm;
   reliableFrame.reportedTargetCount = frame.reportedTargetCount;
@@ -1578,25 +1810,6 @@ void handleRadarFrame(const Ld2451Frame &frame, uint32_t nowMs) {
     if (diagnosticDue) {
       logTargetJson(frame, target, nowMs);
     }
-
-    if (!warningOutputsEnabled()) {
-      continue;
-    }
-
-    const WarningDecision decision =
-        evaluateTarget(target, decisionConfig);
-    if (!decision.shouldFlashLocal && !decision.shouldFlashRemote) {
-      continue;
-    }
-
-    if (!foundCandidate ||
-        decision.level > bestDecision.level ||
-        (decision.level == bestDecision.level &&
-         target.speedKmh > bestTarget.speedKmh)) {
-      foundCandidate = true;
-      bestTarget = target;
-      bestDecision = decision;
-    }
   }
   targetConfirmationFilter.endFrame();
   trafficTracker.update(
@@ -1633,10 +1846,33 @@ void handleRadarFrame(const Ld2451Frame &frame, uint32_t nowMs) {
 
 void readRadar(uint32_t nowMs) {
   while (radarSerial.available() > 0) {
+    const int incoming = radarSerial.read();
+    if (incoming < 0) break;
+    const uint8_t byte = static_cast<uint8_t>(incoming);
+    lastRadarByteMs = nowMs;
+    if (radarCapture.active &&
+        static_cast<uint32_t>(nowMs - radarCapture.startedMs) < RadarCapture::durationMs &&
+        radarCapture.count < sizeof(radarCapture.bytes))
+      radarCapture.bytes[radarCapture.count++] = byte;
+    if (radarRawSampleCount < sizeof(radarRawSample)) {
+      radarRawSample[radarRawSampleCount++] = byte;
+    }
     Ld2451Frame frame{};
-    const Ld2451ParseResult result =
-        radarParser.push(static_cast<uint8_t>(radarSerial.read()), frame);
+    const Ld2451ParseResult result = radarParser.push(byte, frame);
     if (result == LD2451_FRAME_READY) {
+      lastRadarProtocolFrameMs = nowMs;
+      protocolReportedTargets = frame.reportedTargetCount;
+      static uint32_t lastRawTargetLogMs = 0;
+      if (frame.targetCount > 0 &&
+          static_cast<uint32_t>(nowMs - lastRawTargetLogMs) >= 1000UL) {
+        lastRawTargetLogMs = nowMs;
+        for (uint8_t i = 0; i < frame.targetCount; ++i) {
+          const RadarTarget &target = frame.targets[i];
+          Serial.printf("[LD2451 TARGET] index=%u speed=%u km/h distance=%u m angle=%d direction=%s SNR=%u (before app filters)\n",
+              target.targetIndex, target.speedKmh, target.distanceM,
+              target.angleDeg, directionName(target.direction), target.snr);
+        }
+      }
       handleRadarFrame(frame, nowMs);
     }
   }
@@ -1733,12 +1969,33 @@ void sendHeartbeat(uint32_t nowMs) {
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
-  delay(1000);
+  // Do not drive GPIO35-37: these are the H606 octal-PSRAM bus.
+  speedDisplay.begin();
+  // A display logic rail may rise after the ESP32. Keep blanking during the
+  // settling interval instead of relying on one early latch pulse.
+  const uint32_t startedDisplaySettleMs = millis();
+  do {
+    speedDisplay.clear();
+    delay(100);
+  } while (static_cast<uint32_t>(millis() - startedDisplaySettleMs) < 1000UL);
 
+  Serial.println("[BOOT] speed display blank; radar-driven alerts only");
   const ProvisioningSettings compiledDefaults =
       makeCompiledProvisioningDefaults();
   provisioningManager.begin(compiledDefaults, CHECKIT_BLE_SETUP_PIN);
   applyProvisionedSettings();
+  Serial.printf("[SPEED POLICY] mode=%s; app limit=%u km/h (%.1f mph); "
+      "display=mph; stable=3 frames/200 ms; Wi-Fi='%s'\n",
+      operatingModeName(provisioningManager.operatingMode()), decisionConfig.speedLimitKmh,
+      decisionConfig.speedLimitKmh / 1.609344f, internetWifiSsid());
+#if CHECKIT_SPEED_DISPLAY_ROOM_TEST
+  Serial.printf(
+      "[ROOM TEST] hotspot='%s'; limit=%u km/h; displayed speed=mph; "
+      "flash=%lu ms; saved provisioning retained\n",
+      internetWifiSsid(),
+      CHECKIT_SPEED_DISPLAY_LIMIT_KMH,
+      static_cast<unsigned long>(CHECKIT_SPEED_DISPLAY_FLASH_DURATION_MS));
+#endif
 
   Serial.println();
   Serial.println("CHECKIT TRANSPORT V2 - DUAL RADAR NODE");
@@ -1823,12 +2080,17 @@ void setup() {
     receiveQueue = xQueueCreate(8, sizeof(ReceivedMessage));
   }
 
+  Serial.println("[BOOT] starting LD2451 UART2 RX=16 TX=17");
+  Serial.flush();
   radarSerial.begin(
       CHECKIT_RADAR_UART_BAUD,
       SERIAL_8N1,
       CHECKIT_RADAR_UART_RX_PIN,
       CHECKIT_RADAR_UART_TX_PIN);
+  Serial.println("[BOOT] LD2451 UART ready");
 #if CHECKIT_ENABLE_REFERENCE_RADAR
+  Serial.println("[BOOT] starting reference UART0 RX=10 TX=12");
+  Serial.flush();
   referenceRadarSerial.begin(
       CHECKIT_REFERENCE_UART_BAUD,
       SERIAL_8N1,
@@ -1842,20 +2104,22 @@ void setup() {
       CHECKIT_REFERENCE_TSIM_UART_TX_PIN);
 #endif
 
+  Serial.println("[BOOT] starting Wi-Fi / ESP-NOW");
+  Serial.flush();
   setupEspNow();
+  Serial.println("[BOOT] starting radar dashboard");
   setupRadarWeb();
   cloudTelemetry.begin();
 #if CHECKIT_ENABLE_REFERENCE_RADAR
   referenceTelemetry.begin();
   configureReferenceRadar();
 #endif
-  if (!configureRadar()) {
-    Serial.println(
-        "[RADAR CONFIG] warning: configuration failed; "
-        "continuing with stored radar settings");
-  }
+  Serial.println("[LD2451 BASELINE] 115200 8N1 RX=16 TX=17; passive listening, no startup settings writes or baud scan");
 
-  Serial.println("[SYSTEM] radar node online");
+  Serial.println("[SYSTEM] firmware running; radar health requires valid reports");
+  Serial.println("[SPEED DISPLAY] no startup/manual flashes; sign responds only to radar");
+  Serial.println("[RADAR CHECK] type r to capture 15 seconds of measurement bytes");
+  Serial.println("[RADAR RESET] uppercase X restores sensor factory settings and reboots it; no custom settings reapplied");
 #if CHECKIT_ENABLE_OUTPUT_SELF_TEST_ON_BOOT
   if (operatingModeUsesLocalOutput(provisioningManager.operatingMode())) {
     localOutputs.start(
@@ -1871,7 +2135,58 @@ void setup() {
 
 void loop() {
   const uint32_t nowMs = millis();
+  static uint32_t lastSpeedDisplayRefreshMs = 0;
+  if (static_cast<uint32_t>(nowMs - lastSpeedDisplayRefreshMs) >= 100UL) {
+    lastSpeedDisplayRefreshMs = nowMs;
+    speedDisplay.refresh();
+  }
+  if (Serial.available() > 0) {
+    const int command = Serial.read();
+    if (command == 'd' || command == 'D')
+      Serial.println("[SPEED DISPLAY] startup/manual tests disabled; sign responds only to radar");
+    if (command == 'r' || command == 'R') startRadarCapture(nowMs, false);
+    if (command == 'X') {
+      recoverRadarSettings();
+      // Recovery includes bounded UART waits. Get a fresh millis value on the
+      // next loop so capture/display timers never use a pre-recovery timestamp.
+      return;
+    }
+  }
+  updateSpeedDisplay(nowMs);
   readRadar(nowMs);
+  finishRadarCapture(nowMs);
+  // Report even when zero bytes arrive; target logs alone cannot diagnose that.
+  static uint32_t lastLinkReportMs = 0;
+  if (static_cast<uint32_t>(nowMs - lastLinkReportMs) >= 5000UL) {
+    lastLinkReportMs = nowMs;
+    const Ld2451ParserStats &linkStats = radarParser.stats();
+    Serial.printf(
+        "[SYSTEM] uptime=%lu ms radar_bytes=%lu valid_frames=%lu "
+        "display=%s Internet=%s radar_baud=%lu\n",
+        static_cast<unsigned long>(nowMs),
+        static_cast<unsigned long>(linkStats.bytesSeen),
+        static_cast<unsigned long>(linkStats.validFrames),
+        speedDisplayState.active() ? "flashing" : "blank",
+        WiFi.status() == WL_CONNECTED ? "connected" : "offline",
+        static_cast<unsigned long>(radarUartBaud));
+    Serial.printf("[RADAR CHECK] %s; valid_reports=%lu; reported_targets=%u; headers=%lu bad_length=%lu bad_payload=%lu bad_trailer=%lu\n",
+        ld2451LinkStateName(radarCheckState(nowMs)),
+        static_cast<unsigned long>(linkStats.validFrames), protocolReportedTargets,
+        static_cast<unsigned long>(linkStats.headersSeen),
+        static_cast<unsigned long>(linkStats.invalidLengths),
+        static_cast<unsigned long>(linkStats.invalidPayloads),
+        static_cast<unsigned long>(linkStats.invalidTrailers));
+#if CHECKIT_RADAR_RAW_DIAGNOSTICS
+    if (linkStats.validFrames == 0 && radarRawSampleCount > 0) {
+      Serial.print("[RADAR RAW]");
+      for (uint8_t i = 0; i < radarRawSampleCount; ++i) {
+        Serial.printf(" %02X", radarRawSample[i]);
+      }
+      Serial.println();
+    }
+#endif
+    radarRawSampleCount = 0;
+  }
 #if CHECKIT_ENABLE_REFERENCE_RADAR
   readReferenceRadar(nowMs);
 #endif

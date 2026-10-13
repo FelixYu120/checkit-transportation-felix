@@ -10,7 +10,7 @@ namespace CheckIt {
 static constexpr uint8_t kLd2451MaxTargets = 16;
 // The report count is one byte. Keep enough input storage to validate any
 // representable report, while exposing only the first bounded set of targets.
-static constexpr uint16_t kLd2451MaxPayload = 4 + (5 * 255);
+static constexpr uint16_t kLd2451MaxPayload = 2 + (5 * 255);
 static constexpr uint8_t kLd2451MaxCommandFrame = 32;
 static constexpr uint8_t kLd2451MaxAckPayload = 24;
 
@@ -24,12 +24,25 @@ struct Ld2451Frame {
 
 struct Ld2451ParserStats {
   uint32_t bytesSeen;
+  uint32_t headersSeen;
   uint32_t validFrames;
   uint32_t emptyFrames;
   uint32_t invalidLengths;
   uint32_t invalidPayloads;
   uint32_t invalidTrailers;
 };
+
+enum Ld2451LinkState : uint8_t {
+  LD2451_NO_DATA,
+  LD2451_UNDECODABLE_DATA,
+  LD2451_VALID_IDLE,
+  LD2451_TARGET_REPORTED,
+  LD2451_REPORTS_STALE
+};
+Ld2451LinkState classifyLd2451Link(bool hasReport, uint32_t reportAgeMs,
+    uint8_t reportedTargets, bool hasBytes, uint32_t byteAgeMs,
+    uint32_t recentMs);
+const char *ld2451LinkStateName(Ld2451LinkState state);
 
 enum Ld2451ParseResult : uint8_t {
   LD2451_IN_PROGRESS = 0,
@@ -84,26 +97,10 @@ struct Ld2451CommandFrame {
   uint16_t command;
 };
 
-enum Ld2451DirectionFilter : uint8_t {
-  LD2451_DETECT_AWAY_ONLY = 0,
-  LD2451_DETECT_APPROACH_ONLY = 1,
-  LD2451_DETECT_BOTH = 2
-};
-
 namespace Ld2451Commands {
 
 Ld2451CommandFrame enableConfiguration();
 Ld2451CommandFrame endConfiguration();
-Ld2451CommandFrame setTargetParameters(
-    uint8_t maxDistanceM,
-    Ld2451DirectionFilter direction,
-    uint8_t minSpeedKmh,
-    uint8_t noTargetDelaySec);
-Ld2451CommandFrame readTargetParameters();
-Ld2451CommandFrame setSensitivity(
-    uint8_t consecutiveTriggerCount,
-    uint8_t snrThresholdLevel);
-Ld2451CommandFrame readSensitivity();
 Ld2451CommandFrame readFirmwareVersion();
 Ld2451CommandFrame factoryReset();
 Ld2451CommandFrame reboot();

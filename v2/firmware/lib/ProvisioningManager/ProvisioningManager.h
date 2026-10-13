@@ -50,7 +50,9 @@ class ProvisioningManager {
 
   bool begin(
       const ProvisioningSettings &compiledDefaults,
-      uint32_t setupPin);
+      uint32_t setupPin, bool useEspressifBle = true);
+  // Called only by the authenticated logistics setup transport.
+  bool commitSettings(const ProvisioningSettings &settings);
   void update(uint32_t nowMs);
 
   const ProvisioningSettings &settings() const;

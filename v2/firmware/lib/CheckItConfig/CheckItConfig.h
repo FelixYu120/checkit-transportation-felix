@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef CHECKIT_FIRMWARE_VERSION
-#define CHECKIT_FIRMWARE_VERSION "2.7.0"
+#define CHECKIT_FIRMWARE_VERSION "2.8.0"
 #endif
 
 // ---------------------------------------------------------------------------
@@ -166,12 +166,18 @@
 #define CHECKIT_MIN_VALID_UNIX_TIME 1704067200UL
 
 // ---------------------------------------------------------------------------
-// LD2451 UART and startup configuration
+// LD2451 factory-default UART baseline
 // ---------------------------------------------------------------------------
 
 #define CHECKIT_RADAR_UART_BAUD 115200
 #define CHECKIT_RADAR_UART_RX_PIN 16
 #define CHECKIT_RADAR_UART_TX_PIN 17
+
+// Listen only on boot; factory reset is an explicit USB command.
+// Optional periodic hex samples supplement the bounded capture.
+#ifndef CHECKIT_RADAR_RAW_DIAGNOSTICS
+#define CHECKIT_RADAR_RAW_DIAGNOSTICS 0
+#endif
 
 // The official V1.03 table says 0=away and 1=approach, while its worked
 // example labels those values in reverse. Leave this at 0 to follow the table,
@@ -188,17 +194,6 @@
 #define CHECKIT_LD2451_ANGLE_SIGN 1
 #endif
 
-#ifndef CHECKIT_CONFIGURE_RADAR_ON_BOOT
-#define CHECKIT_CONFIGURE_RADAR_ON_BOOT 1
-#endif
-
-#define CHECKIT_RADAR_MAX_DISTANCE_M 100
-#define CHECKIT_RADAR_DIRECTION_BOTH 2
-#define CHECKIT_RADAR_MIN_SPEED_KMH 7
-#define CHECKIT_RADAR_COMMAND_ATTEMPTS 3U
-#define CHECKIT_RADAR_NO_TARGET_DELAY_SEC 1
-#define CHECKIT_RADAR_TRIGGER_COUNT 1
-#define CHECKIT_RADAR_SNR_THRESHOLD_LEVEL 4
 #define CHECKIT_RADAR_COMMAND_TIMEOUT_MS 1200UL
 
 // ---------------------------------------------------------------------------
@@ -274,6 +269,23 @@
 // Output hardware
 // ---------------------------------------------------------------------------
 
+// Normal firmware follows logistics-app mode, speed threshold and Wi-Fi.
+// Use the explicit radar_node_room_test environment for a temporary 3 km/h test.
+#ifndef CHECKIT_SPEED_DISPLAY_ROOM_TEST
+#define CHECKIT_SPEED_DISPLAY_ROOM_TEST 0
+#endif
+#define CHECKIT_SPEED_DISPLAY_LIMIT_KMH 3
+#define CHECKIT_SPEED_DISPLAY_FLASH_DURATION_MS 2000UL
+#define CHECKIT_SPEED_DISPLAY_FLASH_HALF_PERIOD_MS 300UL
+// H606 T-SIM7080G S3: GPIO35-37 belong to octal PSRAM.
+// Use otherwise-unused camera pins below; no camera may be attached.
+// Two daisy-chained Lonely Binary 4-inch digits.
+#define CHECKIT_SPEED_DISPLAY_DATA_PIN 21
+#define CHECKIT_SPEED_DISPLAY_LATCH_PIN 47
+#define CHECKIT_SPEED_DISPLAY_CLOCK_PIN 48
+#ifndef CHECKIT_SPEED_DISPLAY_REVERSE_DIGIT_ORDER
+#define CHECKIT_SPEED_DISPLAY_REVERSE_DIGIT_ORDER 0
+#endif
 #define CHECKIT_MATRIX_MODULE_COUNT 4
 #define CHECKIT_MATRIX_INTENSITY 2
 

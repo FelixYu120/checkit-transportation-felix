@@ -4,6 +4,24 @@
 
 namespace CheckIt {
 
+Ld2451LinkState classifyLd2451Link(bool hasReport, uint32_t reportAgeMs,
+    uint8_t reportedTargets, bool hasBytes, uint32_t byteAgeMs,
+    uint32_t recentMs) {
+  if (hasReport && reportAgeMs <= recentMs)
+    return reportedTargets ? LD2451_TARGET_REPORTED : LD2451_VALID_IDLE;
+  if (hasBytes && byteAgeMs <= recentMs) return LD2451_UNDECODABLE_DATA;
+  return hasReport ? LD2451_REPORTS_STALE : LD2451_NO_DATA;
+}
+const char *ld2451LinkStateName(Ld2451LinkState state) {
+  switch (state) {
+    case LD2451_VALID_IDLE: return "VALID_IDLE";
+    case LD2451_TARGET_REPORTED: return "TARGET_REPORTED";
+    case LD2451_UNDECODABLE_DATA: return "UNDECODABLE_DATA";
+    case LD2451_REPORTS_STALE: return "REPORTS_STALE";
+    default: return "NO_DATA";
+  }
+}
+
 constexpr uint8_t Ld2451Parser::kHeader[4];
 constexpr uint8_t Ld2451Parser::kTrailer[4];
 constexpr uint8_t Ld2451AckParser::kHeader[4];
@@ -39,6 +57,7 @@ void Ld2451Parser::consumeHeaderByte(uint8_t byte) {
   if (byte == kHeader[headerIndex_]) {
     ++headerIndex_;
     if (headerIndex_ == sizeof(kHeader)) {
+      ++stats_.headersSeen;
       state_ = READ_LENGTH_LOW;
       headerIndex_ = 0;
     }
@@ -63,7 +82,9 @@ Ld2451ParseResult Ld2451Parser::push(uint8_t byte, Ld2451Frame &frame) {
 
     case READ_LENGTH_HIGH:
       payloadLength_ |= static_cast<uint16_t>(byte) << 8;
-      if (payloadLength_ > kLd2451MaxPayload) {
+      if (payloadLength_ > kLd2451MaxPayload ||
+          (payloadLength_ != 0 &&
+           (payloadLength_ < 2 || (payloadLength_ - 2) % 5 != 0))) {
         ++stats_.invalidLengths;
         resetFrameState();
         consumeHeaderByte(byte);
@@ -125,32 +146,18 @@ bool Ld2451Parser::parsePayload(
     return false;
   }
 
-  // Some field captures prepend an undocumented 02 AA message marker. Support
-  // both that variant and the V1.03 documented target-count-first payload.
-  const uint16_t offset =
-      length >= 2 && payload[0] == 0x02 && payload[1] == 0xAA ? 2 : 0;
-  if (length < offset + 2) {
-    return false;
-  }
-
-  const uint8_t reportedCount = payload[offset];
-  if (payload[offset + 1] > 1) {
-    return false;
-  }
-  const uint16_t requiredLength =
-      static_cast<uint16_t>(offset + 2 + (reportedCount * 5U));
-  if (length != requiredLength) {
-    return false;
-  }
-
-  frame.alarm = payload[offset + 1] != 0;
+  // V1.03: target count, alarm byte, then five bytes per target.
+  if (length < 2 || payload[1] > 1) return false;
+  const uint8_t reportedCount = payload[0];
+  if (length != 2 + reportedCount * 5U) return false;
+  frame.alarm = payload[1] != 0;
   frame.reportedTargetCount = reportedCount;
   frame.targetCount =
       reportedCount > kLd2451MaxTargets ? kLd2451MaxTargets : reportedCount;
   frame.truncated = reportedCount > kLd2451MaxTargets;
 
   for (uint8_t i = 0; i < frame.targetCount; ++i) {
-    const uint16_t base = static_cast<uint16_t>(offset + 2 + (i * 5U));
+    const uint16_t base = static_cast<uint16_t>(2 + (i * 5U));
     RadarTarget &target = frame.targets[i];
     target.targetIndex = i;
     int16_t angleDeg =
@@ -228,38 +235,6 @@ Ld2451CommandFrame enableConfiguration() {
 
 Ld2451CommandFrame endConfiguration() {
   return buildCommand(0x00FE, nullptr, 0);
-}
-
-Ld2451CommandFrame setTargetParameters(
-    uint8_t maxDistanceM,
-    Ld2451DirectionFilter direction,
-    uint8_t minSpeedKmh,
-    uint8_t noTargetDelaySec) {
-  const uint8_t values[] = {
-      maxDistanceM,
-      static_cast<uint8_t>(direction),
-      minSpeedKmh,
-      noTargetDelaySec};
-  return buildCommand(0x0002, values, sizeof(values));
-}
-
-Ld2451CommandFrame readTargetParameters() {
-  return buildCommand(0x0012, nullptr, 0);
-}
-
-Ld2451CommandFrame setSensitivity(
-    uint8_t consecutiveTriggerCount,
-    uint8_t snrThresholdLevel) {
-  const uint8_t values[] = {
-      consecutiveTriggerCount,
-      snrThresholdLevel,
-      0x00,
-      0x00};
-  return buildCommand(0x0003, values, sizeof(values));
-}
-
-Ld2451CommandFrame readSensitivity() {
-  return buildCommand(0x0013, nullptr, 0);
 }
 
 Ld2451CommandFrame readFirmwareVersion() {

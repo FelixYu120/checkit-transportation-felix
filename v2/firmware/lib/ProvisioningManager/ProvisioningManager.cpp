@@ -378,7 +378,7 @@ bool ProvisioningManager::startBle(uint32_t setupPin) {
 
 bool ProvisioningManager::begin(
     const ProvisioningSettings &compiledDefaults,
-    uint32_t setupPin) {
+    uint32_t setupPin, bool useEspressifBle) {
   settings_ = compiledDefaults;
   if (!preferences_.begin(kPreferencesNamespace, false)) {
     Serial.println("[SETUP] Preferences initialization failed");
@@ -419,7 +419,21 @@ bool ProvisioningManager::begin(
   }
 
   state_.provisioned = false;
-  return startBle(setupPin);
+  return !useEspressifBle || startBle(setupPin);
+}
+
+bool ProvisioningManager::commitSettings(const ProvisioningSettings &candidate) {
+  if (state_.provisioned || state_.restartPending) return false;
+  String error;
+  if (!validate(candidate, error)) return false;
+  const auto previous = settings_;
+  settings_ = candidate;
+  operatingMode_ = OperatingMode::RADAR_WARNING;
+  if (!saveStored()) { settings_ = previous; return false; }
+  // Give the app time to read OK committed before restarting.
+  restartAtMs_ = millis() + 5000;
+  state_.restartPending = true;
+  return true;
 }
 
 const ProvisioningSettings &ProvisioningManager::settings() const {
