@@ -7,6 +7,7 @@
 #include "LonelyBinaryDisplay.h"
 #include "SpeedDisplayPolicy.h"
 
+
 namespace CheckIt {
 namespace RadarDisplayAddon {
 namespace {
