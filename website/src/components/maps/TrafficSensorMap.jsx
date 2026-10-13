@@ -75,15 +75,16 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       },
     });
     const landmarksLayer = new GeoJSONLayer({
-      title: 'Major campus landmarks',
+      title: 'Campus locations',
       url: `${import.meta.env.BASE_URL}campus-landmarks.geojson`,
       copyright: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL)',
-      outFields: ['name'], popupEnabled: false, minScale: 22000,
+      // Detailed place names appear only at close zoom (about zoom 18).
+      outFields: ['name'], popupEnabled: false, minScale: 3000,
       renderer: { type: 'simple', symbol: { type: 'simple-marker',
-        size: 3, color: '#8b7964', outline: { color: '#fffaf4', width: 0.5 } } },
+        size: 2, color: [0, 0, 0, 0], outline: { width: 0 } } },
       labelingInfo: [{ labelPlacement: 'above-center', deconflictionStrategy: 'static',
         labelExpressionInfo: { expression: '$feature.name' },
-        symbol: { type: 'text', color: '#74614b', haloColor: '#fffaf4', haloSize: 1.5,
+        symbol: { type: 'text', color: '#62665f', haloColor: '#ffffff', haloSize: 1.5,
           font: { family: 'Arial', size: 10 } } }],
     });
     const overviewLayer = new GraphicsLayer({ title: 'All mapped sensors', listMode: 'hide' });
@@ -104,26 +105,30 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         for (const styleLayer of basemapLayer.currentStyleInfo?.style?.layers || []) {
           const source = styleLayer['source-layer'] || '';
           const keepLabel = /^(Road|City|Admin)/.test(source);
-          // Warm land and building tones, with quiet olive greens and ivory roads.
-          const warmFills = {
-            Land: '#f5eee2', 'Urban area': '#eee5d7', Education: '#e9dec9',
-            Retail: '#eadbc5', Government: '#e8dece', Medical: '#eee0ce',
-            'Openspace or forest': '#cbd3b5', 'Park or farming': '#cbd3b5',
-            'Vegetation small scale': '#cbd3b5', 'Golf course': '#d3d9bd',
-            'Admin0 forest or park': '#cbd3b5', 'Admin1 forest or park': '#cbd3b5',
-            Beach: '#efdfbd', Pedestrian: '#f3e9d9',
+          // Google Maps-inspired neutrals; green is reserved for planted areas.
+          const mapFills = {
+            Land: '#f1f0eb', 'Urban area': '#eeede8', Education: '#ecebe5',
+            Retail: '#eee9e1', Government: '#e9e8e3', Medical: '#ede9e4',
+            'Openspace or forest': '#cedfc7', 'Park or farming': '#d5e5cd',
+            'Vegetation small scale': '#cedfc7', 'Golf course': '#d5e5cd',
+            'Admin0 forest or park': '#cedfc7', 'Admin1 forest or park': '#cedfc7',
+            Beach: '#f2ead4', Pedestrian: '#e9e7e1',
           };
           let paint;
-          if (styleLayer.id === 'Building/fill') {
-            paint = { 'fill-color': '#d7c9b8', 'fill-outline-color': '#c4b6a3' };
-          } else if (styleLayer.type === 'fill' && warmFills[source] && styleLayer.id !== 'Land/Ice') {
-            paint = { 'fill-color': warmFills[source] };
+          if (/^Special area of interest\/(Grass|Groundcover|Field|Football|Baseball)/.test(styleLayer.id)) {
+            paint = { 'fill-color': '#d5e5cd' };
+          } else if (styleLayer.id === 'Building/fill') {
+            paint = { 'fill-color': '#dedbd3', 'fill-outline-color': '#cbc8c0' };
+          } else if (styleLayer.type === 'fill' && /^(Water area|Marine area|Bathymetry)/.test(source) && !/Ice|Swamp|Playa/.test(styleLayer.id)) {
+            paint = { 'fill-color': '#bad8e7' };
+          } else if (styleLayer.type === 'fill' && mapFills[source] && styleLayer.id !== 'Land/Ice') {
+            paint = { 'fill-color': mapFills[source] };
           } else if (styleLayer.type === 'line' && /^Road/.test(source)) {
             const mainRoad = /Major|Highway|Freeway/.test(styleLayer.id);
             paint = { 'line-color': styleLayer.id.includes('/casing')
-              ? '#d4c5b2' : mainRoad ? '#ecd7b8' : '#fffaf2' };
+              ? '#d7d5cd' : mainRoad ? '#f5e5b8' : '#ffffff' };
           } else if (styleLayer.type === 'symbol' && keepLabel && styleLayer.layout?.['text-field']) {
-            paint = { 'text-color': '#66594a', 'text-halo-color': '#fffaf4' };
+            paint = { 'text-color': '#62665f', 'text-halo-color': '#ffffff' };
           }
           if (paint) basemapLayer.setPaintProperties(styleLayer.id, { ...styleLayer.paint, ...paint });
           if (styleLayer.type === 'symbol' && !keepLabel) {
