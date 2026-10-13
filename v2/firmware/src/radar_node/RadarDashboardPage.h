@@ -48,7 +48,7 @@ static const char kRadarDashboardHtml[] PROGMEM = R"HTML(
     </div>
   </section>
   <section class="panel">
-    <div class="panel-head"><h2>Link diagnostics</h2><div class="panel-actions"><span id="firmware" class="quiet"></span><button id="testOutput" type="button">Test local matrix</button><button id="testRemoteOutput" type="button">Test flashing node</button><button id="resetProvisioning" type="button">Reopen BLE setup</button></div></div>
+    <div class="panel-head"><h2>Link diagnostics</h2><div class="panel-actions"><span id="firmware" class="quiet"></span><button id="testOutput" type="button">Test local display</button><button id="testRemoteOutput" type="button">Test flashing node</button><button id="resetProvisioning" type="button">Reopen BLE setup</button></div></div>
     <div class="grid">
       <div class="card"><div class="label">UART bytes</div><div id="bytes" class="value">--</div></div>
       <div class="card"><div class="label">Valid frames</div><div id="valid" class="value">--</div></div>
@@ -57,6 +57,8 @@ static const char kRadarDashboardHtml[] PROGMEM = R"HTML(
       <div class="card"><div class="label">Provisioning</div><div id="provisioning" class="value">--</div></div>
       <div class="card"><div class="label">BLE setup</div><div id="bleSetup" class="value">--</div></div>
       <div class="card"><div class="label">Speed limit</div><div id="speedLimit" class="value">--</div></div>
+      <div class="card"><div class="label">Speed sign (mph)</div><div id="speedSign" class="value">--</div></div>
+      <div class="card"><div class="label">Recent radar speed (mph)</div><div id="speedInput" class="value">--</div><div id="speedInputState" class="quiet">Waiting for a target</div></div>
       <div class="card"><div class="label">Health reports</div><div id="healthReports" class="value">--</div></div>
     </div>
   </section>
@@ -79,7 +81,7 @@ static const char kRadarDashboardHtml[] PROGMEM = R"HTML(
 const $=id=>document.getElementById(id);
 function duration(ms){if(ms<=0)return 'due now';const minutes=Math.ceil(ms/60000);return minutes>=60?`${Math.ceil(minutes/60)} hr`:`${minutes} min`;}
 function targetTable(items){
-  if(!items.length)return '<div class="empty">Radar link is active. No moving targets are currently reported.</div>';
+  if(!items.length)return '<div class="empty">No targets passed the traffic quality filter.</div>';
   const rows=items.map(t=>`<tr><td>${t.index}</td><td><span class="direction">${t.direction}</span></td><td>${t.angle_deg}&deg;</td><td>${t.distance_m} m</td><td><b>${t.speed_kmh} km/h</b></td><td>${t.snr}</td></tr>`).join('');
   return `<table><thead><tr><th>ID</th><th>Direction</th><th>Angle</th><th>Distance</th><th>Speed</th><th>SNR</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -87,19 +89,28 @@ async function refresh(){
   try{
     const response=await fetch('/api/status',{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);
     const d=await response.json();
-    $('status').className='status '+(d.radar_active?'active':'offline');$('status').lastElementChild.textContent=d.radar_active?'RADAR ACTIVE':'RADAR WAITING';
+    const check=d.radar_check||{state:d.radar_active?'VALID_IDLE':'NO_DATA'};
+    const checkLabels={NO_DATA:'NO RADAR DATA',UNDECODABLE_DATA:'RADAR DATA UNDECODABLE',VALID_IDLE:'VALID RADAR REPORTS · NO TARGET',TARGET_REPORTED:'RADAR TARGET REPORTED',REPORTS_STALE:'RADAR REPORTS STOPPED'};
+    const checkMessages={NO_DATA:'No recent radar bytes received.',UNDECODABLE_DATA:'Bytes arrive, but no recent valid LD2451 report can be decoded.',VALID_IDLE:'Validated radar reports are arriving. No moving target is reported.',TARGET_REPORTED:'The radar reports a target. Speed warnings still require consistent readings.',REPORTS_STALE:'Previously valid radar reports have stopped arriving.'};
+    const validLink=check.state==='VALID_IDLE'||check.state==='TARGET_REPORTED';
+    $('status').className='status '+(validLink?'active':'offline');$('status').lastElementChild.textContent=checkLabels[check.state]||'RADAR WAITING';
     $('targets').textContent=d.target_count;$('frames').textContent=d.frame_count.toLocaleString();$('age').innerHTML=d.has_frame?`${d.last_frame_age_ms} <span class="unit">ms</span>`:'--';$('alarm').textContent=d.alarm?'ON':'OFF';
     $('bytes').textContent=d.parser.bytes_seen.toLocaleString();$('valid').textContent=d.parser.valid_frames.toLocaleString();$('errors').textContent=(d.parser.invalid_lengths+d.parser.invalid_payloads+d.parser.invalid_trailers).toLocaleString();$('warning').textContent=d.local_warning_active?'ACTIVE':'IDLE';$('provisioning').textContent=d.provisioning.provisioned?'LOCKED':'REQUIRED';$('bleSetup').textContent=d.provisioning.ble_active?'ADVERTISING':'OFF';$('speedLimit').innerHTML=`${d.provisioning.speed_limit_kmh} <span class="unit">km/h</span>`;$('healthReports').textContent=d.cloud.uploaded_health_reports.toLocaleString();
+    const sign=d.speed_display||{};const input=d.speed_input||{};
+    $('speedSign').textContent=sign.active?String(sign.value_mph)+' mph':'BLANK';
+    $('speedInput').textContent=input.recent?String(input.raw_mph)+' mph':'--';
+    const reasons={quality_rejected:'Weak or outside detection limits',stabilizing:'Waiting for consistent readings',warnings_disabled_by_app:'Warnings disabled by app',below_limit_or_outside_warning_gate:'Below limit or outside warning area',eligible:'Stable over-limit target'};
+    $('speedInputState').textContent=input.recent?(reasons[input.state]||'Checking target')+' · '+input.distance_m+' m · SNR '+input.snr:'No recent target';
     $('trackActive').textContent=d.tracking.active;$('trackCars').textContent=d.tracking.motor_vehicle.toLocaleString();$('trackMicro').textContent=d.tracking.micromobility.toLocaleString();$('slowExcluded').textContent=d.tracking.slow_returns_excluded.toLocaleString();$('extremeRejected').textContent=d.tracking.weak_extreme_speed_filtered.toLocaleString();$('capacityFrames').textContent=d.tracking.target_capacity_frames.toLocaleString();$('trackUnknown').textContent=d.tracking.unknown.toLocaleString();
     $('internet').textContent=d.internet_wifi_connected?'ONLINE':'OFFLINE';$('cloudHttp').textContent=d.cloud.last_http_status||'--';$('cloudUploaded').textContent=d.cloud.uploaded_passages.toLocaleString();$('cloudQueue').textContent=d.cloud.pending_passages;$('storageStatus').textContent=d.cloud.storage_ready?'SAFE':'FAULT';$('storageFree').textContent=(d.cloud.storage_free_bytes/1048576).toFixed(1)+' MB';$('lowSnrFiltered').textContent=d.tracking.low_snr_filtered.toLocaleString();$('storageErrors').textContent=(d.cloud.persist_failures+d.cloud.corrupt_passages).toLocaleString();$('uploadNow').disabled=!d.cloud.enabled;$('cloudSummary').textContent=!d.cloud.storage_ready?'Storage unavailable':!d.cloud.enabled?`${d.cloud.queue_depth} tracks stored locally; add CheckItSecrets.h`:`${d.cloud.queue_depth} durable tracks queued | next hourly send ${duration(d.cloud.next_automatic_upload_ms)}${d.cloud.retry_pending?' | retrying':''}`;
-    $('firmware').textContent='Firmware '+d.firmware_version;$('network').textContent=d.ap_ssid+'  |  '+d.ap_ip;$('summary').textContent=d.target_count?`${d.target_count} target${d.target_count===1?'':'s'} in latest frame`:'Live UART heartbeat';$('targetArea').className='';$('targetArea').innerHTML=targetTable(d.targets);$('updated').textContent='Updated '+new Date().toLocaleTimeString();
+    $('firmware').textContent='Firmware '+d.firmware_version;$('network').textContent=d.ap_ssid+'  |  '+d.ap_ip;$('summary').textContent=checkLabels[check.state]||'Waiting for radar';$('targetArea').className='';if(validLink&&d.targets.length){$('targetArea').innerHTML=targetTable(d.targets);}else{$('targetArea').className='empty';$('targetArea').textContent=checkMessages[check.state]||'Waiting for a valid radar report';}$('updated').textContent='Updated '+new Date().toLocaleTimeString();
   }catch(e){$('status').className='status offline';$('status').lastElementChild.textContent='WEB LINK LOST';$('targetArea').className='empty';$('targetArea').textContent=e.message;}
 }
 $('testOutput').addEventListener('click',async()=>{
-  const button=$('testOutput');button.disabled=true;button.textContent='Flashing for 6 seconds...';
+  const button=$('testOutput');button.disabled=true;button.textContent='Testing local outputs...';
   try{const response=await fetch('/api/test-output',{method:'POST'});if(!response.ok)throw new Error('HTTP '+response.status);}
   catch(e){button.textContent='Test failed';}
-  setTimeout(()=>{button.disabled=false;button.textContent='Test local matrix';},6000);
+  setTimeout(()=>{button.disabled=false;button.textContent='Test local display';},6000);
 });
 $('testRemoteOutput').addEventListener('click',async()=>{
   const button=$('testRemoteOutput');button.disabled=true;button.textContent='Sending radio test...';

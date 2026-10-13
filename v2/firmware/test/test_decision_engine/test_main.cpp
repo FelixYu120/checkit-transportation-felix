@@ -239,6 +239,7 @@ void test_ld2451_parses_official_example() {
   TEST_ASSERT_EQUAL_INT8(-10, frame.targets[2].angleDeg);
   TEST_ASSERT_EQUAL_UINT8(95, frame.targets[2].distanceM);
   TEST_ASSERT_EQUAL_UINT32(1, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT32(1, parser.stats().headersSeen);
 }
 
 void test_ld2451_direction_mapping_can_be_reversed() {
@@ -262,7 +263,7 @@ void test_ld2451_direction_mapping_can_be_reversed() {
   TEST_ASSERT_EQUAL_INT8(-5, frame.targets[0].angleDeg);
 }
 
-void test_ld2451_supports_marker_and_empty_heartbeat() {
+void test_ld2451_rejects_undocumented_marker_and_accepts_idle() {
   const uint8_t markerPayload[] = {
       0x02, 0xAA,
       0x01, 0x01,
@@ -270,10 +271,8 @@ void test_ld2451_supports_marker_and_empty_heartbeat() {
 
   Ld2451Parser parser;
   Ld2451Frame markerFrame{};
-  TEST_ASSERT_TRUE(
+  TEST_ASSERT_FALSE(
       parser.parsePayload(markerPayload, sizeof(markerPayload), markerFrame));
-  TEST_ASSERT_EQUAL_UINT8(1, markerFrame.targetCount);
-  TEST_ASSERT_EQUAL_INT8(1, markerFrame.targets[0].angleDeg);
 
   const uint8_t heartbeat[] = {
       0xF4, 0xF3, 0xF2, 0xF1,
@@ -306,6 +305,35 @@ void test_ld2451_supports_marker_and_empty_heartbeat() {
   TEST_ASSERT_TRUE(largeFrame.truncated);
 }
 
+void test_ld2451_captured_idle_stream_then_low_speed_target() {
+  const uint8_t idle[] = {
+      0xF4, 0xF3, 0xF2, 0xF1, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
+  const uint8_t targetReport[] = {
+      0xF4, 0xF3, 0xF2, 0xF1, 0x07, 0x00,
+      0x01, 0x01, 0x80, 0x02, 0x01, 0x03, 0x04,
+      0xF8, 0xF7, 0xF6, 0xF5};
+  Ld2451Parser parser;
+  Ld2451Frame frame{};
+  for (uint8_t repeat = 0; repeat < 10; ++repeat) {
+    for (uint8_t byte : idle) parser.push(byte, frame);
+  }
+  TEST_ASSERT_EQUAL_UINT32(10, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT32(10, parser.stats().emptyFrames);
+  TEST_ASSERT_EQUAL_UINT8(0, frame.targetCount);
+  for (uint8_t byte : targetReport) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(11, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT8(1, frame.targetCount);
+  TEST_ASSERT_EQUAL_UINT8(3, frame.targets[0].speedKmh);
+  TEST_ASSERT_EQUAL_UINT8(2, frame.targets[0].distanceM);
+  TEST_ASSERT_EQUAL_UINT8(DIR_APPROACH, frame.targets[0].direction);
+  // Reject impossible lengths immediately and recover on the next header.
+  const uint8_t badLength[] = {0xF4, 0xF3, 0xF2, 0xF1, 0x03, 0x00};
+  for (uint8_t byte : badLength) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(1, parser.stats().invalidLengths);
+  for (uint8_t byte : idle) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(12, parser.stats().validFrames);
+}
+
 void test_ld2451_rejects_bad_length_and_trailer() {
   Ld2451Parser parser;
   Ld2451Frame frame{};
@@ -332,6 +360,41 @@ void test_ld2451_rejects_bad_length_and_trailer() {
   TEST_ASSERT_EQUAL_UINT32(1, parser.stats().invalidTrailers);
 }
 
+void test_ld2451_rejects_captured_unknown_stream_then_recovers() {
+  // Observed UART sample: a repeated six-byte marker must not become speed data
+  // or evidence of a working baud rate, even after a long run of these bytes.
+  const uint8_t captured[] = {
+      0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0x5B, 0x3B, 0x00, 0x00, 0x00,
+      0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xDB, 0x46, 0x00, 0x00, 0x00, 0x00};
+  const uint8_t heartbeat[] = {
+      0xF4, 0xF3, 0xF2, 0xF1, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
+  const uint8_t badTrailer[] = {
+      0xF4, 0xF3, 0xF2, 0xF1, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0x00};
+  Ld2451Parser parser;
+  Ld2451Frame frame{};
+  for (uint16_t repeat = 0; repeat < 100; ++repeat) {
+    for (uint8_t byte : captured) {
+      TEST_ASSERT_NOT_EQUAL(LD2451_FRAME_READY, parser.push(byte, frame));
+    }
+  }
+  TEST_ASSERT_EQUAL_UINT32(0, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT32(0, parser.stats().headersSeen);
+  for (uint8_t byte : badTrailer) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(1, parser.stats().headersSeen);
+  TEST_ASSERT_EQUAL_UINT32(1, parser.stats().invalidTrailers);
+  TEST_ASSERT_EQUAL_UINT32(0, parser.stats().validFrames);
+  for (uint8_t byte : heartbeat) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(1, parser.stats().validFrames);
+  for (uint8_t byte : heartbeat) parser.push(byte, frame);
+  TEST_ASSERT_EQUAL_UINT32(2, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT8(0, frame.targetCount);
+  TEST_ASSERT_EQUAL_UINT32(3, parser.stats().headersSeen);
+  // Explicit settings reset starts with clean parser counters.
+  parser.reset();
+  TEST_ASSERT_EQUAL_UINT32(0, parser.stats().validFrames);
+  TEST_ASSERT_EQUAL_UINT32(0, parser.stats().headersSeen);
+}
+
 void test_ld2451_builds_configuration_commands() {
   const Ld2451CommandFrame enable =
       Ld2451Commands::enableConfiguration();
@@ -343,17 +406,34 @@ void test_ld2451_builds_configuration_commands() {
   TEST_ASSERT_EQUAL_UINT8_ARRAY(
       expectedEnable, enable.bytes, sizeof(expectedEnable));
 
-  const Ld2451CommandFrame targetCommand =
-      Ld2451Commands::setTargetParameters(
-          100, LD2451_DETECT_BOTH, 1, 1);
-  const uint8_t expectedTarget[] = {
-      0xFD, 0xFC, 0xFB, 0xFA,
-      0x06, 0x00, 0x02, 0x00,
-      0x64, 0x02, 0x01, 0x01,
-      0x04, 0x03, 0x02, 0x01};
-  TEST_ASSERT_EQUAL_UINT8(sizeof(expectedTarget), targetCommand.length);
-  TEST_ASSERT_EQUAL_UINT8_ARRAY(
-      expectedTarget, targetCommand.bytes, sizeof(expectedTarget));
+  const auto end = Ld2451Commands::endConfiguration();
+  const uint8_t expectedEnd[] = {
+      0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01};
+  TEST_ASSERT_EQUAL_UINT8(sizeof(expectedEnd), end.length);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedEnd, end.bytes, sizeof(expectedEnd));
+  const auto version = Ld2451Commands::readFirmwareVersion();
+  const uint8_t expectedVersion[] = {
+      0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA0, 0x00, 0x04, 0x03, 0x02, 0x01};
+  TEST_ASSERT_EQUAL_UINT8(sizeof(expectedVersion), version.length);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedVersion, version.bytes, sizeof(expectedVersion));
+}
+
+void test_ld2451_recovery_commands_are_settings_reset_and_reboot() {
+  const uint8_t expectedReset[] = {
+      0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA2, 0x00, 0x04, 0x03, 0x02, 0x01};
+  const uint8_t expectedReboot[] = {
+      0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA3, 0x00, 0x04, 0x03, 0x02, 0x01};
+  const auto reset = Ld2451Commands::factoryReset();
+  const auto reboot = Ld2451Commands::reboot();
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedReset, reset.bytes, sizeof(expectedReset));
+  TEST_ASSERT_EQUAL_UINT8(sizeof(expectedReset), reset.length);
+  TEST_ASSERT_EQUAL_HEX16(0x00A2, reset.command);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedReboot, reboot.bytes, sizeof(expectedReboot));
+  TEST_ASSERT_EQUAL_UINT8(sizeof(expectedReboot), reboot.length);
+  TEST_ASSERT_EQUAL_HEX16(0x00A3, reboot.command);
+  // A settings reset and reboot must not be mistaken for firmware or baud writes.
+  TEST_ASSERT_NOT_EQUAL(0x00A1, reset.command);
+  TEST_ASSERT_NOT_EQUAL(0x00A1, reboot.command);
 }
 
 void test_ld2451_parses_ack() {
@@ -377,6 +457,20 @@ void test_ld2451_parses_ack() {
   TEST_ASSERT_EQUAL_UINT8(4, ack.payloadLength);
   TEST_ASSERT_EQUAL_HEX8(0x64, ack.payload[0]);
   TEST_ASSERT_EQUAL_HEX8(0x02, ack.payload[1]);
+}
+
+void test_radar_health_requires_recent_valid_protocol_reports() {
+  TEST_ASSERT_EQUAL(LD2451_NO_DATA, classifyLd2451Link(false, 0, 0, false, 0, 3000));
+  TEST_ASSERT_EQUAL(LD2451_UNDECODABLE_DATA, classifyLd2451Link(false, 0, 0, true, 0, 3000));
+  TEST_ASSERT_EQUAL(LD2451_VALID_IDLE, classifyLd2451Link(true, 1000, 0, true, 1000, 3000));
+  TEST_ASSERT_EQUAL(LD2451_TARGET_REPORTED, classifyLd2451Link(true, 100, 1, true, 100, 3000));
+  TEST_ASSERT_EQUAL(LD2451_REPORTS_STALE, classifyLd2451Link(true, 4000, 1, true, 4000, 3000));
+  // Bytes without a recent valid report are not evidence of a healthy radar.
+  TEST_ASSERT_EQUAL(LD2451_UNDECODABLE_DATA, classifyLd2451Link(true, 4000, 1, true, 10, 3000));
+  TEST_ASSERT_EQUAL(LD2451_NO_DATA, classifyLd2451Link(false, 0, 0, true, 4000, 3000));
+  TEST_ASSERT_EQUAL_STRING("VALID_IDLE", ld2451LinkStateName(LD2451_VALID_IDLE));
+  const uint32_t ageAcrossWrap = static_cast<uint32_t>(100 - (UINT32_MAX - 899));
+  TEST_ASSERT_EQUAL(LD2451_VALID_IDLE, classifyLd2451Link(true, ageAcrossWrap, 0, true, ageAcrossWrap, 3000));
 }
 
 void test_message_crc_and_fields() {
@@ -433,10 +527,14 @@ int main() {
   RUN_TEST(test_target_confirmation_rejects_stale_previous_frame);
   RUN_TEST(test_ld2451_parses_official_example);
   RUN_TEST(test_ld2451_direction_mapping_can_be_reversed);
-  RUN_TEST(test_ld2451_supports_marker_and_empty_heartbeat);
+  RUN_TEST(test_ld2451_rejects_undocumented_marker_and_accepts_idle);
+  RUN_TEST(test_ld2451_captured_idle_stream_then_low_speed_target);
   RUN_TEST(test_ld2451_rejects_bad_length_and_trailer);
+  RUN_TEST(test_ld2451_rejects_captured_unknown_stream_then_recovers);
   RUN_TEST(test_ld2451_builds_configuration_commands);
+  RUN_TEST(test_ld2451_recovery_commands_are_settings_reset_and_reboot);
   RUN_TEST(test_ld2451_parses_ack);
+  RUN_TEST(test_radar_health_requires_recent_valid_protocol_reports);
   RUN_TEST(test_message_crc_and_fields);
   RUN_TEST(test_sequence_tracker_rejects_duplicates_and_accepts_wrap);
 
