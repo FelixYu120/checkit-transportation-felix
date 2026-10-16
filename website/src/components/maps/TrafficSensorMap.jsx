@@ -75,11 +75,12 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       },
     });
     const landmarksLayer = new GeoJSONLayer({
-      title: 'Campus locations',
+      title: 'Campus buildings',
       url: `${import.meta.env.BASE_URL}campus-landmarks.geojson`,
       copyright: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL)',
-      // Detailed place names appear only at close zoom (about zoom 18).
-      outFields: ['name'], popupEnabled: false, minScale: 3000,
+      // Building names appear only at close zoom (about zoom 18).
+      outFields: ['name', 'building_type'], popupEnabled: false, minScale: 3000,
+      definitionExpression: "building_type IS NOT NULL AND building_type NOT IN ('no', 'construction', 'parking', 'shed', 'roof', 'ruins') AND name IS NOT NULL AND LOWER(name) NOT LIKE '%untitled%'",
       renderer: { type: 'simple', symbol: { type: 'simple-marker',
         size: 2, color: [0, 0, 0, 0], outline: { width: 0 } } },
       labelingInfo: [{ labelPlacement: 'above-center', deconflictionStrategy: 'static',
