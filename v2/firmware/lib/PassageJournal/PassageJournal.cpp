@@ -390,7 +390,7 @@ bool PassageJournal::compactIfNeeded() {
 
 bool PassageJournal::acknowledge(
     uint32_t nextOffset,
-    size_t uploadedRecords) {
+    size_t consumedRecords) {
   if (!ready_ || !lock()) {
     return false;
   }
@@ -407,13 +407,13 @@ bool PassageJournal::acknowledge(
   }
   const uint32_t consumedSlots =
       (nextOffset - acknowledgedOffset_) / sizeof(JournalRecord);
-  const uint32_t corruptConsumed = consumedSlots > uploadedRecords
-      ? consumedSlots - static_cast<uint32_t>(uploadedRecords)
+  const uint32_t corruptConsumed = consumedSlots > consumedRecords
+      ? consumedSlots - static_cast<uint32_t>(consumedRecords)
       : 0;
   acknowledgedOffset_ = nextOffset;
-  pendingRecords_ = uploadedRecords > pendingRecords_
+  pendingRecords_ = consumedRecords > pendingRecords_
       ? 0
-      : pendingRecords_ - static_cast<uint32_t>(uploadedRecords);
+      : pendingRecords_ - static_cast<uint32_t>(consumedRecords);
   corruptRecords_ = corruptConsumed > corruptRecords_
       ? 0
       : corruptRecords_ - corruptConsumed;

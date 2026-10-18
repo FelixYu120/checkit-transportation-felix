@@ -22,11 +22,13 @@ def aggregate_ten_minute(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, An
 
     groups: dict[tuple[str, datetime, str], list[int]] = defaultdict(list)
     for row in rows:
-        if row.get("quality_status") != "accepted" or row.get("ended_at") is None:
+        timestamp = row.get("observed_at", row.get("ended_at"))
+        quality = row.get("quality_status")
+        accepted = quality == "accepted" or (quality is None and row.get("speed_kmh") is not None)
+        if not accepted or timestamp is None:
             continue
-        groups[(row["sensor_id"], bucket_start(row["ended_at"]), row["direction"])].append(
-            int(row["median_speed_kmh"])
-        )
+        speed = row.get("speed_kmh") if row.get("speed_kmh") is not None else row["median_speed_kmh"]
+        groups[(row["sensor_id"], bucket_start(timestamp), row["direction"])].append(int(speed))
     result = []
     for (sensor_id, bucket, direction), speeds in sorted(groups.items()):
         result.append(

@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from checkit_transportation.storage.parquet import (
-    TRAFFIC_PASSAGE_COLUMNS,
+    schema_for_version,
+    archive_schema_version,
     assert_required_columns,
     calculate_sha256,
     count_rows,
@@ -67,15 +68,16 @@ def _verify_source_against_path(
     _assert(source_keys == archived_keys, "Source and archived identity keys differ")
     source_range = obtain_min_max_timestamps(source_rows)
     archive_range = extract_timestamp_range(path)
-    _assert(source_range == archive_range, "Source and archived ended_at ranges differ")
+    _assert(source_range == archive_range, "Source and archived timestamp ranges differ")
 
-    if sample_size > 0:
+    # Verify every field on every row. sample_size remains CLI-compatible.
+    if source_rows:
         archived_by_key = {
             (row["sensor_id"], row["boot_id"], row["track_id"]): row
             for row in read_archive(path).to_pylist()
         }
-        fields = tuple(field for field in TRAFFIC_PASSAGE_COLUMNS if field != "path_points")
-        for source in source_rows[:sample_size]:
+        fields = tuple(field for field in schema_for_version(archive_schema_version(path)).names if field != "path_points")
+        for source in source_rows:
             identity = (source["sensor_id"], source["boot_id"], source["track_id"])
             archived = archived_by_key[identity]
             for field in fields:
@@ -83,8 +85,9 @@ def _verify_source_against_path(
                     _sample_values_equal(source[field], archived[field]),
                     f"Sample field {field} differs for key {identity}",
                 )
-            source_json = json.loads(source["path_points"]) if isinstance(source["path_points"], str) else source["path_points"]
-            _assert(source_json == json.loads(archived["path_points"]), f"path_points differs for key {identity}")
+            if "path_points" in archived:
+                source_json = json.loads(source["path_points"]) if isinstance(source["path_points"], str) else source["path_points"]
+                _assert(source_json == json.loads(archived["path_points"]), f"path_points differs for key {identity}")
     return source_range
 
 

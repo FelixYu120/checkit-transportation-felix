@@ -35,7 +35,7 @@ test('health lookup combines sensor status and heartbeats, tolerating older sens
   const client = { from(table) {
     return { select(columns) { this.columns = columns; return this; }, in() { return this; },
       then(resolve) {
-        return Promise.resolve(table === 'device_health'
+        return Promise.resolve(table === 'sensor_health'
           ? { data: [{ sensor_id: 'gilman1', last_seen_at: '2026-10-12T11:59:00Z' }] }
           : this.columns.includes('last_seen_at')
             ? { error: { code: '42703', message: 'column last_seen_at does not exist' } }

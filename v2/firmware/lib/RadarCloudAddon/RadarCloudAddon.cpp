@@ -98,7 +98,15 @@ void update(uint32_t now){
  if(cloudStarted){
   trafficTracker.expire(now,epoch());
   TrafficPassage passage{};
-  if(trafficTracker.peekCompleted(passage)&&cloud.storageReady()&&cloud.enqueue(CloudPassage{bootId,passage})){
+  while(trafficTracker.peekCompleted(passage)) {
+   if(passage.qualityStatus!=TRACK_ACCEPTED) {
+    Serial.printf("[TRACK] local-only id=%lu quality=%s speed=%u km/h hits=%u score=%u\n",
+      static_cast<unsigned long>(passage.trackId),trackQualityName(passage.qualityStatus),
+      passage.medianSpeedKmh,passage.hitCount,passage.qualityScore);
+    trafficTracker.discardCompleted();
+    continue;
+   }
+   if(!cloud.storageReady()||!cloud.enqueue(CloudPassage{bootId,passage}))break;
    lastPassageEpoch=passage.endedEpoch;trafficTracker.discardCompleted();
   }
  }

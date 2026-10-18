@@ -1570,6 +1570,11 @@ void logTrafficPassage(const TrafficPassage &passage) {
 void drainCompletedTrafficPassages() {
   TrafficPassage passage{};
   while (trafficTracker.peekCompleted(passage)) {
+    if (passage.qualityStatus != TRACK_ACCEPTED) {
+      logTrafficPassage(passage);
+      trafficTracker.discardCompleted();
+      continue;
+    }
     if (!cloudTelemetry.storageReady()) {
       // Do not pop the completed track. It will be retried on the next loop,
       // rather than disappearing merely because storage failed to mount.

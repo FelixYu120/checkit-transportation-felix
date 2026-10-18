@@ -42,7 +42,7 @@ export const fetchMapSensorHealth = async (client, sensorIds) => {
     };
     const [sensors, health] = await Promise.all([
       load('sensors', 'sensor_id,status,last_seen_at', 'sensor_id,status'),
-      load('device_health', 'sensor_id,last_seen_at'),
+      load('sensor_health', 'sensor_id,last_seen_at'),
     ]);
     sensors.forEach((sensor) => rows.set(sensor.sensor_id, sensor));
     health.forEach((sensor) => rows.set(sensor.sensor_id, {

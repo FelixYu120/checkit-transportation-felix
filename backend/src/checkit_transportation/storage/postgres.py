@@ -14,6 +14,7 @@ from typing import Any, Iterator, Mapping, Sequence
 import psycopg
 from psycopg import Connection, sql
 from psycopg.rows import dict_row
+from checkit_transportation.storage.parquet import schema_for_version
 
 
 TABLES_FOR_INVENTORY = (
@@ -44,88 +45,82 @@ def test_connection(connection: Connection[Any]) -> bool:
     return bool(row and row["ok"] == 1)
 
 
-def count_traffic_passages(
-    connection: Connection[Any], sensor_id: str | None = None, day: date | None = None
-) -> int:
-    query = "select count(*) as row_count from public.traffic_passages"
+def passage_schema_version(connection: Connection[Any]) -> int:
+    """Transition and final schemas export accepted rows as v2; legacy is v1."""
+    with connection.cursor() as cursor:
+        cursor.execute("select column_name from information_schema.columns "
+                       "where table_schema = 'public' and table_name = 'traffic_passages'")
+        names = {row["column_name"] for row in cursor}
+    if {"observed_at", "speed_kmh"} <= names:
+        return 2
+    if {"ended_at", "median_speed_kmh", "quality_status"} <= names:
+        return 1
+    raise ValueError("Unrecognized traffic_passages schema")
+
+
+def _passage_selection(connection: Connection[Any], version: int | None = None):
+    current = passage_schema_version(connection)
+    version = current if version is None else version
+    columns = schema_for_version(version).names
+    with connection.cursor() as cursor:
+        cursor.execute("select column_name from information_schema.columns "
+                       "where table_schema = 'public' and table_name = 'traffic_passages'")
+        names = {row["column_name"] for row in cursor}
+    if not set(columns) <= names:
+        raise ValueError(f"Database no longer has schema-v{version} fields; verify historical archives using their saved checksum/manifest")
+    # A transition database contains both new compact rows and old calibration
+    # rows. Never erase quality distinctions by exporting reviews into v2.
+    quality = (" and quality_status = 'accepted'" if version == 2 else " and quality_status is not null and median_speed_kmh is not null") if "quality_status" in names else ""
+    timestamp = "observed_at" if version == 2 else "ended_at"
+    return columns, timestamp, quality
+
+
+def count_traffic_passages(connection: Connection[Any], sensor_id: str | None = None, day: date | None = None) -> int:
+    _, timestamp, quality = _passage_selection(connection)
+    query = "select count(*) as row_count from public.traffic_passages where true" + quality
     params: list[Any] = []
-    if sensor_id is not None and day is not None:
-        query += (
-            " where sensor_id = %s and ended_at >= %s::date"
-            " and ended_at < (%s::date + interval '1 day')"
-        )
-        params.extend((sensor_id, day, day))
-    elif sensor_id is not None:
-        query += " where sensor_id = %s"
+    if sensor_id is not None:
+        query += " and sensor_id = %s"
         params.append(sensor_id)
-    elif day is not None:
-        query += " where ended_at >= %s::date and ended_at < (%s::date + interval '1 day')"
-        params.extend((day, day))
+    if day is not None:
+        query += f" and {timestamp} >= %s and {timestamp} < %s"
+        params.extend(_day_bounds(day))
     with connection.cursor() as cursor:
         cursor.execute(query, params)
-        row = cursor.fetchone()
-    return int(row["row_count"])
+        return int(cursor.fetchone()["row_count"])
 
 
-def fetch_traffic_passages_for_day(
-    connection: Connection[Any], sensor_id: str, day: date
-) -> list[dict[str, Any]]:
-    """Fetch one UTC database-calendar day using the required stable ordering."""
+def _day_bounds(day: date):
+    from datetime import time, timedelta, timezone
+    start = datetime.combine(day, time.min, tzinfo=timezone.utc)
+    return start, start + timedelta(days=1)
 
+
+def fetch_traffic_passages_for_day(connection: Connection[Any], sensor_id: str, day: date, *, schema_version: int | None = None) -> list[dict[str, Any]]:
+    columns, timestamp, quality = _passage_selection(connection, schema_version)
+    query = sql.SQL("select {} from public.traffic_passages where sensor_id = %s "
+                    "and {} >= %s and {} < %s" + quality + " order by {}, boot_id, track_id").format(
+        sql.SQL(", ").join(map(sql.Identifier, columns)),
+        sql.Identifier(timestamp), sql.Identifier(timestamp), sql.Identifier(timestamp))
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            select *
-            from public.traffic_passages
-            where sensor_id = %s
-              and ended_at >= %s::date
-              and ended_at < (%s::date + interval '1 day')
-            order by ended_at, boot_id, track_id
-            """,
-            (sensor_id, day, day),
-        )
+        cursor.execute(query, (sensor_id, *_day_bounds(day)))
         return list(cursor.fetchall())
 
 
-def fetch_passage_keys(
-    connection: Connection[Any], sensor_id: str, day: date
-) -> list[tuple[str, int, int]]:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            select sensor_id, boot_id, track_id
-            from public.traffic_passages
-            where sensor_id = %s
-              and ended_at >= %s::date
-              and ended_at < (%s::date + interval '1 day')
-            order by ended_at, boot_id, track_id
-            """,
-            (sensor_id, day, day),
-        )
-        return [(row["sensor_id"], row["boot_id"], row["track_id"]) for row in cursor]
+def fetch_passage_keys(connection: Connection[Any], sensor_id: str, day: date) -> list[tuple[str, int, int]]:
+    return [(row["sensor_id"], row["boot_id"], row["track_id"])
+            for row in fetch_traffic_passages_for_day(connection, sensor_id, day)]
 
 
-def fetch_passage_metadata(
-    connection: Connection[Any], sensor_id: str, day: date
-) -> dict[str, Any]:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            select count(*) as row_count,
-                   min(ended_at) as min_timestamp,
-                   max(ended_at) as max_timestamp
-            from public.traffic_passages
-            where sensor_id = %s
-              and ended_at >= %s::date
-              and ended_at < (%s::date + interval '1 day')
-            """,
-            (sensor_id, day, day),
-        )
-        return dict(cursor.fetchone())
+def fetch_passage_metadata(connection: Connection[Any], sensor_id: str, day: date) -> dict[str, Any]:
+    rows = fetch_traffic_passages_for_day(connection, sensor_id, day)
+    minimum, maximum = obtain_min_max_timestamps(rows)
+    return {"row_count": len(rows), "min_timestamp": minimum, "max_timestamp": maximum}
 
 
 def obtain_min_max_timestamps(rows: Sequence[Mapping[str, Any]]) -> tuple[datetime | None, datetime | None]:
-    timestamps = [row["ended_at"] for row in rows if row.get("ended_at") is not None]
+    timestamps = [row.get("observed_at", row.get("ended_at")) for row in rows]
+    timestamps = [value for value in timestamps if value is not None]
     return (min(timestamps), max(timestamps)) if timestamps else (None, None)
 
 

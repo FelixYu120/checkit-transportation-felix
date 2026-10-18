@@ -23,7 +23,8 @@ struct PassageJournalStats {
 // Flash-backed, append-only passage outbox. Records remain on FFat until the
 // cloud uploader acknowledges the exact byte offset after a successful,
 // idempotent Supabase upsert. A reset can cause a harmless re-upload, but it
-// cannot acknowledge a record that Supabase has not accepted.
+// never loses an accepted record. The uploader may explicitly discard legacy
+// review/rejected records while advancing the same durable cursor.
 class PassageJournal {
  public:
   PassageJournal();
@@ -39,7 +40,9 @@ class PassageJournal {
       CloudPassage *passages,
       size_t capacity,
       uint32_t &nextOffset);
-  bool acknowledge(uint32_t nextOffset, size_t uploadedRecords);
+  // consumedRecords includes valid legacy review/rejected records intentionally
+  // discarded by the uploader, not just successfully uploaded accepted rows.
+  bool acknowledge(uint32_t nextOffset, size_t consumedRecords);
 
   uint32_t acknowledgedOffset() const;
   size_t pendingCount() const;

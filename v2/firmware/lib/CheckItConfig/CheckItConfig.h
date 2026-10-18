@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef CHECKIT_FIRMWARE_VERSION
-#define CHECKIT_FIRMWARE_VERSION "2.8.0"
+#define CHECKIT_FIRMWARE_VERSION "3.1.0-lean"
 #endif
 
 // ---------------------------------------------------------------------------

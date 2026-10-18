@@ -10,3 +10,7 @@ The checkout had no prior migration history or declarative `supabase/schemas/` s
 Apply only after review, preferably first to a local/staging database. Both tables enable RLS and revoke `anon`/`authenticated` table grants. No public policy is invented. A future API migration can grant narrowly scoped `SELECT` access and add matching RLS policies once the real authorization model is known.
 
 Neither migration changes `traffic_passages`, deletes rows, or installs retention automation.
+
+## Lean telemetry transition
+
+See [3.1.0-lean rollout and compatibility](../docs/lean-telemetry-transition.md) for the staged schema transition, archive v1/v2 support, validation, and firmware upload commands. Migration 2 is deferred; do not apply all pending migrations automatically.

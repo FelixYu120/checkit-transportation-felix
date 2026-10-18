@@ -81,3 +81,7 @@ python scripts/archive_day.py \
 ```
 
 This command reads Supabase and writes R2/local files only. It never deletes Supabase rows. See [the migration plan](docs/migration-plan.md) before applying the additive migrations, and [retention safety](docs/retention.md) before considering any hot-data removal.
+
+## Lean telemetry transition
+
+See [3.1.0-lean rollout and compatibility](docs/lean-telemetry-transition.md) for the staged schema transition, archive v1/v2 support, validation, and firmware upload commands. Migration 2 is deferred; do not apply all pending migrations automatically.

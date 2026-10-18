@@ -27,8 +27,14 @@ def test_bucket_access(client: Any, bucket: str) -> dict[str, Any]:
     return client.head_bucket(Bucket=bucket)
 
 
-def upload_file(client: Any, bucket: str, source: str | Path, object_key: str) -> None:
-    client.upload_file(str(source), bucket, object_key)
+def upload_file(client: Any, bucket: str, source: str | Path, object_key: str, *, overwrite: bool = False) -> None:
+    if overwrite and "/schema=v1/" in object_key:
+        raise ValueError("Existing schema-v1 objects are immutable")
+    # Conditional write closes the existence-check/upload race. A concurrent
+    # creator causes an explicit precondition failure, never an overwrite.
+    with Path(source).open("rb") as body:
+        client.put_object(Bucket=bucket, Key=object_key, Body=body,
+                          **({} if overwrite else {"IfNoneMatch": "*"}))
 
 
 def head_object(client: Any, bucket: str, object_key: str) -> dict[str, Any]:
@@ -54,18 +60,20 @@ def object_exists(client: Any, bucket: str, object_key: str) -> bool:
         raise
 
 
-def traffic_passages_object_key(sensor_id: str, day: date, *, part: int = 1) -> str:
-    """Construct the mandated Hive-style schema-v1 object key.
+def traffic_passages_object_key(sensor_id: str, day: date, *, part: int = 1, schema_version: int = 1) -> str:
+    """Construct the versioned Hive-style object key.
 
     Sensor IDs are URL-escaped to prevent slash-based prefix injection. Existing
     alphanumeric/underscore IDs, including GILMAN2_15D9B4DC, remain unchanged.
     """
 
+    if schema_version not in (1, 2):
+        raise ValueError("Unsupported passage schema version")
     if part < 1:
         raise ValueError("part must be at least 1")
     safe_sensor = quote(sensor_id, safe="-_.~")
     return (
-        "derived/traffic_passages/schema=v1/"
+        f"derived/traffic_passages/schema=v{schema_version}/"
         f"sensor={safe_sensor}/year={day:%Y}/month={day:%m}/day={day:%d}/"
         f"part-{part:06d}.parquet"
     )

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://checkit.example/schemas/traffic_passage_v2.json",
+  "title": "CheckIt traffic passage v2 (lean)",
+  "description": "Accepted compact passage row. Firmware sends received_at=null; the database stamps it before persistence. Archive v2 requires a populated receipt timestamp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sensor_id",
+    "boot_id",
+    "track_id",
+    "observed_at",
+    "direction",
+    "traffic_class",
+    "speed_kmh",
+    "max_speed_kmh",
+    "firmware_version",
+    "received_at"
+  ],
+  "properties": {
+    "sensor_id": {
+      "type": "string"
+    },
+    "boot_id": {
+      "type": "integer"
+    },
+    "track_id": {
+      "type": "integer"
+    },
+    "observed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "direction": {
+      "type": "string"
+    },
+    "traffic_class": {
+      "type": "string"
+    },
+    "speed_kmh": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_speed_kmh": {
+      "type": "integer"
+    },
+    "firmware_version": {
+      "type": "string"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""Schema-v1 Parquet encoding for detailed traffic passages.
+"""Versioned Parquet encoding: immutable detailed v1 and compact accepted v2.
 
 ``path_points`` is stored as deterministic compact JSON text in schema v1.
 Every known production column is required; unexpected columns cause an error so
@@ -69,6 +69,43 @@ TRAFFIC_PASSAGE_SCHEMA = pa.schema(
 )
 
 
+LEAN_PASSAGE_COLUMNS = (
+    "sensor_id", "boot_id", "track_id", "observed_at", "direction",
+    "traffic_class", "speed_kmh", "max_speed_kmh", "firmware_version", "received_at",
+)
+LEAN_PASSAGE_SCHEMA = pa.schema([
+    pa.field("sensor_id", pa.string(), nullable=False),
+    pa.field("boot_id", pa.int64(), nullable=False),
+    pa.field("track_id", pa.int64(), nullable=False),
+    pa.field("observed_at", pa.timestamp("us", tz="UTC")),
+    pa.field("direction", pa.string(), nullable=False),
+    pa.field("traffic_class", pa.string(), nullable=False),
+    pa.field("speed_kmh", pa.int16(), nullable=False),
+    pa.field("max_speed_kmh", pa.int16(), nullable=False),
+    pa.field("firmware_version", pa.string(), nullable=False),
+    pa.field("received_at", pa.timestamp("us", tz="UTC"), nullable=False),
+], metadata={b"checkit.dataset": b"traffic_passages", b"checkit.schema_version": b"2"})
+
+
+def schema_for_version(version: int) -> pa.Schema:
+    if version == 1:
+        return TRAFFIC_PASSAGE_SCHEMA
+    if version == 2:
+        return LEAN_PASSAGE_SCHEMA
+    raise ValueError(f"Unsupported passage archive schema: {version}")
+
+
+def rows_schema_version(rows: Sequence[Mapping[str, Any]]) -> int:
+    return 2 if rows and "observed_at" in rows[0] else 1
+
+
+def archive_schema_version(path: str | Path) -> int:
+    schema = inspect_schema(path)
+    version = int((schema.metadata or {}).get(b"checkit.schema_version", b"1"))
+    schema_for_version(version)
+    return version
+
+
 def deterministic_json(value: Any) -> str:
     """Normalize JSONB-compatible data to stable compact Unicode JSON."""
 
@@ -77,9 +114,9 @@ def deterministic_json(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
 
 
-def _normalize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _normalize_rows(rows: Iterable[Mapping[str, Any]], version: int) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
-    expected = set(TRAFFIC_PASSAGE_COLUMNS)
+    expected = set(schema_for_version(version).names)
     for index, row in enumerate(rows):
         keys = set(row)
         missing, extra = expected - keys, keys - expected
@@ -89,21 +126,28 @@ def _normalize_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 f"missing={sorted(missing)}, extra={sorted(extra)}"
             )
         item = dict(row)
-        item["path_points"] = deterministic_json(item["path_points"])
+        for field in schema_for_version(version):
+            if not field.nullable and item[field.name] is None:
+                raise ValueError(f"Required field {field.name} is null at row {index}")
+        if version == 1:
+            item["path_points"] = deterministic_json(item["path_points"])
         normalized.append(item)
     return normalized
 
 
-def write_traffic_passages(rows: Iterable[Mapping[str, Any]], destination: str | Path) -> Path:
+def write_traffic_passages(rows: Iterable[Mapping[str, Any]], destination: str | Path, *, schema_version: int | None = None) -> Path:
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(_normalize_rows(rows), schema=TRAFFIC_PASSAGE_SCHEMA)
+    rows = list(rows)
+    version = schema_version if schema_version is not None else rows_schema_version(rows)
+    table = pa.Table.from_pylist(_normalize_rows(rows, version), schema=schema_for_version(version))
+    table.validate(full=True)
     pq.write_table(table, path, compression="zstd", version="2.6")
     return path
 
 
 def read_archive(path: str | Path) -> pa.Table:
-    return pq.read_table(path)
+    return pq.ParquetFile(path).read()
 
 
 def count_rows(path: str | Path) -> int:
@@ -127,18 +171,21 @@ def file_size(path: str | Path) -> int:
 
 
 def extract_keys(path: str | Path) -> list[tuple[str, int, int]]:
-    table = pq.read_table(path, columns=["sensor_id", "boot_id", "track_id"])
+    table = pq.ParquetFile(path).read(columns=["sensor_id", "boot_id", "track_id"])
     return [(r["sensor_id"], r["boot_id"], r["track_id"]) for r in table.to_pylist()]
 
 
 def extract_timestamp_range(path: str | Path) -> tuple[Any | None, Any | None]:
-    values = [row["ended_at"] for row in pq.read_table(path, columns=["ended_at"]).to_pylist()]
+    field = "observed_at" if archive_schema_version(path) == 2 else "ended_at"
+    values = pq.ParquetFile(path).read(columns=[field])[field].to_pylist()
     values = [value for value in values if value is not None]
     return (min(values), max(values)) if values else (None, None)
 
 
 def validate_path_points(path: str | Path) -> None:
-    for index, value in enumerate(pq.read_table(path, columns=["path_points"])["path_points"].to_pylist()):
+    if archive_schema_version(path) == 2:
+        return
+    for index, value in enumerate(pq.ParquetFile(path).read(columns=["path_points"])["path_points"].to_pylist()):
         try:
             json.loads(value)
         except (TypeError, json.JSONDecodeError) as exc:
@@ -146,7 +193,7 @@ def validate_path_points(path: str | Path) -> None:
 
 
 def assert_required_columns(path: str | Path) -> None:
-    names = set(inspect_schema(path).names)
-    missing = set(TRAFFIC_PASSAGE_COLUMNS) - names
-    if missing:
-        raise ValueError(f"Parquet archive is missing required columns: {sorted(missing)}")
+    schema = inspect_schema(path)
+    expected = schema_for_version(archive_schema_version(path))
+    if not schema.equals(expected, check_metadata=True):
+        raise ValueError("Parquet archive schema differs from its declared version")

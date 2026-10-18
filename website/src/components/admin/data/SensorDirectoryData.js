@@ -179,23 +179,10 @@ const OPTIONAL_SENSOR_COLUMNS = [
 ];
 
 const OPTIONAL_HEALTH_COLUMNS = [
-  "last_seen_at",
-  "updated_at",
-  "last_radar_frame_at",
-  "last_passage_at",
-  "wifi_ssid",
-  "wifi_rssi",
-  "pending_passages",
-  "storage_free_percent",
-  "storage_errors",
-  "radar_frame_errors",
-  "last_http_status",
-  "firmware_version",
-  "model_version",
-  "last_reset_reason",
-  "provisioning_locked",
-  "ble_active",
-  "alerts",
+  "last_seen_at", "updated_at", "last_radar_frame_at", "last_passage_at",
+  "health_status", "boot_id", "uptime_ms", "radar_active", "wifi_rssi_dbm",
+  "pending_passages", "storage_free_bytes", "last_http_status", "firmware_version",
+  "diagnostics",
 ];
 
 const fetchOptionalColumns = async (supabase, tableName, idColumn, idValue, columns, sourceLabel) => {
@@ -236,14 +223,17 @@ const fetchSensorMetadata = async (supabase, sensorId) =>
 const fetchSensorHealth = async (supabase, sensorId) => {
   const health = await fetchOptionalColumns(
     supabase,
-    "device_health",
+    "sensor_health",
     "sensor_id",
     sensorId,
     OPTIONAL_HEALTH_COLUMNS,
     "transportation sensor health"
   );
 
-  return Object.fromEntries(Object.entries(health).map(([key, value]) => [`health_${key}`, value]));
+  const diagnostics = health.diagnostics || {};
+  const normalized = { ...diagnostics, ...health, wifi_rssi: health.wifi_rssi_dbm,
+    last_reset_reason: diagnostics.reset_reason, provisioning_locked: diagnostics.provisioned };
+  return Object.fromEntries(Object.entries(normalized).map(([key, value]) => [`health_${key}`, value]));
 };
 
 const fetchSensorHealthRows = async (supabase, sensorIds = []) => {
@@ -252,8 +242,8 @@ const fetchSensorHealthRows = async (supabase, sensorIds = []) => {
 
   try {
     const { data, error } = await supabase
-      .from("device_health")
-      .select("sensor_id, last_seen_at, updated_at, wifi_ssid")
+      .from("sensor_health")
+      .select("sensor_id, last_seen_at, updated_at, diagnostics")
       .in("sensor_id", ids);
 
     if (error) {
@@ -267,7 +257,7 @@ const fetchSensorHealthRows = async (supabase, sensorIds = []) => {
       {
         health_last_seen_at: row.last_seen_at || null,
         health_updated_at: row.updated_at || null,
-        health_wifi_ssid: row.wifi_ssid || null,
+        health_wifi_ssid: row.diagnostics?.wifi_ssid || null,
       },
     ]));
   } catch (error) {

@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Replace an existing object key; default is preserve-and-verify",
+        help="Replace an existing schema-v2 object only; schema-v1 is immutable",
     )
     return parser.parse_args()
 
