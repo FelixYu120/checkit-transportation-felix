@@ -28,17 +28,18 @@ export const fetchMapSensors = async (client, instituteId) => {
   if (!client) throw new Error('Transportation map connection is not configured.');
   const sensors = [];
   const pageSize = 1000;
-  let includeHeading = true;
+  const optionalFields = new Set(['heading_degrees', 'operating_mode']);
   for (let offset = 0; ; ) {
     let query = client.from('sensors')
-      .select(`sensor_id, institute_id, area_name, corridor_name, latitude, longitude${includeHeading ? ', heading_degrees' : ''}`)
+      .select(['sensor_id', 'institute_id', 'area_name', 'corridor_name', 'latitude', 'longitude', ...optionalFields].join(','))
       .order('sensor_id').range(offset, offset + pageSize - 1);
     if (instituteId) query = query.eq('institute_id', instituteId);
     const { data, error } = await query;
     if (error) {
-      if (includeHeading && ['42703', 'PGRST204'].includes(error.code) &&
-          /heading_degrees/i.test(error.message || '')) {
-        includeHeading = false;
+      const missingField = [...optionalFields].find((field) =>
+        ['42703', 'PGRST204'].includes(error.code) && (error.message || '').includes(field));
+      if (missingField) {
+        optionalFields.delete(missingField);
         continue;
       }
       throw error;

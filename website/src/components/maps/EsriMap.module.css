@@ -83,3 +83,65 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
+
+.sensorFilters {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  width: fit-content;
+  max-width: calc(100% - 86px);
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid rgba(203, 216, 212, .65);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .92);
+  color: #34524d;
+}
+
+.filterOptions { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+
+.filterOption {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 4px;
+  color: #34524d;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.filterInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.filterCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border: 1px solid #aabdb4;
+  border-radius: 3px;
+  background: #fff;
+  color: transparent;
+  transition: background .15s, border-color .15s;
+}
+
+.filterInput:checked + .filterCheck {
+  background: #34524d;
+  border-color: #34524d;
+  color: #fff;
+}
+.filterOption:hover .filterCheck { border-color: #34524d; }
+.filterInput:focus-visible + .filterCheck { outline: 2px solid #34524d; outline-offset: 3px; }
+.filterHint { margin: 5px 4px 2px; color: #697973; font-size: 11px; line-height: 1.4; }

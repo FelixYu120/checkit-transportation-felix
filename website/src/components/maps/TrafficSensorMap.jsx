@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Check, Radio, TriangleAlert } from 'lucide-react';
 import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
-import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import GeoJSONLayer from '@arcgis/core/layers/GeoJSONLayer';
 import * as reactiveUtils from '@arcgis/core/core/reactiveUtils';
 import Graphic from '@arcgis/core/Graphic';
@@ -12,13 +12,20 @@ import { prepareSensorLogo, replaceSensorGlyph, preloadMarkerImages } from './Tr
 import { normalizeInstituteId } from '../admin/data/SensorDirectoryData';
 import { addHeadingPointer, fetchMapSensors, getSensorCoordinates, getSensorHeading } from './TrafficSensorData';
 import styles from './EsriMap.module.css';
-import { getSensorCountBadge, getSensorOverview, SENSOR_CLUSTER_SIZE, SENSOR_OVERVIEW_ZOOM } from './TrafficSensorOverview';
-import { colorSensorBadge, fetchMapSensorHealth, getAggregateMapHealth, getMapSensorHealth, SENSOR_HEALTH_COLORS } from './TrafficSensorHealth';
+import { getSensorCountBadge, SENSOR_CLUSTER_SIZE } from './TrafficSensorOverview';
+import { colorSensorBadge, fetchMapSensorHealth, getMapSensorHealth, SENSOR_HEALTH_COLORS } from './TrafficSensorHealth';
+import { getSensorCategory, getSensorFilterExpression, SENSOR_CATEGORY_LABELS } from './TrafficSensorCategories';
 import sensorBadgeSvg from './assets/sensor.svg?raw';
 import selectedSensorBadgeSvg from './assets/sensor-selected.svg?raw';
 
 export default function TrafficSensorMap({ embedded = false, instituteId, sensorId, onSensorClick }) {
   const mapDiv = useRef(null);
+  const [categories, setCategories] = useState(['roadside', 'warning']);
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    categoriesRef.current = categories;
+    mapDiv.current?.dispatchEvent(new Event('sensor-filter'));
+  }, [categories]);
   const selectionRef = useRef({ sensorId, onSensorClick });
   const [errorMessage, setErrorMessage] = useState(null);
   const [tooltip, setTooltip] = useState(null);
@@ -52,7 +59,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       objectIdField: 'ObjectID', outFields: ['*'], popupEnabled: false,
       fields: [
         { name: 'ObjectID', type: 'oid' },
-        ...['sensor_id', 'institute_id', 'area_name', 'corridor_name']
+        ...['sensor_id', 'institute_id', 'area_name', 'corridor_name', 'sensor_category']
           .map((name) => ({ name, type: 'string' })),
         { name: 'latitude', type: 'double' }, { name: 'longitude', type: 'double' },
         { name: 'heading_degrees', type: 'double' },
@@ -62,7 +69,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       renderer: sensorRenderer(),
       featureReduction: {
         type: 'cluster', clusterRadius: '70px',
-        clusterMinSize: SENSOR_CLUSTER_SIZE, clusterMaxSize: SENSOR_CLUSTER_SIZE, maxScale: 5000,
+        clusterMinSize: SENSOR_CLUSTER_SIZE, clusterMaxSize: SENSOR_CLUSTER_SIZE, maxScale: 2500,
         fields: [
           { name: 'sensor_count', statisticType: 'count', onStatisticField: 'ObjectID' },
           { name: 'unhealthy_count', statisticType: 'sum', onStatisticField: 'health_bad' },
@@ -88,10 +95,9 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         symbol: { type: 'text', color: '#62665f', haloColor: '#ffffff', haloSize: 1.5,
           font: { family: 'Arial', size: 10 } } }],
     });
-    const overviewLayer = new GraphicsLayer({ title: 'All mapped sensors', listMode: 'hide' });
     const view = new MapView({
       container: mapDiv.current,
-      map: new Map({ basemap: 'streets-vector', layers: [landmarksLayer, layer, overviewLayer] }),
+      map: new Map({ basemap: 'streets-vector', layers: [landmarksLayer, layer] }),
       center: [-117.234, 32.8801], zoom: 15,
       constraints: { rotationEnabled: false },
       popupEnabled: false,
@@ -172,20 +178,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     };
     const updateOverview = () => {
       if (disposed) return;
-      const overview = getSensorOverview(Array.from(savedGraphics.values(), (graphic) => graphic.attributes));
-      const merged = view.zoom <= SENSOR_OVERVIEW_ZOOM && overview?.count > 0;
-      layer.visible = !merged;
-      overviewLayer.visible = Boolean(merged);
-      overviewLayer.removeAll();
-      if (merged) {
-        const geometry = { type: 'point', latitude: overview.latitude,
-          longitude: overview.longitude, spatialReference: { wkid: 4326 } };
-        overviewLayer.add(new Graphic({
-          geometry, attributes: { overview: true, sensor_count: overview.count },
-          symbol: { type: 'picture-marker', url: getSensorCountBadge(overview.count, getAggregateMapHealth(Array.from(savedGraphics.values(), (graphic) => graphic.attributes))),
-            width: SENSOR_CLUSTER_SIZE, height: SENSOR_CLUSTER_SIZE },
-        }));
-      }
+      layer.definitionExpression = getSensorFilterExpression(categoriesRef.current);
       if (layer.featureReduction) {
         layer.featureReduction.clusterRadius = view.zoom >= 16 ? 70 : view.zoom >= 15 ? 100 : 140;
       }
@@ -213,7 +206,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
           if (!objectIds.has(sensor.sensor_id)) objectIds.set(sensor.sensor_id, nextObjectId++);
           return [new Graphic({
             geometry: { type: 'point', ...coordinates, spatialReference: { wkid: 4326 } },
-            attributes: { ...sensor, ...coordinates,
+            attributes: { ...sensor, ...coordinates, sensor_category: getSensorCategory(sensor),
               map_health: health, health_bad: health === 'down' ? 1 : 0, health_known: health === 'unknown' ? 0 : 1,
               heading_degrees: getSensorHeading(sensor.heading_degrees),
               ObjectID: objectIds.get(sensor.sensor_id) },
@@ -269,20 +262,18 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     };
     const click = view.on('click', async (event) => {
       try {
-        const result = await view.hitTest(event, { include: [layer, overviewLayer] });
+        const result = await view.hitTest(event, { include: [layer] });
         if (disposed) return;
-        const graphic = result.results.find((hit) => [layer, overviewLayer].includes(hit.graphic?.layer))?.graphic;
+        const graphic = result.results.find((hit) => [layer].includes(hit.graphic?.layer))?.graphic;
         if (!graphic) return;
-        if (graphic.attributes?.overview) {
-          await view.goTo({ target: Array.from(savedGraphics.values()), zoom: SENSOR_OVERVIEW_ZOOM + 1 });
-        } else if (graphic.isAggregate) {
+        if (graphic.isAggregate) {
           const layerView = await view.whenLayerView(layer);
           const query = layerView.createQuery();
           query.aggregateIds = [graphic.getObjectId()];
           const { extent } = await layerView.queryExtent(query);
           if (disposed) return;
-          await view.goTo(extent && extent.width > 0 && extent.height > 0
-            ? extent.expand(1.8)
+          await view.goTo(extent && extent.width > 0 && extent.height > 0 && view.scale > 2500
+            ? { target: extent.expand(1.8), zoom: view.zoom + 2 }
             : { target: graphic.geometry, zoom: view.zoom + 2 });
         } else {
           selectionRef.current.onSensorClick?.(graphic.attributes);
@@ -294,11 +285,11 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     const hover = view.on('pointer-move', async (event) => {
       const request = ++hoverRequest;
       try {
-        const result = await view.hitTest(event, { include: [layer, overviewLayer] });
+        const result = await view.hitTest(event, { include: [layer] });
         if (disposed || request !== hoverRequest) return;
-        const graphic = result.results.find((hit) => [layer, overviewLayer].includes(hit.graphic?.layer))?.graphic;
+        const graphic = result.results.find((hit) => [layer].includes(hit.graphic?.layer))?.graphic;
         view.container.style.cursor = graphic ? 'pointer' : '';
-        const name = graphic && !graphic.isAggregate && !graphic.attributes?.overview ? graphic.attributes.corridor_name : null;
+        const name = graphic && !graphic.isAggregate && !graphic.attributes?.overview ? [graphic.attributes.corridor_name || graphic.attributes.sensor_id, SENSOR_CATEGORY_LABELS[graphic.attributes.sensor_category]].filter(Boolean).join(' · ') : null;
         const tooltipWidth = name ? Math.min(240, String(name).length * 7 + 20) : 0;
         setTooltip(name ? { name,
           x: Math.max(12, Math.min(event.x + 14, view.width - tooltipWidth - 12)),
@@ -330,6 +321,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       void refresh();
     };
     mapDiv.current.addEventListener('sensor-selection', selectionChanged);
+    mapDiv.current.addEventListener('sensor-filter', updateOverview);
     const container = mapDiv.current;
     void refresh();
     return () => {
@@ -337,6 +329,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
       clearInterval(interval);
       window.removeEventListener('focus', refresh);
       container.removeEventListener('sensor-selection', selectionChanged);
+      container.removeEventListener('sensor-filter', updateOverview);
       container.removeEventListener('pointerleave', clearHover);
       container.removeEventListener('pointerdown', clearHover);
       container.removeEventListener('wheel', clearHover);
@@ -353,6 +346,26 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
   }, [sensorId]);
 
   return <div className={`${styles.mapWrapper} ${embedded ? styles.embedded : ''}`}>
+    <section className={styles.sensorFilters} aria-label="Map filters">
+      <div className={styles.filterOptions}>
+        {Object.entries(SENSOR_CATEGORY_LABELS).map(([value, label]) => {
+          const active = categories.includes(value);
+          const Icon = value === 'roadside' ? Radio : TriangleAlert;
+          return <label key={value} className={styles.filterOption}>
+            <input className={styles.filterInput} type="checkbox" checked={active}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setCategories((current) => checked ? [...current, value]
+                  : current.filter((item) => item !== value));
+              }} />
+            <span className={styles.filterCheck} aria-hidden="true"><Check size={10} strokeWidth={2.5} /></span>
+            <Icon size={13} aria-hidden="true" />
+            <span>{label}</span>
+          </label>;
+        })}
+      </div>
+      {!categories.length && <p className={styles.filterHint} role="status">Select a type to show sensors.</p>}
+    </section>
     <div ref={mapDiv} className={styles.mapDiv} />
     {tooltip && <div className={styles.sensorTooltip} role="tooltip"
       style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.name}</div>}
