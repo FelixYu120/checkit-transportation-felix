@@ -8,6 +8,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+
 from checkit_transportation.archive.exporter import archive_day
 from checkit_transportation.config import Settings
 from checkit_transportation.storage.postgres import connect
