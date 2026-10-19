@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from psycopg import Connection
+from checkit_transportation.storage.postgres import passage_schema_version
 
 
 DEFAULT_RETENTION_DAYS = 7
@@ -42,23 +43,26 @@ def build_retention_report(
     """Report passage-level verified coverage using only SELECT statements."""
 
     cutoff = retention_cutoff(now=now, retention_days=retention_days)
+    version = passage_schema_version(connection)
+    timestamp = "observed_at" if version == 2 else "ended_at"
     with connection.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             select count(*) as eligible_count,
                    count(*) filter (where exists (
                      select 1 from public.historical_archives a
                      where a.dataset = 'traffic_passages'
                        and a.sensor_id = p.sensor_id
                        and a.status = 'verified'
+                       and a.schema_version = {version}
                        and a.verified_at is not null
-                       and a.started_at <= p.ended_at
-                       and a.ended_at >= p.ended_at
+                       and a.started_at <= p.{timestamp}
+                       and a.ended_at >= p.{timestamp}
                        and a.row_count > 0
                        and length(a.sha256_hex) = 64
                    )) as verified_coverage_count
             from public.traffic_passages p
-            where p.ended_at < %s
+            where p.{timestamp} < %s
             """,
             (cutoff,),
         )
@@ -77,14 +81,15 @@ def build_retention_report(
 def list_candidate_days(
     connection: Connection[Any], *, cutoff: datetime
 ) -> list[dict[str, Any]]:
+    timestamp = "observed_at" if passage_schema_version(connection) == 2 else "ended_at"
     with connection.cursor() as cursor:
         cursor.execute(
-            """
-            select sensor_id, ended_at::date as day, count(*) as passage_count,
-                   min(ended_at) as min_ended_at, max(ended_at) as max_ended_at
+            f"""
+            select sensor_id, ({timestamp} AT TIME ZONE 'UTC')::date as day, count(*) as passage_count,
+                   min({timestamp}) as min_ended_at, max({timestamp}) as max_ended_at
             from public.traffic_passages
-            where ended_at < %s
-            group by sensor_id, ended_at::date
+            where {timestamp} < %s
+            group by sensor_id, ({timestamp} AT TIME ZONE 'UTC')::date
             order by day, sensor_id
             """,
             (cutoff,),
@@ -99,13 +104,14 @@ def list_candidate_rows(
 
     if limit < 1:
         raise ValueError("limit must be positive")
+    timestamp = "observed_at" if passage_schema_version(connection) == 2 else "ended_at"
     with connection.cursor() as cursor:
         cursor.execute(
-            """
-            select sensor_id, boot_id, track_id, ended_at
+            f"""
+            select sensor_id, boot_id, track_id, {timestamp} as observed_at
             from public.traffic_passages
-            where ended_at < %s
-            order by ended_at, sensor_id, boot_id, track_id
+            where {timestamp} < %s
+            order by {timestamp}, sensor_id, boot_id, track_id
             limit %s
             """,
             (cutoff, limit),

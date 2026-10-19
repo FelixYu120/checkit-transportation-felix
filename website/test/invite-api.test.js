@@ -64,6 +64,7 @@ test("rejects methods other than POST and OPTIONS", async () => {
 test("institution admins can invite allowed roles into their institution", async () => {
   const requests = [];
   const responses = [
+    jsonResponse([]), // No existing profile for the invited email.
     jsonResponse({ id: "admin-user" }),
     jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]),
     jsonResponse({ id: "invited-user" }),
@@ -116,6 +117,7 @@ test("institution admins can invite allowed roles into their institution", async
 
 test("institution admins cannot invite elevated roles", async () => {
   global.fetch = async (url) => {
+    if (new URL(url).searchParams.has("email")) return jsonResponse([]);
     if (String(url).includes("/auth/v1/user")) return jsonResponse({ id: "admin-user" });
     return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
   };

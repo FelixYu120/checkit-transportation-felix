@@ -13,6 +13,7 @@ from psycopg import Connection
 from checkit_transportation.archive.verifier import verify_archive
 from checkit_transportation.storage.parquet import (
     assert_required_columns,
+    rows_schema_version,
     calculate_sha256,
     count_rows,
     file_size,
@@ -74,7 +75,8 @@ def archive_day(
     if not rows:
         raise ValueError(f"No traffic_passages found for {sensor_id} on {day}")
 
-    object_key = traffic_passages_object_key(sensor_id, day)
+    version = rows_schema_version(rows)
+    object_key = traffic_passages_object_key(sensor_id, day, schema_version=version)
     local_path = Path(output_root) / object_key
     write_traffic_passages(rows, local_path)
     assert_required_columns(local_path)
@@ -84,12 +86,14 @@ def archive_day(
 
     uploaded = False
     exists = object_exists(r2_client, bucket, object_key)
+    if exists and overwrite and version == 1:
+        raise ValueError("Existing schema-v1 objects are immutable; overwrite is forbidden")
     if exists and not overwrite:
         # Preserve the existing object and verify it. A mismatch is an explicit
         # operator decision, never an automatic overwrite.
         pass
     else:
-        upload_file(r2_client, bucket, local_path, object_key)
+        upload_file(r2_client, bucket, local_path, object_key, overwrite=overwrite)
         uploaded = True
 
     remote_head = head_object(r2_client, bucket, object_key)

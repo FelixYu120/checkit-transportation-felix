@@ -127,8 +127,17 @@ def aggregate_daily(
     rows: Iterable[Mapping[str, Any]], sensor_id: str, day: date, *, policy: AggregationPolicy = DEFAULT_POLICY
 ) -> DailyAggregate:
     source = list(rows)
-    counted = [row for row in source if str(row.get("quality_status", "")) in policy.counted_quality_statuses]
-    speeds = [int(row["median_speed_kmh"]) for row in counted if row.get("median_speed_kmh") is not None]
+    def accepted(row):
+        quality = row.get("quality_status")
+        if quality is not None:
+            return quality in policy.counted_quality_statuses
+        # Only compact records have implicit acceptance. Unknown legacy quality
+        # is never treated as an accepted track.
+        return row.get("speed_kmh") is not None
+
+    counted = [row for row in source if accepted(row)]
+    speeds = [int(row.get("speed_kmh") if row.get("speed_kmh") is not None else row["median_speed_kmh"])
+              for row in counted if row.get("speed_kmh") is not None or row.get("median_speed_kmh") is not None]
 
     def count_values(records: Iterable[Mapping[str, Any]], field_name: str, values: frozenset[str]) -> int:
         return sum(str(row.get(field_name, "")) in values for row in records)
@@ -169,7 +178,11 @@ def upsert_daily(connection: Connection[Any], aggregate: DailyAggregate) -> None
     """Atomically replace the sensor/day aggregate and commit via caller context."""
 
     values = aggregate.as_dict()
-    columns = tuple(values)
+    # Legacy-only diagnostics remain available in the in-memory result, but
+    # only the lean contract is persisted (works before and after finalization).
+    columns = ("sensor_id", "day", "volume", "approach_volume", "away_volume",
+               "motor_vehicle_volume", "micromobility_volume", "unknown_volume",
+               "speed_count", "speed_sum_kmh", "max_speed_kmh", "speed_histogram")
     assignments = sql.SQL(", ").join(
         sql.SQL("{} = excluded.{}").format(sql.Identifier(column), sql.Identifier(column))
         for column in columns

@@ -258,6 +258,13 @@ bool CloudTelemetry::storageReady() const {
 }
 
 bool CloudTelemetry::enqueue(const CloudPassage &passage) {
+  // Non-accepted tracks are consumed locally, never persisted to the outbox.
+  if (passage.passage.qualityStatus != TRACK_ACCEPTED) {
+    Serial.printf("[CLOUD] local-only track %lu quality=%s\n",
+        static_cast<unsigned long>(passage.passage.trackId),
+        trackQualityName(passage.passage.qualityStatus));
+    return true;
+  }
   if (!storageReady_) {
     return false;
   }
@@ -644,12 +651,25 @@ bool CloudTelemetry::uploadPendingPassages() {
       return true;
     }
 
-    const String payload = buildPassagePayload(batch, batchCount);
-    if (!postPayload(
+    // Keep the on-disk layout unchanged so existing CRC-protected records
+    // remain readable. Compact only this upload buffer; acknowledge ALL read
+    // records after accepted rows succeed, including discarded legacy reviews.
+    size_t acceptedCount = 0;
+    for (size_t i = 0; i < batchCount; ++i) {
+      if (batch[i].passage.qualityStatus == TRACK_ACCEPTED) {
+        batch[acceptedCount++] = batch[i];
+      } else {
+        Serial.printf("[CLOUD] discard legacy track %lu quality=%s\n",
+            static_cast<unsigned long>(batch[i].passage.trackId),
+            trackQualityName(batch[i].passage.qualityStatus));
+      }
+    }
+    const String payload = buildPassagePayload(batch, acceptedCount);
+    if (acceptedCount > 0 && !postPayload(
             config_.passageTableName,
             "sensor_id%2Cboot_id%2Ctrack_id",
             payload,
-            batchCount,
+            acceptedCount,
             "passages")) {
       return false;
     }
@@ -660,7 +680,7 @@ bool CloudTelemetry::uploadPendingPassages() {
       return false;
     }
     portENTER_CRITICAL(&statsMux_);
-    stats_.uploadedPassages += batchCount;
+    stats_.uploadedPassages += acceptedCount;
     portEXIT_CRITICAL(&statsMux_);
   }
 }
@@ -675,116 +695,27 @@ void CloudTelemetry::appendPassageObject(
   json += static_cast<unsigned long>(cloudPassage.bootId);
   json += F(",\"track_id\":");
   json += static_cast<unsigned long>(passage.trackId);
-  json += F(",\"started_at\":");
-  appendObservedAt(json, passage.startedEpoch);
-  json += F(",\"ended_at\":");
+  json += F(",\"observed_at\":");
   appendObservedAt(json, passage.endedEpoch);
   json += F(",\"direction\":");
   appendJsonString(json, directionName(passage.direction));
   json += F(",\"traffic_class\":");
   appendJsonString(json, trafficClassName(passage.trafficClass));
-  json += F(",\"class_confidence\":");
-  json += String(passage.classConfidence / 100.0f, 2);
-  json += F(",\"quality_status\":");
-  appendJsonString(json, trackQualityName(passage.qualityStatus));
-  json += F(",\"quality_score\":");
-  json += static_cast<unsigned int>(passage.qualityScore);
-  json += F(",\"association_confidence\":");
-  json += String(passage.associationConfidence / 100.0f, 2);
-  json += F(",\"direction_consistency\":");
-  json += String(passage.directionConsistency / 100.0f, 2);
-  json += F(",\"hit_count\":");
-  json += static_cast<unsigned int>(passage.hitCount);
-  json += F(",\"duration_ms\":");
-  json += static_cast<unsigned long>(passage.durationMs);
-  json += F(",\"median_speed_kmh\":");
+  json += F(",\"speed_kmh\":");
   json += static_cast<unsigned int>(passage.medianSpeedKmh);
-  json += F(",\"p85_speed_kmh\":");
-  json += static_cast<unsigned int>(passage.p85SpeedKmh);
   json += F(",\"max_speed_kmh\":");
   json += static_cast<unsigned int>(passage.maxSpeedKmh);
-  json += F(",\"mean_snr\":");
-  json += static_cast<unsigned int>(passage.meanSnr);
-  json += F(",\"max_snr\":");
-  json += static_cast<unsigned int>(passage.maxSnr);
-  json += F(",\"peak_cluster_size\":");
-  json += static_cast<unsigned int>(passage.peakClusterSize);
-  json += F(",\"travel_distance_m\":");
-  json += String(passage.travelDistanceM, 2);
-  json += F(",\"entry_distance_m\":");
-  json += static_cast<unsigned int>(passage.entryDistanceM);
-  json += F(",\"entry_angle_deg\":");
-  json += static_cast<int>(passage.entryAngleDeg);
-  json += F(",\"exit_distance_m\":");
-  json += static_cast<unsigned int>(passage.exitDistanceM);
-  json += F(",\"exit_angle_deg\":");
-  json += static_cast<int>(passage.exitAngleDeg);
   json += F(",\"firmware_version\":");
   appendJsonString(json, CHECKIT_FIRMWARE_VERSION);
-  json += F(",\"model_version\":");
-  appendJsonString(json, CHECKIT_TRAFFIC_MODEL_VERSION);
-  json += F(",\"path_points\":[");
-  for (uint8_t i = 0; i < passage.pathPointCount; ++i) {
-    if (i > 0) {
-      json += ',';
-    }
-    const TrafficTrackPoint &point = passage.path[i];
-    const TrafficPointKinematics motion =
-        deriveTrafficPointKinematics(passage, i);
-    json += F("{\"dt_ms\":");
-    json += static_cast<unsigned int>(point.offsetMs);
-    json += F(",\"angle_deg\":");
-    json += static_cast<int>(point.angleDeg);
-    json += F(",\"distance_m\":");
-    json += static_cast<unsigned int>(point.distanceM);
-    json += F(",\"speed_kmh\":");
-    json += static_cast<unsigned int>(point.speedKmh);
-    json += F(",\"snr\":");
-    json += static_cast<unsigned int>(point.snr);
-    json += F(",\"direction\":");
-    appendJsonString(json, directionName(point.direction));
-    json += F(",\"cluster_size\":");
-    json += static_cast<unsigned int>(point.clusterSize);
-    json += F(",\"x_m\":");
-    json += String(motion.xM, 3);
-    json += F(",\"y_m\":");
-    json += String(motion.yM, 3);
-    json += F(",\"vx_mps\":");
-    if (motion.velocityValid) {
-      json += String(motion.vxMps, 3);
-    } else {
-      json += F("null");
-    }
-    json += F(",\"vy_mps\":");
-    if (motion.velocityValid) {
-      json += String(motion.vyMps, 3);
-    } else {
-      json += F("null");
-    }
-    json += F(",\"ax_mps2\":");
-    if (motion.accelerationValid) {
-      json += String(motion.axMps2, 3);
-    } else {
-      json += F("null");
-    }
-    json += F(",\"ay_mps2\":");
-    if (motion.accelerationValid) {
-      json += String(motion.ayMps2, 3);
-    } else {
-      json += F("null");
-    }
-    json += F(",\"feature_version\":");
-    appendJsonString(json, CHECKIT_TRAFFIC_FEATURE_VERSION);
-    json += '}';
-  }
-  json += F("]}");
+  // The database stamps receipt time, including for legacy journal retries.
+  json += F(",\"received_at\":null}");
 }
 
 String CloudTelemetry::buildPassagePayload(
     const CloudPassage *passages,
     size_t passageCount) const {
   String json;
-  json.reserve(passageCount * 8192U + 2U);
+  json.reserve(passageCount * 320U + 2U);
   json += '[';
   for (size_t i = 0; i < passageCount; ++i) {
     if (i > 0) {
@@ -818,8 +749,6 @@ String CloudTelemetry::buildHealthPayload(
   json.reserve(1024);
   json += F("[{\"sensor_id\":");
   appendJsonString(json, config_.sensorId);
-  json += F(",\"device_name\":");
-  appendJsonString(json, snapshot.deviceName);
   json += F(",\"last_seen_at\":");
   appendObservedAt(json, nowEpoch);
   json += F(",\"last_radar_frame_at\":");
@@ -834,6 +763,21 @@ String CloudTelemetry::buildHealthPayload(
   json += static_cast<unsigned long>(snapshot.uptimeMs);
   json += F(",\"radar_active\":");
   json += snapshot.radarActive ? F("true") : F("false");
+  json += F(",\"wifi_rssi_dbm\":");
+  json += static_cast<int>(snapshot.wifiRssiDbm);
+  json += F(",\"pending_passages\":");
+  json += static_cast<unsigned long>(storage.pendingRecords);
+  json += F(",\"storage_free_bytes\":");
+  json += static_cast<unsigned long>(storage.freeBytes);
+  json += F(",\"last_http_status\":");
+  json += static_cast<long>(telemetry.lastHttpStatus);
+  json += F(",\"firmware_version\":");
+  appendJsonString(json, CHECKIT_FIRMWARE_VERSION);
+  json += F(",\"updated_at\":");
+  appendObservedAt(json, nowEpoch);
+  json += F(",\"diagnostics\":{");
+  json += F("\"device_name\":");
+  appendJsonString(json, snapshot.deviceName);
   json += F(",\"radar_frame_count\":");
   json += static_cast<unsigned long>(snapshot.radarFrameCount);
   json += F(",\"radar_frame_errors\":");
@@ -851,19 +795,11 @@ String CloudTelemetry::buildHealthPayload(
   json += static_cast<unsigned long>(snapshot.truncatedTargetFrames);
   json += F(",\"maximum_reported_targets\":");
   json += static_cast<unsigned int>(snapshot.maximumReportedTargets);
-  json += F(",\"wifi_rssi_dbm\":");
-  json += static_cast<int>(snapshot.wifiRssiDbm);
-  json += F(",\"pending_passages\":");
-  json += static_cast<unsigned long>(storage.pendingRecords);
   json += F(",\"storage_used_bytes\":");
   json += static_cast<unsigned long>(storage.usedBytes);
-  json += F(",\"storage_free_bytes\":");
-  json += static_cast<unsigned long>(storage.freeBytes);
   json += F(",\"storage_errors\":");
   json += static_cast<unsigned long>(
       storage.corruptRecords + storage.persistFailures);
-  json += F(",\"last_http_status\":");
-  json += static_cast<long>(telemetry.lastHttpStatus);
   json += F(",\"speed_limit_kmh\":");
   json += static_cast<unsigned int>(snapshot.speedLimitKmh);
   json += F(",\"reset_reason\":");
@@ -872,13 +808,11 @@ String CloudTelemetry::buildHealthPayload(
   json += snapshot.provisioned ? F("true") : F("false");
   json += F(",\"ble_active\":");
   json += snapshot.bleActive ? F("true") : F("false");
-  json += F(",\"firmware_version\":");
-  appendJsonString(json, CHECKIT_FIRMWARE_VERSION);
   json += F(",\"model_version\":");
   appendJsonString(json, CHECKIT_TRAFFIC_MODEL_VERSION);
   json += F(",\"feature_version\":");
   appendJsonString(json, CHECKIT_TRAFFIC_FEATURE_VERSION);
-  json += F("}]");
+  json += F("}}]");
   return json;
 }
 

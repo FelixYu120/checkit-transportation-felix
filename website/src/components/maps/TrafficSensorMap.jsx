@@ -312,7 +312,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     const interval = setInterval(refresh, 10000);
     const channel = supabase?.channel(`traffic-map-${scope || 'all'}-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sensors' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'device_health' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sensor_health' }, refresh)
       .subscribe();
     window.addEventListener('focus', refresh);
     const selectionChanged = () => {

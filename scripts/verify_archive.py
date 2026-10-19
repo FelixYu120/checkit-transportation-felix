@@ -13,6 +13,7 @@ from checkit_transportation.archive.verifier import verify_source_archive
 from checkit_transportation.config import Settings
 from checkit_transportation.storage.parquet import (
     assert_required_columns,
+    archive_schema_version,
     calculate_sha256,
     count_rows,
     file_size,
@@ -28,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sensor", required=True)
     parser.add_argument("--day", required=True, type=date.fromisoformat)
     parser.add_argument("--object-key")
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=1)
     parser.add_argument("--expected-sha256")
     parser.add_argument("--compare-source", action="store_true")
     parser.add_argument("--sample-size", type=int, default=10)
@@ -37,7 +39,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     settings = Settings.from_env(require_database=args.compare_source, require_r2=True)
-    key = args.object_key or traffic_passages_object_key(args.sensor, args.day)
+    key = args.object_key or traffic_passages_object_key(args.sensor, args.day, schema_version=args.schema_version)
     with tempfile.TemporaryDirectory(prefix="checkit-verify-") as temporary:
         path = download_object(
             create_client(settings), settings.r2_bucket, key, Path(temporary) / "archive.parquet"
@@ -57,7 +59,7 @@ def main() -> int:
         }
         if args.compare_source:
             with connect(settings.database_url) as connection:
-                rows = fetch_traffic_passages_for_day(connection, args.sensor, args.day)
+                rows = fetch_traffic_passages_for_day(connection, args.sensor, args.day, schema_version=archive_schema_version(path))
             report = verify_source_archive(rows, path, sample_size=args.sample_size)
             result["source_comparison"] = {
                 "source_row_count": report.source_row_count,
