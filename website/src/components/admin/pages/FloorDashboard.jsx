@@ -14,11 +14,13 @@ import {
 } from '../routing/AdminRouteUtils';
 import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
+import { getSensorSpeedSetupRows } from '../data/SensorSpeedData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import OperatingLens from '../controls/OperatingLens';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
 import SummaryMetrics from '../summaries/SummaryMetrics';
+import { getSensorCategory, getSensorCategoryLabel } from '../../maps/TrafficSensorCategories';
 import { getSensorCoordinates } from '../../maps/TrafficSensorData';
 
 const formatDateTime = (value) => value
@@ -54,22 +56,10 @@ const formatMetadataDate = (value) => {
     });
 };
 
-const formatNumber = (value, unit = '') => {
-    if (value === null || value === undefined || String(value).trim() === '') return 'Not set';
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) return 'Not set';
-    return `${Math.round(numericValue * 10) / 10}${unit ? ` ${unit}` : ''}`;
-};
-
-const formatSpeedMph = (...values) => {
-    const rawValue = values.find((value) => value !== null && value !== undefined && value !== '');
-    return formatNumber(rawValue, 'mph');
-};
-
 const formatCoordinates = (latitude, longitude) => {
     const coordinates = getSensorCoordinates({ latitude, longitude });
     if (!coordinates) return 'Not set';
-    return `${coordinates.latitude.toFixed(7)}, ${coordinates.longitude.toFixed(7)}`;
+    return `${coordinates.latitude}, ${coordinates.longitude}`;
 };
 
 const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorName) => ([
@@ -82,29 +72,16 @@ const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorNam
             ['Coordinates', formatCoordinates(sensor?.latitude, sensor?.longitude)],
         ],
     },
-    {
+    ...(getSensorCategory(sensor) === 'roadside' ? [] : [{
         title: 'Speed Setup',
-        rows: [
-            ['Speed Limit', formatSpeedMph(sensor?.speed_threshold, sensor?.speed_limit_threshold, sensor?.speed_limit_kmh)],
-            ['Max Speed Cap', formatSpeedMph(sensor?.max_cap, sensor?.max_speed_cap_threshold, sensor?.max_speed_cap_kmh)],
-            ['Danger Speed', formatSpeedMph(sensor?.danger_speed_kmh)],
-            ['Emergency Speed', formatSpeedMph(sensor?.emergency_speed_kmh)],
-            ['Heading', formatNumber(sensor?.heading_degrees, 'degrees')],
-        ],
-    },
+        rows: getSensorSpeedSetupRows(sensor),
+    }]),
     {
         title: 'Installation',
         rows: [
             ['Sensor ID', sensor?.sensor_id],
-            ['Hardware Serial', sensor?.hardware_serial],
-            ['WiFi', sensor?.wifi_ssid || sensor?.health_wifi_ssid],
-            ['Needs Review', sensor?.needs_review],
-            ['Commissioned', sensor?.commissioned],
-            ['Commissioned At', formatMetadataDate(sensor?.commissioned_at)],
-            ['Installed', formatMetadataDate(sensor?.created_at)],
-            ['Deployment ID', sensor?.deployment_id],
-            ['Paired Flash Serials', sensor?.paired_flash_serials],
-            ['Notes', sensor?.installation_notes],
+            ...(getSensorCategoryLabel(sensor) ? [['Transportation Type', getSensorCategoryLabel(sensor)]] : []),
+            ['WiFi', sensor?.health_wifi_ssid || sensor?.wifi_ssid || 'Not set'],
         ],
     },
 ]);
@@ -114,6 +91,8 @@ const getTrafficExportRows = (rows = [], sensor) => rows.map((row) => ({
     institute: sensor?.institute_id || '',
     area: sensor?.area_name || '',
     corridor: sensor?.corridor_name || '',
+    sensor_id: sensor?.sensor_id || '',
+    sensor_type: getSensorCategoryLabel(sensor),
     observed_at_utc: row.observed_at || '',
     direction: row.direction || '',
     volume: row.volume ?? '',
@@ -363,7 +342,11 @@ const FloorDashboard = () => {
     const activeView = trendViews[activeTrafficTimeframe] || 'combined';
     const activeTimeframe = TRAFFIC_TIMEFRAMES.find((timeframe) => timeframe.value === activeTrafficTimeframe) || TRAFFIC_TIMEFRAMES[0];
     const activePreset = TRAFFIC_VIEW_PRESETS.find((preset) => preset.value === activeView) || TRAFFIC_VIEW_PRESETS[0];
-    const maxSpeedThreshold = Number(sensor?.max_cap ?? sensor?.max_speed_cap_threshold);
+    const isRoadside = getSensorCategory(sensor) === 'roadside';
+    const summaryGroups = isRoadside
+        ? TRAFFIC_SUMMARY_GROUPS.map((group) => ({ ...group, metrics: group.metrics.filter((metric) => metric !== 'overThresholdCount') }))
+        : TRAFFIC_SUMMARY_GROUPS;
+    const maxSpeedThreshold = isRoadside ? NaN : Number(sensor?.max_cap ?? sensor?.max_speed_cap_threshold);
     const summaryThreshold = Number.isFinite(maxSpeedThreshold) ? maxSpeedThreshold : undefined;
     const sensorMetadataGroups = sensor ? buildSensorMetadataGroups(sensor, instituteLabel, areaName, corridorName) : [];
     const metadataModal = isMetadataModalOpen && sensor ? (
@@ -436,11 +419,6 @@ const FloorDashboard = () => {
                     <section className={styles.corridorHeader}>
                         <div className={styles.sensorStatusRow}>
                             <div className={styles.sensorStatusStack}>
-                                {sensor.sensor_id ? (
-                                    <span className={styles.sensorIdMeta}>
-                                        Sensor ID: {sensor.sensor_id}
-                                    </span>
-                                ) : null}
                                 <div className={styles.sensorStatusControls}>
                                     <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
                                         <strong>Sensor Status:</strong>
@@ -490,7 +468,7 @@ const FloorDashboard = () => {
                         timeframe={activeTrafficTimeframe}
                         sourceChartData={activeChartData}
                         preferSourceChartData
-                        metricGroups={TRAFFIC_SUMMARY_GROUPS}
+                        metricGroups={summaryGroups}
                         thresholdValue={summaryThreshold}
                     />
                 </>

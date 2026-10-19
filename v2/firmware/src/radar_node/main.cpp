@@ -1483,6 +1483,8 @@ void updateCloudHealth(uint32_t nowMs) {
       sizeof(snapshot.deviceName),
       "%s",
       runtimeSettings().deviceName);
+  snprintf(snapshot.wifiSsid, sizeof(snapshot.wifiSsid), "%s",
+      WiFi.status() == WL_CONNECTED ? WiFi.SSID().c_str() : "");
   snapshot.bootId = trafficBootId;
   snapshot.uptimeMs = nowMs;
   snapshot.radarFrameCount = radarFrameNumber;

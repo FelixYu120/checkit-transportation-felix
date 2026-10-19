@@ -14,6 +14,7 @@ import { fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirect
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import OperatingLens from '../controls/OperatingLens';
+import { getSensorCategoryLabel } from '../../maps/TrafficSensorCategories';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 
 const groupSensorsByArea = (sensors = []) =>
@@ -52,6 +53,8 @@ const getTrafficExportRows = (rows = [], sensors = [], scopeType, fallbackInstit
                 institute: sensor.institute_id || fallbackInstitute || '',
                 area: sensor.area_name || '',
                 corridor: sensor.corridor_name || '',
+                sensor_id: sensor.sensor_id || row.sensor_id || '',
+                sensor_type: getSensorCategoryLabel(sensor),
                 observed_at_utc: row.observed_at || '',
                 direction: row.direction || '',
                 volume: row.volume ?? '',
@@ -366,7 +369,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                 >
                                     {labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane'}
                                 </Link>
-                                <span>{sensor.area_name || sensor.institute_id || ''}</span>
+                                <span>{[sensor.area_name || sensor.institute_id, getSensorCategoryLabel(sensor)].filter(Boolean).join(' · ')}</span>
                             </div>
 
                             <div className={styles.comparisonTrack} aria-hidden="true">

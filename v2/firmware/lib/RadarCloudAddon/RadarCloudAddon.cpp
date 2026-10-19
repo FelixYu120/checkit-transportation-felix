@@ -113,6 +113,7 @@ void update(uint32_t now){
  if(uint32_t(now-lastHealth)<5000)return;lastHealth=now;
  RadarDisplayAddon::snapshot(radar,now);
  CloudHealthSnapshot h{};snprintf(h.deviceName,sizeof(h.deviceName),"%s",manager.settings().deviceName);
+ snprintf(h.wifiSsid,sizeof(h.wifiSsid),"%s",WiFi.status()==WL_CONNECTED?WiFi.SSID().c_str():"");
  h.bootId=bootId;h.uptimeMs=now;h.radarFrameCount=radar.stats.validFrames;
  h.radarFrameErrors=radar.stats.invalidLengths+radar.stats.invalidPayloads+radar.stats.invalidTrailers;
  h.lastRadarFrameAgeMs=radar.hasReport?radar.reportAgeMs:UINT32_MAX;

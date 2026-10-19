@@ -1,21 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getSensorCategory, getSensorFilterExpression } from '../src/components/maps/TrafficSensorCategories.js';
+import { getSensorCategory, getSensorCategoryLabel, getSensorFilterExpression } from '../src/components/maps/TrafficSensorCategories.js';
 
-test('groups firmware operating modes into the labeled map filters', () => {
-  assert.equal(getSensorCategory({ operating_mode: 'roadside_observation' }), 'roadside');
-  for (const operating_mode of ['radar_warning', 'flashing_warning', 'legacy_distance_routed_warning']) {
-    assert.equal(getSensorCategory({ operating_mode }), 'warning');
+test('uses only Supabase deployment_type, including when firmware mode disagrees', () => {
+  assert.equal(getSensorCategoryLabel({ deployment_type: 'roadside_observation', operating_mode: 'radar_warning' }), 'Roadside Observation');
+  assert.equal(getSensorCategoryLabel({ deployment_type: 'warning_system', operating_mode: 'roadside_observation' }), 'Warning System');
+});
+
+test('missing deployment types have no visible label and do not inherit firmware mode', () => {
+  for (const deployment_type of [undefined, null, '', 'future_type']) {
+    const sensor = { deployment_type, operating_mode: 'roadside_observation' };
+    assert.equal(getSensorCategory(sensor), 'unknown');
+    assert.equal(getSensorCategoryLabel(sensor), '');
   }
 });
 
-test('classifies missing and unrecognized modes as unknown', () => {
-  for (const operating_mode of [undefined, null, '', 'future_mode']) {
-    assert.equal(getSensorCategory({ operating_mode }), 'unknown');
-  }
-});
-
-test('default filters show every installation including sensors without a mode', () => {
+test('default filters show every installation including sensors without a deployment type', () => {
   assert.equal(getSensorFilterExpression(['roadside', 'warning']), '1 = 1');
 });
 

@@ -778,6 +778,8 @@ String CloudTelemetry::buildHealthPayload(
   json += F(",\"diagnostics\":{");
   json += F("\"device_name\":");
   appendJsonString(json, snapshot.deviceName);
+  json += F(",\"wifi_ssid\":");
+  appendJsonString(json, snapshot.wifiSsid);
   json += F(",\"radar_frame_count\":");
   json += static_cast<unsigned long>(snapshot.radarFrameCount);
   json += F(",\"radar_frame_errors\":");

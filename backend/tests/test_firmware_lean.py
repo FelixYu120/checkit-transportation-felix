@@ -120,6 +120,7 @@ int main() {
  assert(discarded.passageJournal_.consumed==2&&discarded.stats_.uploadedPassages==0);
  CloudHealthSnapshot health{};health.bootId=7;health.uptimeMs=1500;health.radarActive=true;
  health.radarFrameCount=42;health.wifiRssiDbm=-55;health.lastRadarFrameAgeMs=500;
+ strcpy(health.wifiSsid,"Field \"AP\"");
  health.lastPassageEpoch=1800000010;
  std::cout<<t.buildHealthPayload(health)<<"\n";
 }
@@ -140,6 +141,7 @@ int main() {
     assert passage['received_at'] is None and passage['firmware_version']=='3.1.0-lean'
     health=json.loads(output[1])[0]
     assert set(health)=={'sensor_id','last_seen_at','last_radar_frame_at','last_passage_at','health_status','boot_id','uptime_ms','radar_active','wifi_rssi_dbm','pending_passages','storage_free_bytes','last_http_status','firmware_version','updated_at','diagnostics'}
+    assert health['diagnostics']['wifi_ssid']=='Field \"AP\"'
     assert health['diagnostics']['radar_frame_count']==42
     assert health['diagnostics']['storage_errors']==3
     assert health['pending_passages']==3 and health['wifi_rssi_dbm']==-55

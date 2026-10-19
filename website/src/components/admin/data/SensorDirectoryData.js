@@ -159,6 +159,7 @@ const isMissingColumnError = (error) =>
   error?.code === "42703" || /column .* does not exist|schema cache|could not find/i.test(compactSupabaseError(error));
 
 const OPTIONAL_SENSOR_COLUMNS = [
+  "deployment_type",
   "needs_review",
   "created_at",
   "installation_notes",
@@ -285,7 +286,9 @@ const querySensorRows = async (supabase, instituteId, sensorId) => {
 
   let lastError = null;
 
-  for (const selectColumns of selectAttempts) {
+  const typeColumns = new Set(["deployment_type"]);
+  for (let attempt = 0; attempt < selectAttempts.length; attempt += 1) {
+    const selectColumns = [selectAttempts[attempt], ...typeColumns].join(", ");
     let query = supabase
       .from("sensors")
       .select(selectColumns)
@@ -300,6 +303,11 @@ const querySensorRows = async (supabase, instituteId, sensorId) => {
 
     lastError = error;
     if (!isMissingColumnError(error)) break;
+    const missingTypeColumn = [...typeColumns].find((column) => compactSupabaseError(error).includes(column));
+    if (missingTypeColumn) {
+      typeColumns.delete(missingTypeColumn);
+      attempt -= 1;
+    }
   }
 
   throw lastError;
@@ -411,7 +419,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
       sensors: dedupedSensors.map((sensor) => normalizeSensorHealthStatus({
         ...sensor,
         ...(healthBySensorId.get(sensor.sensor_id) || {}),
-        wifi_ssid: sensor.wifi_ssid || healthBySensorId.get(sensor.sensor_id)?.health_wifi_ssid || null,
+        wifi_ssid: healthBySensorId.get(sensor.sensor_id)?.health_wifi_ssid || sensor.wifi_ssid || null,
       })),
     };
   } catch (error) {
@@ -446,7 +454,7 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
       ...health,
       last_seen_at: getMostRecentTimestamp(health.health_last_seen_at, sensor.last_seen_at),
       updated_at: getMostRecentTimestamp(health.health_updated_at, sensor.updated_at),
-      wifi_ssid: sensor.wifi_ssid || metadata.wifi_ssid || health.health_wifi_ssid || null,
+      wifi_ssid: health.health_wifi_ssid || sensor.wifi_ssid || metadata.wifi_ssid || null,
     });
   } catch (error) {
     console.warn("Using generated sensor fallback:", getSupabaseErrorContext(error));

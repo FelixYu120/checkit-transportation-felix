@@ -26,6 +26,7 @@ struct CloudTelemetryConfig {
 
 struct CloudHealthSnapshot {
   char deviceName[32];
+  char wifiSsid[33];
   uint32_t bootId;
   uint32_t uptimeMs;
   uint32_t radarFrameCount;

@@ -1,13 +1,16 @@
-export const SENSOR_CATEGORY_LABELS = { roadside: 'Roadside', warning: 'Warning' };
+export const SENSOR_CATEGORY_LABELS = { roadside: 'Roadside Observation', warning: 'Warning System' };
 
-export const getSensorCategory = (sensor) => {
-  const mode = String(sensor.operating_mode || '').trim().toLowerCase();
-  if (mode === 'roadside_observation') return 'roadside';
-  if (['radar_warning', 'flashing_warning', 'legacy_distance_routed_warning'].includes(mode)) return 'warning';
+export const getSensorCategory = (sensor = {}) => {
+  const deployment = String(sensor.deployment_type || '').trim().toLowerCase();
+  if (deployment === 'roadside_observation') return 'roadside';
+  if (deployment === 'warning_system') return 'warning';
   return 'unknown';
 };
 
-// With both filters enabled, retain installations whose mode is not recorded.
+export const getSensorCategoryLabel = (sensor) =>
+  SENSOR_CATEGORY_LABELS[getSensorCategory(sensor)] || '';
+
+// With both filters enabled, retain installations whose deployment type is not recorded.
 export const getSensorFilterExpression = (categories) => {
   const selected = Object.keys(SENSOR_CATEGORY_LABELS).filter((category) => categories.includes(category));
   if (selected.length === Object.keys(SENSOR_CATEGORY_LABELS).length) return '1 = 1';

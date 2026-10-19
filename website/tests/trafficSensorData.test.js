@@ -19,7 +19,7 @@ test('map reads scoped installation records including sensors without traffic da
   const client = { from(table) {
     assert.equal(table, 'sensors');
     const query = {
-      select(columns) { assert.match(columns, /latitude, longitude/); return this; },
+      select(columns) { assert.match(columns, /latitude,\s*longitude/); return this; },
       order(column) { assert.equal(column, 'sensor_id'); return this; },
       range(start, end) { ranges.push([start, end]); this.data = rows.slice(start, end + 1); return this; },
       eq(column, value) { filters.push([column, value]); return this; },

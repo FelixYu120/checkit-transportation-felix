@@ -28,7 +28,7 @@ export const fetchMapSensors = async (client, instituteId) => {
   if (!client) throw new Error('Transportation map connection is not configured.');
   const sensors = [];
   const pageSize = 1000;
-  const optionalFields = new Set(['heading_degrees', 'operating_mode']);
+  const optionalFields = new Set(['heading_degrees', 'deployment_type']);
   for (let offset = 0; ; ) {
     let query = client.from('sensors')
       .select(['sensor_id', 'institute_id', 'area_name', 'corridor_name', 'latitude', 'longitude', ...optionalFields].join(','))
