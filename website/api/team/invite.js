@@ -115,6 +115,23 @@ async function upsertInviteProfile({ userId, email, role, assignedInstitute }) {
   });
 }
 
+async function restoreProfile({ userId, role, assignedInstitute }) {
+  return callSupabase("/rest/v1/profile", {
+    method: "PATCH",
+    query: {
+      id: `eq.${userId}`,
+      assigned_institute: "is.null",
+    },
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: {
+      role,
+      assigned_institute: assignedInstitute,
+    },
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -142,11 +159,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Enter a valid email address." });
     }
 
-    const existingProfile = await getProfileByEmail(email);
-    if (existingProfile?.id) {
-      return res.status(409).json({ error: "A user with that email already exists in the platform." });
-    }
-
     const currentUser = await callSupabase("/auth/v1/user", { token: accessToken });
     const currentProfile = currentUser?.id ? await getProfileById(currentUser.id) : null;
     const currentRole = normalizeRole(currentProfile?.role);
@@ -168,6 +180,27 @@ export default async function handler(req, res) {
       : currentProfile?.assigned_institute;
     if (!assignedInstitute && !isCheckItAdmin) {
       return res.status(400).json({ error: "Your profile is not assigned to an institution." });
+    }
+
+    const existingProfile = await getProfileByEmail(email);
+    if (existingProfile?.id) {
+      // Removed members keep their account with no institute; re-inviting restores them.
+      if (existingProfile.assigned_institute || !assignedInstitute) {
+        return res.status(409).json({ error: "A user with that email already exists in the platform." });
+      }
+
+      await restoreProfile({
+        userId: existingProfile.id,
+        role: requestedRole,
+        assignedInstitute,
+      });
+
+      return res.status(200).json({
+        ok: true,
+        email,
+        role: requestedRole,
+        restored: true,
+      });
     }
 
     const redirectTo = `${APP_PUBLIC_URL}/create-account`;

@@ -64,9 +64,9 @@ test("rejects methods other than POST and OPTIONS", async () => {
 test("institution admins can invite allowed roles into their institution", async () => {
   const requests = [];
   const responses = [
-    jsonResponse([]), // No existing profile for the invited email.
     jsonResponse({ id: "admin-user" }),
     jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]),
+    jsonResponse([]), // No existing profile for the invited email.
     jsonResponse({ id: "invited-user" }),
     jsonResponse([{ id: "invited-user" }]),
   ];
@@ -130,5 +130,65 @@ test("institution admins cannot invite elevated roles", async () => {
 
   assert.equal(response.statusCode, 403);
   assert.match(response.payload.error, /cannot invite/i);
+});
+
+test("re-inviting a removed member restores their profile instead of sending an invite", async () => {
+  const requests = [];
+  global.fetch = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.searchParams.has("email")) {
+      return jsonResponse([{ id: "removed-user", email: "removed@example.com", role: "viewer", assigned_institute: null }]);
+    }
+    if (options.method === "PATCH") return jsonResponse([{ id: "removed-user" }]);
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+
+  const response = createResponse();
+  await handler(createRequest({
+    token: "admin-access-token",
+    body: { email: "removed@example.com", role: "field_operator" },
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.payload, {
+    ok: true,
+    email: "removed@example.com",
+    role: "field_operator",
+    restored: true,
+  });
+
+  assert.ok(!requests.some(({ url }) => url.includes("/auth/v1/invite")));
+  const restoreRequest = requests.find(({ options }) => options.method === "PATCH");
+  assert.ok(restoreRequest);
+  const restoreUrl = new URL(restoreRequest.url);
+  assert.equal(restoreUrl.searchParams.get("id"), "eq.removed-user");
+  assert.equal(restoreUrl.searchParams.get("assigned_institute"), "is.null");
+  assert.deepEqual(JSON.parse(restoreRequest.options.body), {
+    role: "field_operator",
+    assigned_institute: "institute-1",
+  });
+});
+
+test("inviting a member who is still on a team is rejected", async () => {
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (options.method && options.method !== "GET") throw new Error(`Unexpected ${options.method} ${url}`);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.searchParams.has("email")) {
+      return jsonResponse([{ id: "active-user", email: "active@example.com", role: "viewer", assigned_institute: "institute-2" }]);
+    }
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+
+  const response = createResponse();
+  await handler(createRequest({
+    token: "admin-access-token",
+    body: { email: "active@example.com", role: "viewer" },
+  }), response);
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.payload.error, /already exists/i);
 });
 

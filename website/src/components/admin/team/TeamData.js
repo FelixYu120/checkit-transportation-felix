@@ -63,7 +63,10 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   const membersResponse = await readProfilesWithFallback(
     supabase,
     (query) => {
-      const scopedQuery = isCheckItAdmin ? query : query.eq("assigned_institute", institutionId);
+      // Removed members keep their profile but lose their institute, so exclude them.
+      const scopedQuery = isCheckItAdmin
+        ? query.not("assigned_institute", "is", null)
+        : query.eq("assigned_institute", institutionId);
       return scopedQuery.order("full_name", { ascending: true });
     }
   );
