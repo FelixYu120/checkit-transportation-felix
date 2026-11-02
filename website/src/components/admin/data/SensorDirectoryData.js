@@ -1,3 +1,4 @@
+import { getHeartbeatTimestamp, getHeartbeatStatus } from '../../../sensorHeartbeat.js';
 import { getSupabaseErrorContext, shouldUseLocalData } from "../../helper/SupabaseClients.jsx";
 
 export const LEGACY_INSTITUTE_ALIASES = {
@@ -19,7 +20,7 @@ export const FALLBACK_SENSORS = [
     corridor_name: "Pepper Canyon Corridor",
     latitude: 32.8801,
     longitude: -117.234,
-    status: "active",
+    status: "awaiting",
     last_seen_at: null,
     updated_at: null,
     speed_threshold: null,
@@ -28,8 +29,6 @@ export const FALLBACK_SENSORS = [
 ];
 
 const USE_LOCAL_DIRECTORY = shouldUseLocalData;
-const ACTIVE_SENSOR_WINDOW_MINUTES = 30;
-const SENSOR_STATUSES = new Set(["active", "down", "offline"]);
 
 export const normalizeInstituteId = (instituteId) =>
   LEGACY_INSTITUTE_ALIASES[instituteId] || instituteId || "ucsd";
@@ -49,39 +48,11 @@ const getMostRecentTimestamp = (...values) => {
   return latest?.value || null;
 };
 
-const getTimestampAgeMinutes = (value) => {
-  const timestamp = parseTimestampMs(value);
-  if (timestamp === null) return Number.POSITIVE_INFINITY;
-  return (Date.now() - timestamp) / 60000;
-};
-
-const getNormalizedStoredStatus = (status) => {
-  const normalizedStatus = String(status || "").trim().toLowerCase();
-  return SENSOR_STATUSES.has(normalizedStatus) ? normalizedStatus : "";
-};
-
-export const getEffectiveSensorStatus = (sensor = {}) => {
-  const latestSignalAt = getMostRecentTimestamp(
-    sensor.health_last_seen_at,
-    sensor.last_seen_at,
-    sensor.health_updated_at,
-    sensor.updated_at
-  );
-  const storedStatus = getNormalizedStoredStatus(sensor.status);
-
-  if (!latestSignalAt) {
-    return storedStatus && storedStatus !== "active" ? storedStatus : "offline";
-  }
-
-  if (getTimestampAgeMinutes(latestSignalAt) <= ACTIVE_SENSOR_WINDOW_MINUTES) {
-    return "active";
-  }
-
-  return "down";
-};
+export const getEffectiveSensorStatus = (sensor = {}) =>
+  getHeartbeatStatus(sensor.health_last_seen_at);
 
 const normalizeSensorHealthStatus = (sensor = {}) => {
-  const latestSeenAt = getMostRecentTimestamp(sensor.health_last_seen_at, sensor.last_seen_at);
+  const latestSeenAt = getHeartbeatTimestamp({ last_seen_at: sensor.health_last_seen_at }) || null;
   const latestUpdatedAt = getMostRecentTimestamp(sensor.health_updated_at, sensor.updated_at);
 
   return {
@@ -108,7 +79,7 @@ const getFallbackSensor = (sensorId, instituteId) => {
     corridor_name: formatSensorLabel(sensorId),
     latitude: null,
     longitude: null,
-    status: "active",
+    status: "awaiting",
     speed_threshold: null,
     max_cap: null,
     ...knownSensor,
@@ -452,7 +423,7 @@ export const fetchSensorById = async (supabase, instituteId, sensorId) => {
       ...sensor,
       ...metadata,
       ...health,
-      last_seen_at: getMostRecentTimestamp(health.health_last_seen_at, sensor.last_seen_at),
+      last_seen_at: getHeartbeatTimestamp({ last_seen_at: health.health_last_seen_at }) || null,
       updated_at: getMostRecentTimestamp(health.health_updated_at, sensor.updated_at),
       wifi_ssid: health.health_wifi_ssid || sensor.wifi_ssid || metadata.wifi_ssid || null,
     });

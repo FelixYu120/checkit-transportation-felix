@@ -2065,3 +2065,6 @@
     text-overflow: clip;
   }
 }
+
+.sensorStatusLegend_awaiting { background: #fcf8ef; border-color: #eadbbd; }
+.statusDot.awaiting { background: #b4944d; }

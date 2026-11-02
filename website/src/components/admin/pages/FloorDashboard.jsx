@@ -12,7 +12,7 @@ import {
     getFloorNumberFromRouteSegment,
     slugifyAdminPathSegment,
 } from '../routing/AdminRouteUtils';
-import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId } from '../data/SensorDirectoryData';
+import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId, getEffectiveSensorStatus } from '../data/SensorDirectoryData';
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import { getSensorSpeedSetupRows } from '../data/SensorSpeedData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
@@ -112,7 +112,7 @@ const createCsvFilename = (label) => (
         .replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
 );
 
-const SENSOR_STATUS_OPTIONS = ['active', 'down', 'offline'];
+const SENSOR_STATUS_OPTIONS = ['awaiting', 'active', 'down', 'offline'];
 const TRAFFIC_TIMEFRAMES = [
     { value: 'daily', label: '24 hr' },
     { value: 'weekly', label: 'Weekly' },
@@ -168,10 +168,12 @@ const FloorDashboard = () => {
     useEffect(() => {
         let isMounted = true;
 
-        const fetchCorridorContext = async () => {
+        let fetching = false;
+        const fetchCorridorContext = async (showLoading = true) => {
+            if (fetching) return;
+            fetching = true;
             try {
-                setLoading(true);
-                setSensor(null);
+                if (showLoading) { setLoading(true); setSensor(null); }
 
                 const [data, directory] = await Promise.all([
                     fetchSensorById(supabase, normalizedCollegeId, corridorId),
@@ -184,17 +186,28 @@ const FloorDashboard = () => {
             } catch (err) {
                 if (!isMounted) return;
                 console.error('Corridor fetch error:', err);
-                setSensor(null);
-                setInstituteName(formatAdminRouteLabel(normalizedCollegeId));
+                if (showLoading) {
+                    setSensor(null);
+                    setInstituteName(formatAdminRouteLabel(normalizedCollegeId));
+                } else {
+                    setSensor((current) => current ? { ...current, status: getEffectiveSensorStatus(current) } : current);
+                }
             } finally {
-                if (isMounted) setLoading(false);
+                fetching = false;
+                if (isMounted && showLoading) setLoading(false);
             }
         };
 
         if (normalizedCollegeId && corridorId) fetchCorridorContext();
-
+        const refresh = () => {
+            if (normalizedCollegeId && corridorId && document.visibilityState !== 'hidden') void fetchCorridorContext(false);
+        };
+        const interval = window.setInterval(refresh, 30000);
+        window.addEventListener('focus', refresh);
         return () => {
             isMounted = false;
+            window.clearInterval(interval);
+            window.removeEventListener('focus', refresh);
         };
     }, [corridorId, normalizedCollegeId]);
 
@@ -425,13 +438,13 @@ const FloorDashboard = () => {
                                         {SENSOR_STATUS_OPTIONS.map((status) => (
                                             <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>
                                                 <i className={`${styles.statusDot} ${sensor.status === status ? styles[status] : ''}`} aria-hidden="true" />
-                                                {formatAdminRouteLabel(status)}
+                                                {status === 'awaiting' ? 'Awaiting heartbeat' : formatAdminRouteLabel(status)}
                                             </span>
                                         ))}
                                     </div>
-                                    {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at || sensor.updated_at) ? (
-                                        <em title={formatDateTime(sensor.last_seen_at || sensor.updated_at)}>
-                                            Down at {formatSensorDownTime(sensor.last_seen_at || sensor.updated_at)}
+                                    {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at) ? (
+                                        <em title={formatDateTime(sensor.last_seen_at)}>
+                                            Down at {formatSensorDownTime(sensor.last_seen_at)}
                                         </em>
                                     ) : null}
                                     <button

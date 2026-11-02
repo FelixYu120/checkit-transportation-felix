@@ -1,11 +1,9 @@
+import { getHeartbeatStatus } from '../../sensorHeartbeat.js';
 export const SENSOR_HEALTH_COLORS = { active: '#2563eb', down: '#dc2626', unknown: '#66716e' };
 
 export const getMapSensorHealth = (sensor, now = Date.now()) => {
-  const timestamps = [sensor.health_last_seen_at, sensor.last_seen_at]
-    .filter(Boolean).map((value) => Date.parse(value))
-    .filter((value) => Number.isFinite(value) && value <= now + 5 * 60000);
-  if (timestamps.length) return now - Math.max(...timestamps) <= 30 * 60000 ? 'active' : 'down';
-  return ['offline', 'down'].includes(String(sensor.status || '').toLowerCase()) ? 'down' : 'unknown';
+  const status = getHeartbeatStatus(sensor.health_last_seen_at, now);
+  return status === 'awaiting' ? 'unknown' : status === 'active' ? 'active' : 'down';
 };
 
 export const getAggregateMapHealth = (sensors) => {
@@ -40,13 +38,9 @@ export const fetchMapSensorHealth = async (client, sensorIds) => {
         return [];
       }
     };
-    const [sensors, health] = await Promise.all([
-      load('sensors', 'sensor_id,status,last_seen_at', 'sensor_id,status'),
-      load('sensor_health', 'sensor_id,last_seen_at'),
-    ]);
-    sensors.forEach((sensor) => rows.set(sensor.sensor_id, sensor));
+    const health = await load('sensor_health', 'sensor_id,last_seen_at');
     health.forEach((sensor) => rows.set(sensor.sensor_id, {
-      ...rows.get(sensor.sensor_id), health_last_seen_at: sensor.last_seen_at,
+      health_last_seen_at: sensor.last_seen_at,
     }));
   }
   return rows;

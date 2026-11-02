@@ -4,12 +4,12 @@ import { colorSensorBadge, fetchMapSensorHealth, getAggregateMapHealth, getMapSe
 import { getSensorCountBadge } from '../src/components/maps/TrafficSensorOverview.js';
 
 const now = Date.parse('2026-10-12T12:00:00Z');
-test('fresh heartbeats are blue, stale or offline sensors red, and missing health unknown', () => {
+test('only sensor-health heartbeats color a marker active or down', () => {
   assert.equal(getMapSensorHealth({ health_last_seen_at: '2026-10-12T11:59:00Z' }, now), 'active');
-  assert.equal(getMapSensorHealth({ last_seen_at: '2026-10-12T11:30:00Z' }, now), 'active');
-  assert.equal(getMapSensorHealth({ last_seen_at: '2026-10-12T11:29:59Z' }, now), 'down');
-  assert.equal(getMapSensorHealth({ status: 'offline' }, now), 'down');
-  assert.equal(getMapSensorHealth({ status: 'active' }, now), 'unknown');
+  assert.equal(getMapSensorHealth({ health_last_seen_at: '2026-10-12T11:30:00Z' }, now), 'active');
+  assert.equal(getMapSensorHealth({ health_last_seen_at: '2026-10-12T11:29:59Z' }, now), 'down');
+  assert.equal(getMapSensorHealth({ status: 'offline' }, now), 'unknown');
+  assert.equal(getMapSensorHealth({ status: 'active', last_seen_at: '2026-10-12T12:00:00Z', updated_at: '2026-10-12T12:00:00Z' }, now), 'unknown');
   assert.equal(getMapSensorHealth({ last_seen_at: 'invalid' }, now), 'unknown');
   assert.equal(getMapSensorHealth({ last_seen_at: '2027-01-01T00:00:00Z' }, now), 'unknown');
 });
@@ -31,7 +31,7 @@ test('logo badges and total counts use the same health color without removing th
   }
 });
 
-test('health lookup combines sensor status and heartbeats, tolerating older sensor schemas', async () => {
+test('health lookup uses the sensor-health feed independently of sensor metadata', async () => {
   const client = { from(table) {
     return { select(columns) { this.columns = columns; return this; }, in() { return this; },
       then(resolve) {
@@ -44,7 +44,7 @@ test('health lookup combines sensor status and heartbeats, tolerating older sens
     };
   } };
   const rows = await fetchMapSensorHealth(client, ['gilman1']);
-  assert.equal(rows.get('gilman1').status, 'active');
+  assert.equal(rows.get('gilman1').health_last_seen_at, '2026-10-12T11:59:00Z');
   assert.equal(getMapSensorHealth(rows.get('gilman1'), now), 'active');
 });
 
