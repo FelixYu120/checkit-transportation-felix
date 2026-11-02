@@ -8,6 +8,7 @@ const SUPABASE_SERVICE_KEY = getEnv(
   "SUPABASE_KEY"
 );
 
+
 const APP_PUBLIC_URL = (
   getEnv("APP_PUBLIC_URL", "TRANSPORTATION_APP_PUBLIC_URL") ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://checkit-website.vercel.app")
