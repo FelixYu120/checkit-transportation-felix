@@ -1250,6 +1250,36 @@
   font-weight: 750;
 }
 
+.comparisonMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.comparisonAreaLink {
+  color: #526e65;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-decoration-color: #bdcec5;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+.comparisonAreaLink:hover {
+  color: #34524d;
+  text-decoration-color: currentColor;
+}
+
+.comparisonAreaLink:focus-visible {
+  outline: 2px solid #8ca99a;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
 .comparisonMetrics {
   text-align: right;
 }

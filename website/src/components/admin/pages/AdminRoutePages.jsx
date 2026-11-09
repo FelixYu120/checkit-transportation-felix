@@ -4,6 +4,7 @@ import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
 import {
+    getAdminAreaPath,
     getAdminCollegePath,
     getAdminFloorPath,
     normalizeAdminPathSegment,
@@ -276,6 +277,12 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
 
             <div className={styles.comparisonRows}>
                 {visibleComparisonRows.map((sensor) => {
+                    const areaName = String(sensor.area_name || '').trim();
+                    const areaLabel = areaName || sensor.institute_id || collegeId;
+                    const areaPath = areaName
+                        ? getAdminAreaPath(collegeId, slugifyAdminPathSegment(areaName))
+                        : getAdminCollegePath(collegeId);
+                    const categoryLabel = getSensorCategoryLabel(sensor);
                     const metricValue = Number(sensor[selectedMetric]) || 0;
                     const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
 
@@ -288,7 +295,16 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                 >
                                     {labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane'}
                                 </Link>
-                                <span>{[sensor.area_name || sensor.institute_id, getSensorCategoryLabel(sensor)].filter(Boolean).join(' · ')}</span>
+                                <div className={styles.comparisonMeta}>
+                                    <Link
+                                        className={styles.comparisonAreaLink}
+                                        to={areaPath}
+                                        title={areaName ? `View ${areaLabel} area` : 'View institute overview'}
+                                    >
+                                        {areaLabel}
+                                    </Link>
+                                    {categoryLabel ? <><span aria-hidden="true">·</span><span>{categoryLabel}</span></> : null}
+                                </div>
                             </div>
 
                             <div className={styles.comparisonTrack} aria-hidden="true">
