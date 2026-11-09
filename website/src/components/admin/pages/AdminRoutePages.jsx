@@ -4,7 +4,6 @@ import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
 import {
-    getAdminAreaPath,
     getAdminCollegePath,
     getAdminFloorPath,
     normalizeAdminPathSegment,
@@ -194,86 +193,6 @@ const getAreaById = (sensors = [], areaId) => {
         ([areaName]) => slugifyAdminPathSegment(areaName) === normalizedAreaId
     );
 };
-
-const getAreaTrafficSummary = (areaSensors = [], trafficSummaries = []) => {
-    const areaSensorIds = new Set(areaSensors.map((sensor) => sensor.sensor_id));
-
-    const areaSummaries = trafficSummaries.filter((summary) =>
-        areaSensorIds.has(summary.sensor_id)
-    );
-
-    const activeSummaries = areaSummaries.filter((summary) => summary.lastSeen);
-
-    const totalVolume = activeSummaries.reduce(
-        (sum, summary) => sum + (summary.latestVolume || 0),
-        0
-    );
-
-    const totalApproach = activeSummaries.reduce(
-        (sum, summary) => sum + (summary.approach || 0),
-        0
-    );
-
-    const totalAway = activeSummaries.reduce(
-        (sum, summary) => sum + (summary.away || 0),
-        0
-    );
-
-    const averageSpeed = activeSummaries.length
-        ? roundOne(
-            activeSummaries.reduce(
-                (sum, summary) => sum + (summary.avgSpeed || 0),
-                0
-            ) / activeSummaries.length
-        )
-        : 0;
-
-    return {
-        activeCount: activeSummaries.length,
-        totalCount: areaSensors.length,
-        totalVolume,
-        totalApproach,
-        totalAway,
-        averageSpeed,
-    };
-};
-
-const AreaCards = ({ collegeId, areas, trafficSummaries }) => (
-    <div className={styles.areaCardGrid}>
-        {Object.entries(areas).map(([areaName, areaSensors]) => {
-            const summary = getAreaTrafficSummary(areaSensors, trafficSummaries);
-            const areaPath = getAdminAreaPath(
-                collegeId,
-                slugifyAdminPathSegment(areaName)
-            );
-
-            return (
-                <Link key={areaName} to={areaPath} className={styles.areaCard}>
-                    <div className={styles.areaCardTopline}>
-                        <span className={styles.areaCardTitle}>{areaName}</span>
-
-                        <span className={styles.healthPill}>
-                            {summary.activeCount}/{summary.totalCount} active
-                        </span>
-                    </div>
-
-                    <div className={styles.areaCardMetricRow}>
-                        <div>
-                            <strong>{summary.totalVolume}</strong>
-                            <span>flow</span>
-                        </div>
-
-                        <div>
-                            <strong>{summary.averageSpeed}</strong>
-                            <span>avg mph</span>
-                        </div>
-                    </div>
-
-                </Link>
-            );
-        })}
-    </div>
-);
 
 const TRAFFIC_COMPARISON_METRICS = [
     { key: 'totalVolume', label: 'Flow', format: (sensor) => sensor.totalVolume || 0 },
@@ -466,8 +385,6 @@ export const CollegeOverview = () => {
         return <div className={styles.loading}>Loading institute corridors...</div>;
     }
 
-    const areas = groupSensorsByArea(sensors);
-    const areaCount = Object.keys(areas).length;
     const trafficSummaries = getSensorTrafficSummaries(sensors, trafficRows);
     const exportRows = getTrafficExportRows(trafficRows, sensors, 'institute', normalizedCollegeId);
 
@@ -475,7 +392,7 @@ export const CollegeOverview = () => {
         <div className={styles.container} style={{ paddingTop: '0px' }}>
             <AdminBreadcrumb items={[{ label: instituteName }]} />
 
-            {areaCount === 0 ? (
+            {sensors.length === 0 ? (
                 <div className={styles.noData}>
                     No transportation areas found for this institute.
                 </div>
@@ -496,22 +413,6 @@ export const CollegeOverview = () => {
                         loading={loading}
                         collegeId={normalizedCollegeId}
                     />
-
-                    <section className={styles.corridorSection}>
-                        <div className={styles.sectionHeader}>
-                            <h2>Transportation Areas</h2>
-                            <span>
-                                {areaCount} {areaCount === 1 ? 'area' : 'areas'}
-                            </span>
-                        </div>
-
-                        <AreaCards
-                            collegeId={normalizedCollegeId}
-                            areas={areas}
-                            trafficSummaries={trafficSummaries}
-                        />
-                    </section>
-
                 </div>
             )}
         </div>
