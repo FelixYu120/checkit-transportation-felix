@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import AdminBreadcrumb from '../layout/AdminBreadcrumb';
 import styles from './FloorDashboard.module.css';
@@ -16,6 +17,10 @@ import AnalyticsControlBar from '../controls/AnalyticsControlBar';
 import OperatingLens from '../controls/OperatingLens';
 import { getSensorCategoryLabel } from '../../maps/TrafficSensorCategories';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
+import { getSensorCoordinates } from '../../maps/TrafficSensorData';
+import { getSensorHeartbeatPresentation } from '../data/SensorHeartbeatPresentation';
+import useSensorHeartbeats from '../data/useSensorHeartbeats';
+import { getInstituteDisplayName } from '../data/InstituteNames.js';
 
 const groupSensorsByArea = (sensors = []) =>
     sensors.reduce((areas, sensor) => {
@@ -206,6 +211,8 @@ const TRAFFIC_COMPARISON_METRICS = [
 const COMPARISON_PAGE_SIZE = 25;
 
 const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
+    const { focusSensorOnMap, focusedSensorId } = useOutletContext();
+    const { heartbeats, now } = useSensorHeartbeats(summaries);
     const [selectedMetric, setSelectedMetric] = useState('totalVolume');
     const [sortDirection, setSortDirection] = useState('desc');
     const [page, setPage] = useState(1);
@@ -278,11 +285,17 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
             <div className={styles.comparisonRows}>
                 {visibleComparisonRows.map((sensor) => {
                     const areaName = String(sensor.area_name || '').trim();
-                    const areaLabel = areaName || sensor.institute_id || collegeId;
+                    const areaLabel = areaName || getInstituteDisplayName({ institute_id: sensor.institute_id || collegeId });
                     const areaPath = areaName
                         ? getAdminAreaPath(collegeId, slugifyAdminPathSegment(areaName))
                         : getAdminCollegePath(collegeId);
                     const categoryLabel = getSensorCategoryLabel(sensor);
+                    const label = labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane';
+                    const hasLocation = Boolean(getSensorCoordinates(sensor));
+                    const heartbeat = getSensorHeartbeatPresentation({
+                        health_last_seen_at: heartbeats.has(sensor.sensor_id)
+                            ? heartbeats.get(sensor.sensor_id) : sensor.health_last_seen_at,
+                    }, now);
                     const metricValue = Number(sensor[selectedMetric]) || 0;
                     const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
 
@@ -293,7 +306,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     className={styles.comparisonLink}
                                     to={getAdminFloorPath(collegeId, sensor.sensor_id)}
                                 >
-                                    {labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane'}
+                                    {label}
                                 </Link>
                                 <div className={styles.comparisonMeta}>
                                     <Link
@@ -305,6 +318,31 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     </Link>
                                     {categoryLabel ? <><span aria-hidden="true">·</span><span>{categoryLabel}</span></> : null}
                                 </div>
+                                <div className={styles.laneHealth}>
+                                    <span className={`${styles.heartbeatBadge} ${styles[`heartbeat_${heartbeat.status}`]}`}>
+                                        <span className={styles.heartbeatDot} aria-hidden="true" />
+                                        {heartbeat.label}
+                                    </span>
+                                    {heartbeat.timestamp && (
+                                        <span className={styles.heartbeatTime}>
+                                            Heartbeat <time dateTime={heartbeat.timestamp} title={new Date(heartbeat.timestamp).toLocaleString()}>
+                                                {heartbeat.relativeTime}
+                                            </time>
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    className={styles.viewOnMap}
+                                    onClick={() => focusSensorOnMap(sensor.sensor_id)}
+                                    disabled={!hasLocation}
+                                    aria-pressed={focusedSensorId === sensor.sensor_id}
+                                    aria-label={hasLocation ? `View ${label} on map` : `${label}: location not set`}
+                                    title={hasLocation ? `Focus ${label} on the map` : 'Location not set'}
+                                >
+                                    <MapPin size={13} aria-hidden="true" />
+                                    {hasLocation ? 'View on map' : 'Location not set'}
+                                </button>
                             </div>
 
                             <div className={styles.comparisonTrack} aria-hidden="true">
@@ -355,7 +393,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
 export const CollegeOverview = () => {
     const { collegeId } = useParams();
     const normalizedCollegeId = normalizeInstituteId(collegeId);
-    const [instituteName, setInstituteName] = useState(normalizedCollegeId || '');
+    const [instituteName, setInstituteName] = useState(() => getInstituteDisplayName({ institute_id: normalizedCollegeId }));
     const [sensors, setSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
     const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
@@ -382,7 +420,7 @@ export const CollegeOverview = () => {
                     })
                     : [];
 
-                setInstituteName(instituteData?.full_name || normalizedCollegeId);
+                setInstituteName(getInstituteDisplayName(instituteData || { institute_id: normalizedCollegeId }));
                 setSensors(sensorData || []);
                 setTrafficRows(trafficData || []);
             } catch (err) {
@@ -438,7 +476,7 @@ export const CollegeOverview = () => {
 export const AreaOverview = () => {
     const { collegeId, buildingId } = useParams();
     const normalizedCollegeId = normalizeInstituteId(collegeId);
-    const [instituteName, setInstituteName] = useState(normalizedCollegeId || '');
+    const [instituteName, setInstituteName] = useState(() => getInstituteDisplayName({ institute_id: normalizedCollegeId }));
     const [areaName, setAreaName] = useState('');
     const [areaSensors, setAreaSensors] = useState([]);
     const [trafficRows, setTrafficRows] = useState([]);
@@ -468,7 +506,7 @@ export const AreaOverview = () => {
                     })
                     : [];
 
-                setInstituteName(institutes?.[0]?.full_name || normalizedCollegeId);
+                setInstituteName(getInstituteDisplayName(institutes?.[0] || { institute_id: normalizedCollegeId }));
                 setAreaName(matchedAreaName || '');
                 setAreaSensors(matchedSensors || []);
                 setTrafficRows(trafficData || []);

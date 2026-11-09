@@ -345,7 +345,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     }, [chartMetrics, level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData, preferSourceChartData, thresholdValue]);
 
     const cardStyle = {
-        backgroundColor: '#ffffff',
+        backgroundColor: 'var(--checkit-summary-surface, #ffffff)',
         borderRadius: '10px',
         padding: 'clamp(10px, 0.9vw, 14px)',
         boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',

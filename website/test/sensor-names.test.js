@@ -8,14 +8,18 @@ import { fetchMapSensors } from '../src/components/maps/TrafficSensorData.js';
 // Supabase initialization. The production query builders are not mocked out.
 const asModule = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const namesUrl = new URL('../src/components/admin/data/SensorNames.js', import.meta.url).href;
+const instituteNamesUrl = new URL('../src/components/admin/data/InstituteNames.js', import.meta.url).href;
 const directorySource = readFileSync(new URL('../src/components/admin/data/SensorDirectoryData.js', import.meta.url), 'utf8')
   .replace(/import .* from "..\/..\/helper\/SupabaseClients.jsx";/,
     'const getSupabaseErrorContext = error => error; const shouldUseLocalData = false;')
-  .replace("'./SensorNames.js'", JSON.stringify(namesUrl));
+  .replace("'./SensorNames.js'", JSON.stringify(namesUrl))
+  .replace("'./InstituteNames.js'", JSON.stringify(instituteNamesUrl));
 const { fetchSensorDirectory } = await import(asModule(directorySource));
-const routeSource = readFileSync(new URL('../src/components/admin/routing/AdminRouteUtils.jsx', import.meta.url), 'utf8');
+const routeSource = readFileSync(new URL('../src/components/admin/routing/AdminRouteUtils.jsx', import.meta.url), 'utf8')
+  .replace("'../data/InstituteNames.js'", JSON.stringify(instituteNamesUrl));
 const navigationSource = readFileSync(new URL('../src/components/admin/navigation/SidebarData.jsx', import.meta.url), 'utf8')
   .replace("'../data/SensorNames.js'", JSON.stringify(namesUrl))
+  .replace("'../data/InstituteNames.js'", JSON.stringify(instituteNamesUrl))
   .replace('"../routing/AdminRouteUtils"', JSON.stringify(asModule(routeSource)))
   .replace('"../data/SensorDirectoryData"', JSON.stringify(asModule(directorySource)));
 const { formatCampusNavigation, filterCampusNavigation } = await import(asModule(navigationSource));

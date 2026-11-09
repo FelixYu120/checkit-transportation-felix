@@ -287,7 +287,7 @@ const TeamPage = () => {
     <main className={styles.teamShell}>
       <section className={styles.teamHeader}>
         <div>
-          <h1>Team</h1>
+          <h1>Teams</h1>
         </div>
         <div className={styles.headerActions}>
           <div className={styles.countPill}>

@@ -2,7 +2,7 @@
   padding: 18px 14px;
   height: 100%;
   color: #334155;
-  background: transparent;
+  background: var(--checkit-sidebar, #dfe6e1);
   min-height: 0; 
   overflow-y: auto;
   overflow-x: hidden;
@@ -13,10 +13,10 @@
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;   /* Removes from document flow so map isn't cut off */
-    top: 80px;        /* Adjust to your header height */
+    top: 66px;
     left: 0;
     width: 85vw;      /* Occupies most of the screen width */
-    height: calc(100vh - 80px);
+    height: calc(100% - 66px);
     z-index: 1001;    /* Sits above the map layer */
     box-shadow: 4px 0 15px rgba(0,0,0,0.1);
   }
@@ -27,6 +27,13 @@
 
   .searchInput {
     font-size: 16px; /* Prevents iOS auto-zoom */
+  }
+}
+
+@media (max-width: 600px) {
+  .sidebar {
+    top: 106px;
+    height: calc(100% - 106px);
   }
 }
 
@@ -59,8 +66,8 @@
 .searchContainer {
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #d9e2e8;
+  background: var(--checkit-panel, #f1f3f0);
+  border: 1px solid var(--checkit-border, #c7d1cb);
   border-radius: 12px;
   padding: 9px 11px;
   margin-bottom: 14px;
@@ -71,16 +78,16 @@
 .navGroup { margin-bottom: 6px; }
 .navHeader { display: flex; align-items: center; font-weight: 700; font-size: 15px; padding: 6px 0 3px; gap: 5px; color: #1f2937; }
 .expandButton { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; background: transparent; color: inherit; cursor: pointer; border-radius: 6px; }
-.expandButton:hover { background-color: rgba(52, 82, 77, 0.18); }
+.expandButton:hover { background-color: rgba(52, 82, 77, 0.1); }
 .collegeLink { color: #1f2937; text-decoration: none; border-radius: 8px; padding: 3px 6px; transition: all 0.2s ease; font-weight: 800; letter-spacing: 0.02em; min-width: 0; overflow-wrap: anywhere; line-height: 1.15; }
-.collegeLink:hover { background-color: rgba(52, 82, 77, 0.18); color: #34524D; }
+.collegeLink:hover { background-color: rgba(52, 82, 77, 0.1); color: #34524D; }
 .collegeLink.activeCollege { background-color: #eef3f1; color: #34524D; }
 .buildingGroup { margin-left: 8px; margin-top: 0; margin-bottom: 6px; }
 .buildingHeaderWrapper { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
 .buildingExpandButton { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; background: transparent; color: #1f2937; cursor: pointer; border-radius: 6px; flex: 0 0 auto; }
-.buildingExpandButton:hover { background-color: rgba(52, 82, 77, 0.18); }
+.buildingExpandButton:hover { background-color: rgba(52, 82, 77, 0.1); }
 .buildingLink { text-decoration: none; color: #1f2937; font-weight: 700; line-height: 1.2; font-size: 14px; border-radius: 8px; padding: 3px 6px; transition: all 0.2s ease; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.buildingLink:hover { background-color: rgba(52, 82, 77, 0.18); color: #34524D; }
+.buildingLink:hover { background-color: rgba(52, 82, 77, 0.1); color: #34524D; }
 .buildingLink.activeBuilding { background-color: #eef3f1; color: #34524D; font-weight: 800; }
 .floorList { margin-left: 18px; display: flex; flex-direction: column; margin-top: 3px; margin-bottom: 10px; border-left: 1px solid #e7edf2; padding-left: 8px; }
 .floorGroup { display: flex; flex-direction: column; }

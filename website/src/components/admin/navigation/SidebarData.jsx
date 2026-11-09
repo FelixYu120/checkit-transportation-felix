@@ -1,21 +1,6 @@
 import { slugifyAdminPathSegment } from "../routing/AdminRouteUtils";
 import { fetchSensorDirectory } from "../data/SensorDirectoryData";
-
-const getInstituteDisplayName = (institute) => {
-  const rawName = institute.full_name || institute.institute_id || "Institute";
-  if (/^ucsd$/i.test(String(institute.institute_id || ""))) return "UCSD";
-  if (/university of california san diego|uc san diego|university of california sa/i.test(rawName)) return "UCSD";
-  if (String(rawName).length <= 22) return rawName;
-
-  const acronym = String(rawName)
-    .split(/\s+/)
-    .filter((word) => !/^(and|of|the|for)$/i.test(word))
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
-  return acronym.length >= 2 && acronym.length <= 6 ? acronym : rawName;
-};
+import { getInstituteDisplayName, getInstituteSearchText } from '../data/InstituteNames.js';
 
 const getDuplicateAwareCorridorNames = (sensors = []) => {
   const groups = sensors.reduce((nextGroups, sensor) => {
@@ -102,7 +87,7 @@ export const filterCampusNavigation = (institutes, tokens) => {
   return institutes
     .map((institute) => {
       const instituteMatches = tokens.every((token) =>
-        institute.instituteName.toLowerCase().includes(token)
+        getInstituteSearchText(institute).includes(token)
       );
 
       if (instituteMatches) return institute;

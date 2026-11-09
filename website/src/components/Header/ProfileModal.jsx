@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Save, ShieldAlert, MapPin, KeyRound, Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
+import { createProfileView, fetchCurrentProfile } from './ProfileData.js';
 
 const normalizeRole = (role) => {
   const normalized = String(role || 'viewer').trim().toLowerCase();
@@ -23,6 +24,7 @@ const hasGlobalAccess = (role) => normalizeRole(role) === 'checkit_admin';
 const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const [passwordState, setPasswordState] = useState({
     password: '',
     confirmPassword: '',
@@ -32,69 +34,35 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [profile, setProfile] = useState({
-    id: '',
-    full_name: '',
-    email: '',
-    role: 'viewer',
-    last_logged_in: '',
-    assigned_area: null,
-    assigned_building: null,
-    assigned_floor: null,
-    assigned_room: null,
-    // Joined data for display purposes
-    area_name: 'None',
-    building_name: 'None'
-  });
+  const [profile, setProfile] = useState(() => createProfileView());
 
   useEffect(() => {
     if (!isOpen) return;
+    let active = true;
 
     const fetchUserProfile = async () => {
       setLoading(true);
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-
-        if (user) {
-          // Fetch the profile AND join the related location names in one query
-          const { data, error } = await supabase
-            .from('profile')
-            .select(`
-              *,
-              areas!profile_assigned_area_fkey(name),
-              buildings!profile_assigned_building_fkey(name)
-            `)
-            .eq('id', user.id)
-            .maybeSingle();
-
-          if (error) throw error;
-          
-          setProfile({
-            id: user.id, // Strictly pulled from secure auth context
-            full_name: data?.full_name || '',
-            email: user.email,
-            role: normalizeRole(data?.role),
-            last_logged_in: data?.last_logged_in || new Date().toISOString(),
-            assigned_area: data?.assigned_area || null,
-            assigned_building: data?.assigned_building || null,
-            assigned_floor: data?.assigned_floor || null,
-            assigned_room: data?.assigned_room || null,
-            area_name: data?.areas?.name || 'None',
-            building_name: data?.buildings?.name || 'None'
-          });
-        }
+        const result = await fetchCurrentProfile(supabase);
+        if (!active) return;
+        setProfile(result.profile);
+        setProfileError(result.error ? 'Some profile details couldn’t load. Reopen to retry.' : '');
       } catch (err) {
+        if (!active) return;
         console.error("Error fetching profile:", err.message);
+        setProfile(createProfileView());
+        setProfileError('Couldn’t load your account. Please sign in again.');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchUserProfile();
+    return () => { active = false; };
   }, [isOpen]);
 
   const handleSave = async () => {
+    if (profileError) return;
     // STRICT GUARD: Prevent the empty UUID crash
     if (!profile.id) {
       alert("Authentication error: User ID is missing. Please refresh and log in again.");
@@ -109,7 +77,6 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             id: profile.id,
             email: profile.email,
             full_name: profile.full_name,
-            last_logged_in: profile.last_logged_in
             // Note: We don't update assignments here; an admin should do that elsewhere
         });
 
@@ -229,21 +196,22 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
               </>
             ) : (
               <>
+            {profileError && <div className={styles.errorMessage} role="status">{profileError}</div>}
             
-            {hasGlobalAccess(profile.role) && (
+            {!profileError && hasGlobalAccess(profile.role) && (
                <div className={styles.adminBadge}>
                  <ShieldAlert size={16} /> System Admin Override Active
                </div>
             )}
 
             {/* Access Level Display Area */}
-            <div className={styles.accessBadge}>
+            {!profileError && <div className={styles.accessBadge}>
                 <MapPin size={16} />
                 <div>
                     <strong>{access.level}</strong>
                     <div style={{ fontSize: '12px', opacity: 0.8 }}>{access.detail}</div>
                 </div>
-            </div>
+            </div>}
 
             <label className={styles.label}>Full Name</label>
             <input 
@@ -251,22 +219,19 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
               className={styles.input} 
               value={profile.full_name}
               onChange={(e) => setProfile({...profile, full_name: e.target.value})}
-              disabled={mode === 'view'}
+              disabled={mode === 'view' || Boolean(profileError)}
               placeholder="Enter your full name"
             />
 
-            <label className={styles.label}>Email Address (Read Only)</label>
-            <input type="text" className={styles.input} value={profile.email} disabled />
+            <label className={styles.label} htmlFor="profile-email">Email Address</label>
+            <input id="profile-email" type="email" className={styles.input} value={profile.email}
+              readOnly placeholder="Email unavailable" title={profile.email} />
 
             <label className={styles.label}>Role</label>
-            <input type="text" className={styles.input} value={formatRoleLabel(profile.role)} disabled />
-
-            <div className={styles.loginTracker}>
-              <strong>Last Logged In:</strong> {new Date(profile.last_logged_in).toLocaleString()}
-            </div>
+            <input type="text" className={styles.input} value={profileError ? 'Unavailable' : formatRoleLabel(profile.role)} disabled />
 
             {mode === 'edit' && (
-              <button className={styles.saveBtn} onClick={handleSave} disabled={saving}>
+              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || Boolean(profileError) || !profile.id}>
                 <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
               </button>
             )}

@@ -1,3 +1,4 @@
+import { getInstituteDisplayName } from '../data/InstituteNames.js';
 
 // This is the default page when logged in for now, we should have a default landing page
 // at some point 
@@ -36,7 +37,7 @@ export const getFloorNumberFromRouteSegment = (floorSegment) =>
     .replace(/^floor/i, "");
 
 export const formatAdminRouteLabel = (value) =>
-  (value || "")
+  (value ? getInstituteDisplayName({ institute_id: value }) : "")
     .split(/[-_]/)
     .map((word) => {
       if (word.toLowerCase() === "and") return "&";

@@ -1,124 +1,151 @@
 .headerBar {
     position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000; /* Increased to stay above map elements */
-
+    z-index: 1000;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-
-    background: #34524D;
+    flex-shrink: 0;
     box-sizing: border-box;
-    padding: 0 24px;
     height: 72px;
-    gap: 22px;
-    box-shadow: 0 1px 0 rgba(31, 41, 55, 0.08);
+    padding: 0 24px;
+    gap: clamp(24px, 3vw, 48px);
+    background: var(--checkit-nav, #2f4641);
+    border-bottom: 1px solid rgba(213, 225, 217, 0.1);
+    box-shadow: 0 2px 12px rgba(21, 32, 31, 0.06);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 0 0 auto;
+    text-decoration: none;
+    border-radius: 6px;
 }
 
 .checkitLogo {
-    height: 48px;
+    height: 42px;
     width: auto;
     display: block;
 }
 
+.productName {
+    padding-left: 16px;
+    border-left: 1px solid rgba(213, 225, 217, 0.18);
+    color: #bacbc2;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 .primaryTabs {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-self: stretch;
+    align-items: stretch;
+    gap: 6px;
     margin-right: auto;
-    padding: 5px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.16);
+    min-width: 0;
 }
 
 .tabLink {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 38px;
-    padding: 0 18px;
-    color: #ffffff;
+    gap: 8px;
+    margin: 12px 0;
+    padding: 0 15px;
+    color: #c6d3cb;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 650;
+    white-space: nowrap;
     text-decoration: none;
-    border-radius: 999px;
-    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 8px;
+    transition: background-color 180ms ease, color 180ms ease;
+}
+
+.tabLink::after {
+    content: '';
+    position: absolute;
+    right: 15px;
+    bottom: -12px;
+    left: 15px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: transparent;
 }
 
 .tabLink:hover {
-    background: rgba(255, 255, 255, 0.14);
+    color: #e4ece6;
+    background: rgba(213, 225, 217, 0.05);
 }
 
-.activeTab {
-    background: rgba(255, 255, 255, 0.94);
-    color: #34524D;
-    box-shadow: 0 6px 16px rgba(52, 82, 77, 0.16);
+.activeTab,
+.activeTab:hover {
+    color: #e4ece6;
+    background: rgba(213, 225, 217, 0.08);
+}
+
+.activeTab::after {
+    background: #91aa9c;
+}
+
+.brand:focus-visible,
+.tabLink:focus-visible {
+    outline: 2px solid #a9beb2;
+    outline-offset: 3px;
 }
 
 .rightSection {
     display: flex;
     align-items: center;
-    gap: 12px;
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
-.profile {
-    position: relative;
-    display: flex;
-    align-items: center;
+@media (max-width: 1100px) {
+    .productName { display: none; }
 }
-
-.profileIcon {
-    width: 54px;
-    height: 54px;
-    color: #ffffff;
-    cursor: pointer;
-    transition: 0.2s ease;
-}
-
-/* --- RESPONSIVE OVERRIDES --- */
 
 @media (max-width: 768px) {
     .headerBar {
         height: 66px;
-        padding: 0 12px;
-        gap: 12px;
+        padding: 0 16px;
+        gap: 16px;
     }
-    
-    .checkitLogo {
-        height: 42px;
-    }
-
-    .primaryTabs {
-        gap: 4px;
-        padding: 4px;
-    }
-
-    .tabLink {
-        min-height: 34px;
-        padding: 0 10px;
-        font-size: 12px;
-    }
-
-    .profileIcon {
-        width: 44px;
-        height: 44px;
-    }
+    .checkitLogo { height: 36px; }
+    .tabLink { padding: 0 10px; font-size: 12px; gap: 6px; }
 }
 
-/* Landscape mode fix for iPhone */
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-width: 600px) {
     .headerBar {
-        height: 55px; 
+        height: auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: 58px 48px;
+        column-gap: 12px;
+        row-gap: 0;
+        padding: 0 12px;
     }
-    .checkitLogo {
-        height: 36px;
+    .brand { grid-column: 1; grid-row: 1; justify-self: start; }
+    .rightSection { grid-column: 2; grid-row: 1; }
+    .primaryTabs {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
+        gap: 4px;
+        margin: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
-
     .tabLink {
-        min-height: 30px;
-        padding: 0 9px;
-        font-size: 12px;
+        flex: 1;
+        margin: 5px 0;
+        padding: 0 6px;
+        min-width: 0;
     }
+    .tabLink::after { bottom: -5px; left: 8px; right: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tabLink { transition: none; }
 }

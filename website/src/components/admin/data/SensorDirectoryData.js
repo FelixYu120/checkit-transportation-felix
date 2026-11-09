@@ -1,4 +1,5 @@
 import { getHeartbeatTimestamp, getHeartbeatStatus } from '../../../sensorHeartbeat.js';
+import { getInstituteDisplayName } from './InstituteNames.js';
 import { getSupabaseErrorContext, shouldUseLocalData } from "../../helper/SupabaseClients.jsx";
 
 export const LEGACY_INSTITUTE_ALIASES = {
@@ -8,7 +9,7 @@ export const LEGACY_INSTITUTE_ALIASES = {
 export const FALLBACK_INSTITUTES = [
   {
     institute_id: "ucsd",
-    full_name: "UC San Diego",
+    full_name: getInstituteDisplayName({ institute_id: "ucsd" }),
   },
 ];
 
@@ -29,6 +30,11 @@ export const FALLBACK_SENSORS = [
 ];
 
 const USE_LOCAL_DIRECTORY = shouldUseLocalData;
+
+const formatInstituteNames = (institutes = []) => institutes.map((institute) => ({
+  ...institute,
+  full_name: getInstituteDisplayName(institute),
+}));
 
 export const normalizeInstituteId = (instituteId) =>
   LEGACY_INSTITUTE_ALIASES[instituteId] || instituteId || "ucsd";
@@ -373,7 +379,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
 
       if (inferredDirectory.sensors.length) {
         return {
-          institutes: instituteData.length ? instituteData : inferredDirectory.institutes,
+          institutes: formatInstituteNames(instituteData.length ? instituteData : inferredDirectory.institutes),
           sensors: inferredDirectory.sensors,
         };
       }
@@ -386,7 +392,7 @@ export const fetchSensorDirectory = async (supabase, instituteId) => {
     );
 
     return {
-      institutes: instituteId ? (institutes ? [institutes] : []) : (institutes || []),
+      institutes: formatInstituteNames(instituteId ? (institutes ? [institutes] : []) : (institutes || [])),
       sensors: dedupedSensors.map((sensor) => normalizeSensorHealthStatus({
         ...sensor,
         ...(healthBySensorId.get(sensor.sensor_id) || {}),

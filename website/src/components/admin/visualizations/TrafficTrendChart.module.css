@@ -2,7 +2,7 @@
   width: 100%;
   padding: clamp(14px, 1.5vw, 20px);
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
 }
 
 .header {
@@ -26,13 +26,13 @@
   flex: 0 0 34px;
   border: 1px solid #cbd8d4;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #34524D;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(148, 163, 184, 0.12);
+  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -52,7 +52,7 @@
 
 .chartBackButton:disabled:hover,
 .chartBackButton:disabled:focus-visible {
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   border-color: #cbd8d4;
   box-shadow: none;
 }
@@ -106,8 +106,8 @@
 .metric:hover,
 .metric:focus-visible {
   border-color: #b8d4e2;
-  background: #ffffff;
-  box-shadow: 0 10px 22px rgba(148, 163, 184, 0.16);
+  background: var(--checkit-panel, #f1f3f0);
+  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   outline: none;
   transform: translateY(-1px);
 }
@@ -219,7 +219,7 @@
   gap: 8px;
   border: 1px solid #cbd8d4;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
   color: #334155;
   padding: 10px 12px;
@@ -343,7 +343,7 @@
   padding: 10px 12px;
   border: 1px solid #cbd8d4;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
   color: #334155;
   font-size: 0.78rem;
@@ -387,7 +387,7 @@
   gap: 6px;
   padding: 20px;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #64748b;
 }
 
@@ -411,7 +411,7 @@
   padding: 24px;
   border: 1px solid #dbe4ee;
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
   color: #0f172a;
 }

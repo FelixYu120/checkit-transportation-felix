@@ -47,7 +47,8 @@
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  background-color: #eef3f1; 
+  background-color: var(--checkit-bg, #e5eae7);
+  --checkit-summary-surface: var(--checkit-panel, #f1f3f0);
 }
 
 /* The teal header */
@@ -91,7 +92,7 @@
 .sidebar-rail {
   width: clamp(212px, 15vw, 280px);
   min-width: clamp(212px, 15vw, 280px);
-  background: rgba(234, 240, 243, 0.95);
+  background: var(--checkit-sidebar, #dfe6e1);
   overflow: hidden;
 }
 
@@ -102,28 +103,27 @@
   overflow-y: auto;
   min-width: 0;
   height: 100%;
-  background:
-    linear-gradient(180deg, rgba(244, 246, 245, 0.92), rgba(232, 238, 235, 0.96)),
-    var(--checkit-bg-soft, #f4f6f5);
+  background: var(--checkit-bg, #e5eae7);
 }
 
 .analytics-panel {
   min-width: 0;
   overflow: hidden;
   padding: 0;
-  background:
-    radial-gradient(circle at top left, rgba(52, 82, 77, 0.14), transparent 34%),
-    linear-gradient(180deg, var(--checkit-bg-soft, #f4f6f5) 0%, var(--checkit-bg, #eef3f1) 100%);
+  background: var(--checkit-bg, #e5eae7);
 }
 
 .map-panel {
   min-width: 0;
   overflow: hidden;
   padding: 0;
-  background:
-    radial-gradient(circle at top left, rgba(52, 82, 77, 0.2), transparent 38%),
-    linear-gradient(180deg, #e8eeeb 0%, #dfe8e5 100%);
+  background: var(--checkit-surface-muted, #e3e9e4);
   border-left: 1px solid rgba(203, 216, 212, 0.9);
+}
+
+.map-panel:focus-visible {
+  outline: 2px solid #628079;
+  outline-offset: -2px;
 }
 
 @media (max-width: 1200px) {

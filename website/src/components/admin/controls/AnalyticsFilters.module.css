@@ -16,9 +16,9 @@
   padding: 0 12px;
   border: 1px solid #d7e1e8;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #1f2937;
-  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.16);
+  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   flex: 0 1 auto;
   white-space: nowrap;
   box-sizing: border-box;

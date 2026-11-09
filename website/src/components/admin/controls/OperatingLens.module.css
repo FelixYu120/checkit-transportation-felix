@@ -5,8 +5,8 @@
   gap: 12px;
   border: 1px solid #cbd8d4;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
+  background: var(--checkit-panel, #f1f3f0);
+  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   padding: 10px 14px;
 }
 
@@ -30,7 +30,7 @@
 .profileButton,
 .addLensButton {
   border: 1px solid #cbd8d4;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #263241;
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
@@ -63,7 +63,7 @@
 .profileButton:hover,
 .addLensButton:hover {
   border-color: #6f8983;
-  background: #fbfcfb;
+  background: var(--checkit-panel, #f1f3f0);
 }
 
 .savedLensPill {
@@ -72,7 +72,7 @@
   overflow: hidden;
   border: 1px solid #cbd8d4;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #263241;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
@@ -102,7 +102,7 @@
 
 .savedLensPill:hover {
   border-color: #6f8983;
-  background: #fbfcfb;
+  background: var(--checkit-panel, #f1f3f0);
 }
 
 .activeSavedLens {
@@ -117,7 +117,7 @@
   min-width: 118px;
   border: 1px solid #cbd8d4;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
   padding: 5px;
 }
@@ -157,7 +157,7 @@
   width: min(420px, 100%);
   border: 1px solid #cbd8d4;
   border-radius: 18px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
   padding: 18px;
   color: #172033;
@@ -185,7 +185,7 @@
   height: 32px;
   border: 1px solid #cbd8d4;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #52606d;
   cursor: pointer;
 }
@@ -209,7 +209,7 @@
   min-height: 38px;
   border: 1px solid #cbd8d4;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #172033;
   font: inherit;
   font-size: 13px;
@@ -275,13 +275,13 @@
 
 .lensCancelButton {
   border: 1px solid #cbd8d4;
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   color: #263241;
 }
 
 .lensCancelButton:hover {
   border-color: #6f8983;
-  background: #fbfcfb;
+  background: var(--checkit-panel, #f1f3f0);
 }
 
 .lensDeleteButton {

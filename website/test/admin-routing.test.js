@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-// This utility has a JSX extension but contains plain JavaScript and no imports.
-const source = readFileSync(new URL('../src/components/admin/routing/AdminRouteUtils.jsx', import.meta.url), 'utf8');
+// This utility has a JSX extension but contains plain JavaScript.
+const namesUrl = new URL('../src/components/admin/data/InstituteNames.js', import.meta.url).href;
+const source = readFileSync(new URL('../src/components/admin/routing/AdminRouteUtils.jsx', import.meta.url), 'utf8')
+  .replace("'../data/InstituteNames.js'", JSON.stringify(namesUrl));
 const { normalizeAdminPathSegment, slugifyAdminPathSegment, getAdminAreaPath } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
 );

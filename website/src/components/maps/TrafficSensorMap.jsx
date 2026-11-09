@@ -18,7 +18,7 @@ import { getSensorCategory, getSensorFilterExpression, SENSOR_CATEGORY_LABELS } 
 import sensorBadgeSvg from './assets/sensor.svg?raw';
 import selectedSensorBadgeSvg from './assets/sensor-selected.svg?raw';
 
-export default function TrafficSensorMap({ embedded = false, instituteId, sensorId, onSensorClick }) {
+export default function TrafficSensorMap({ embedded = false, instituteId, sensorId, focusRequest, onSensorClick }) {
   const mapDiv = useRef(null);
   const [categories, setCategories] = useState(['roadside', 'warning']);
   const categoriesRef = useRef(categories);
@@ -241,6 +241,9 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
         const selected = graphics.find((graphic) => graphic.attributes.sensor_id === selectionRef.current.sensorId);
         const position = selected ? `${selected.geometry.latitude},${selected.geometry.longitude}` : '';
         if (selected && (previousSelection !== selectionRef.current.sensorId || previousPosition !== position)) {
+          const category = selected.attributes.sensor_category;
+          // A lane selected from Analytics must remain visible even if its map filter was off.
+          setCategories((current) => current.includes(category) ? current : [...current, category]);
           await view.goTo({ target: selected, zoom: 18 }, { animate: false });
           fitted = true;
         } else if (!fitted && graphics.length) {
@@ -317,6 +320,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
     window.addEventListener('focus', refresh);
     const selectionChanged = () => {
       clearHover();
+      previousSelection = '';
       void updateSelection().catch((error) => console.error('Sensor symbols failed:', error));
       void refresh();
     };
@@ -343,7 +347,7 @@ export default function TrafficSensorMap({ embedded = false, instituteId, sensor
 
   useEffect(() => {
     mapDiv.current?.dispatchEvent(new Event('sensor-selection'));
-  }, [sensorId]);
+  }, [sensorId, focusRequest]);
 
   return <div className={`${styles.mapWrapper} ${embedded ? styles.embedded : ''}`}>
     <section className={styles.sensorFilters} aria-label="Map filters">

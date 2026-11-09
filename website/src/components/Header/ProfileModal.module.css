@@ -13,7 +13,7 @@
 }
 
 .modalContent {
-  background: #ffffff;
+  background: var(--checkit-panel, #f1f3f0);
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -110,9 +110,16 @@
   box-sizing: border-box;
 }
 
+.input[readonly] {
+  background-color: var(--checkit-bg-soft, #e9eeeb);
+  color: #25372f;
+  -webkit-text-fill-color: #25372f;
+  opacity: 1;
+}
+
 .input:disabled {
-  background-color: #f8fafc;
-  color: #64748b;
+  background-color: var(--checkit-bg-soft, #e9eeeb);
+  color: var(--checkit-muted, #607168);
 }
 
 .passwordField {
@@ -149,13 +156,6 @@
   outline-offset: 3px;
 }
 
-.loginTracker {
-  font-size: 13px;
-  color: #64748b;
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px dashed #cbd5e1;
-}
 
 .saveBtn {
   display: flex;

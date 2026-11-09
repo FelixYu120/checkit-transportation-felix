@@ -40,12 +40,13 @@ const ProfileDropdown = () => {
   return (
     <>
       <div className={styles.dropdownContainer} ref={dropdownRef}>
-        <button onClick={() => setIsOpen(!isOpen)} className={styles.profileTrigger}>
+        <button type="button" onClick={() => setIsOpen(!isOpen)} className={styles.profileTrigger}
+          aria-label="Profile menu" aria-expanded={isOpen} aria-controls={isOpen ? 'account-profile-menu' : undefined}>
           <User size={20} />
         </button>
 
         {isOpen && (
-          <div className={styles.dropdownMenu}>
+          <div id="account-profile-menu" className={styles.dropdownMenu}>
             <div className={styles.menuHeader}>
               <span className={styles.userName}>Profile Options</span>
             </div>

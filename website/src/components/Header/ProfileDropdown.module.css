@@ -10,16 +10,16 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 2px solid #e2e8f0;
-  background-color: #ffffff;
-  color: #0f172a;
+  border: 2px solid rgba(213, 225, 217, 0.26);
+  background-color: rgba(213, 225, 217, 0.08);
+  color: #dce6df;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .profileTrigger:hover {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
+  background-color: rgba(213, 225, 217, 0.14);
+  border-color: rgba(213, 225, 217, 0.4);
 }
 
 .dropdownMenu {
@@ -28,10 +28,10 @@
   right: 0;
   margin-top: 8px;
   width: 220px;
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
+  background-color: var(--checkit-panel, #f1f3f0);
+  border: 1px solid var(--checkit-border, #c7d1cb);
   border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -42,7 +42,7 @@
   padding: 16px;
   display: flex;
   flex-direction: column;
-  background-color: #f8fafc;
+  background-color: var(--checkit-surface-muted, #e3e9e4);
 }
 
 .userName {
@@ -51,16 +51,10 @@
   color: #0f172a;
 }
 
-.userEmail {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 4px;
-}
-
 .divider {
   margin: 0;
   border: none;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--checkit-border, #c7d1cb);
 }
 
 .menuItem {
@@ -78,7 +72,7 @@
 }
 
 .menuItem:hover {
-  background-color: #f1f5f9;
+  background-color: var(--checkit-surface-muted, #e3e9e4);
 }
 
 .dangerItem {
