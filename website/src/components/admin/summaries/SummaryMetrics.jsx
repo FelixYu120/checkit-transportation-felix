@@ -149,9 +149,9 @@ const getChartMetrics = (sourceChartData, timeframe, thresholdValue) => {
         total: Math.round(dataPoints.reduce((sum, point) => sum + getVolume(point), 0)),
         current: Math.round(getVolume(latestPoint)),
         peak: Math.round(getVolume(peakPoint)),
-        averageSpeed: Math.round(averageSpeed * 10) / 10,
-        v85Speed: Math.round(v85Speed * 10) / 10,
-        maxSpeed,
+        averageSpeed: speedWeight ? Math.round(averageSpeed * 10) / 10 : null,
+        v85Speed: speedWeight ? Math.round(v85Speed * 10) / 10 : null,
+        maxSpeed: speedWeight ? maxSpeed : null,
         overThresholdCount,
         lowNoMovementPeriods,
         approachShare,
@@ -197,10 +197,14 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         dayPreset,
     }), [startDate, endDate, startTime, endTime, dayPreset]);
     const chartMetrics = useMemo(() => getChartMetrics(sourceChartData, timeframe, thresholdValue), [sourceChartData, timeframe, thresholdValue]);
-    const metrics = chartMetrics || snapshotData || liveMetrics;
+    const metrics = snapshotData || chartMetrics || liveMetrics;
     const isWaitingForSourceChartData = preferSourceChartData && sourceChartData == null;
     const isMetricsLoading = isWaitingForSourceChartData || (!preferSourceChartData && !chartMetrics && !snapshotData && loading);
     const metricConfig = useMemo(() => getMetricConfig(timeframe), [timeframe]);
+    useEffect(() => {
+        if (chartMetrics && !snapshotData) onSnapshotData?.(chartMetrics);
+    }, [chartMetrics, onSnapshotData, snapshotData]);
+
 
     useEffect(() => {
         if (snapshotData) {
@@ -440,7 +444,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
     const renderMetricCard = (metricKey) => {
         const config = metricConfig[metricKey];
         const isActive = activeDetailKey === metricKey;
-        const value = metrics[metricKey] ?? (config.unit ? 0 : '-');
+        const value = metrics[metricKey] ?? (config.unit === 'mph' ? '—' : config.unit ? 0 : '-');
 
         return (
             <div

@@ -1,5 +1,7 @@
+import { addTrafficReportRow, trafficReportPointValues } from '../insights/TrafficReportAggregation.js';
+import { buildChartEvidence, mergeChartEvidence } from '../insights/ReportEnterprise.js';
 import React, { useEffect, useId, useMemo, useState } from 'react';
-import supabase from "../../helper/SupabaseClients";
+import supabase, { shouldUseLocalData } from "../../helper/SupabaseClients";
 import { getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
 import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 import {
@@ -38,13 +40,6 @@ const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
     timeZone: 'UTC',
 });
 
-const normalizeOccupancy = (density, people, capacity) => {
-    const numericDensity = Number(density);
-    if (Number.isFinite(numericDensity)) {
-        return numericDensity > 0 && numericDensity <= 1 ? numericDensity * 100 : numericDensity;
-    }
-    return capacity > 0 ? (people / capacity) * 100 : 0;
-};
 
 const getNiceCeiling = (value) => {
     if (!Number.isFinite(value) || value <= 0) return 10;
@@ -262,13 +257,7 @@ const buildWeeklyData = (rawData, filters) => {
         const group = groupsByDate[getLocalDateKey(new Date(row.observed_at))];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return groups
@@ -278,8 +267,7 @@ const buildWeeklyData = (rawData, filters) => {
             time: group.time,
             dateLabel: group.dateLabel,
             hasData: group.count > 0,
-            occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-            total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
+            ...trafficReportPointValues(group),
         }));
 };
 
@@ -324,13 +312,7 @@ const buildMonthlyData = (rawData, filters) => {
         const group = groupsByDate[dateKey];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return dayGroups
@@ -341,8 +323,7 @@ const buildMonthlyData = (rawData, filters) => {
             axisLabel: group.axisLabel,
             dateLabel: group.dateLabel,
             hasData: group.count > 0,
-            occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-            total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
+            ...trafficReportPointValues(group),
         }));
 };
 
@@ -361,21 +342,14 @@ const buildDailyData = (rawData, filters) => {
         const group = hourGroups[getLocalHourKey(date)];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return hourlyTimeline.map((group) => ({
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+        ...trafficReportPointValues(group),
     })).filter((point) => point.hasData);
 };
 
@@ -390,13 +364,7 @@ const buildDateData = (rawData, filters) => {
         const group = groupsByDate[getLocalDateKey(new Date(row.observed_at))];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return dayTimeline.map((group) => ({
@@ -404,8 +372,7 @@ const buildDateData = (rawData, filters) => {
         time: group.time,
         dateLabel: group.dateLabel,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : 0,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : 0,
+        ...trafficReportPointValues(group),
     }));
 };
 
@@ -423,21 +390,14 @@ const buildHourOfDayData = (rawData, filters) => {
         const group = groupsByHour[String(date.getHours())];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return hourlyTimeline.map((group) => ({
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+        ...trafficReportPointValues(group),
     })).filter((point) => point.hasData);
 };
 
@@ -456,21 +416,14 @@ const buildSingleDateHourlyData = (rawData, filters) => {
         const group = hourGroups[getLocalHourKey(date)];
         if (!group) return;
 
-        const people = row.people_count ?? row.total_people ?? 0;
-        const capacity = row.total_capacity ?? 0;
-        const occupancy = normalizeOccupancy(row.density, people, capacity);
-
-        group.peopleSum += people;
-        group.occupancySum += occupancy;
-        group.count += 1;
+        addTrafficReportRow(group, row);
     });
 
     return hourlyTimeline.map((group) => ({
         sortKey: group.sortKey,
         time: group.time,
         hasData: group.count > 0,
-        occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-        total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
+        ...trafficReportPointValues(group),
     })).filter((point) => point.hasData);
 };
 
@@ -483,7 +436,11 @@ const getPeopleAxisMax = (chartData, targetSeries) => {
 };
 
 const fetchTargetData = async ({ target, type, filters }) => {
-    if (!target.id) return [];
+    const withEvidence = (points, rows, sources) => ({ points, evidence: buildChartEvidence({
+        rows, points, sources: shouldUseLocalData ? ['Demo traffic dataset'] : sources, isDemo: shouldUseLocalData, filters, timeframe: type,
+    }) });
+
+    if (!target.id) return withEvidence([], [], []);
 
     const sensorId = target.level === 'floor' || target.level === 'room' ? target.id : undefined;
     const sensorIds = sensorId ? [] : (Array.isArray(target.sensorIds) ? target.sensorIds : []);
@@ -494,15 +451,15 @@ const fetchTargetData = async ({ target, type, filters }) => {
         type,
     });
 
-    if (type === 'weekly') return buildWeeklyData(rawData, filters);
-    if (type === 'monthly') return buildMonthlyData(rawData, filters);
+    if (type === 'weekly') return withEvidence(buildWeeklyData(rawData, filters), rawData, ['ten_minute_summaries']);
+    if (type === 'monthly') return withEvidence(buildMonthlyData(rawData, filters), rawData, ['ten_minute_summaries']);
 
     const hasDateFilters = filters?.startDate || filters?.endDate;
     const hasTimeFilters = hasActiveTimeFilter(filters);
-    if (hasDateFilters && isSingleDateFilter(filters)) return buildSingleDateHourlyData(rawData, filters);
-    if (hasDateFilters) return buildDateData(rawData, filters);
-    if (hasTimeFilters) return buildHourOfDayData(rawData, filters);
-    return buildDailyData(rawData, filters);
+    if (hasDateFilters && isSingleDateFilter(filters)) return withEvidence(buildSingleDateHourlyData(rawData, filters), rawData, ['ten_minute_summaries']);
+    if (hasDateFilters) return withEvidence(buildDateData(rawData, filters), rawData, ['ten_minute_summaries']);
+    if (hasTimeFilters) return withEvidence(buildHourOfDayData(rawData, filters), rawData, ['ten_minute_summaries']);
+    return withEvidence(buildDailyData(rawData, filters), rawData, ['ten_minute_summaries']);
 };
 
 const getTargetKey = (index) => `target${index}`;
@@ -629,10 +586,10 @@ const ComparisonAggregateChart = ({
                     activeTargets.map((target) => fetchTargetData({ target, type, filters: effectiveFilters }))
                 );
 
-                const nextData = mergeComparisonData(targetDataSets, type);
+                const nextData = mergeComparisonData(targetDataSets.map(result => result.points), type);
                 if (isMounted) {
                     setLiveChartData(nextData);
-                    onSnapshotData?.(nextData);
+                    onSnapshotData?.(nextData, mergeChartEvidence(targetDataSets.map(result => result.evidence)));
                 }
             } catch (error) {
                 console.error('Comparison chart fetch error:', error);
@@ -675,7 +632,7 @@ const ComparisonAggregateChart = ({
                     const hasData = point[`${series.key}HasData`] !== false;
                     return (
                         <div key={series.key} style={{ color: hasData ? series.occupancyColor : '#6b7280', fontSize: '12px', fontWeight: 600, marginTop: '4px' }}>
-                            {series.label} avg speed: {hasData ? `${point[series.occupancyKey] ?? 0} mph` : 'No samples'}
+                            {series.label} avg speed: {hasData && point[series.occupancyKey] != null ? `${point[series.occupancyKey]} mph` : 'No speed samples'}
                         </div>
                     );
                 })}

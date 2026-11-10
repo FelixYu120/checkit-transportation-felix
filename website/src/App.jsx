@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // --- Public Components & Pages ---
 import Header from "./components/Header/Header.jsx";
@@ -190,7 +190,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
     );
 }
 
-function App() {
+function AppSession() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
 
@@ -224,11 +224,15 @@ function App() {
         return <div className={styles.appLayout} />;
     }
 
-    return (
-        <Router>
-            <AppShell isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
-        </Router>
-    );
+    return <AppShell isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />;
+}
+
+// A data router lets the report editor protect browser Back as well as app links.
+const appRouter = createBrowserRouter([{ path: '*', element: <AppSession /> }]);
+if (import.meta.hot) import.meta.hot.dispose(() => appRouter.dispose());
+
+function App() {
+    return <RouterProvider router={appRouter} />;
 }
 
 export default App;

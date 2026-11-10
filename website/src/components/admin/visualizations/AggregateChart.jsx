@@ -1,5 +1,7 @@
+import { addTrafficReportRow, trafficReportPointValues } from '../insights/TrafficReportAggregation.js';
+import { buildChartEvidence } from '../insights/ReportEnterprise.js';
 import React, { useState, useEffect, useId, useMemo } from 'react';
-import supabase from "../../helper/SupabaseClients";
+import supabase, { shouldUseLocalData } from "../../helper/SupabaseClients";
 import { getDateBounds, getFilterTimeRange, hasActiveTimeFilter, isSingleDateFilter } from '../controls/AnalyticsFilterUtils';
 import { fetchTrafficSummaryRows } from '../data/TrafficSummaryData';
 import {
@@ -43,13 +45,6 @@ const tooltipMonthFormatter = new Intl.DateTimeFormat([], {
     timeZone: 'UTC',
 });
 
-const normalizeOccupancy = (density, people, capacity) => {
-    const numericDensity = Number(density);
-    if (Number.isFinite(numericDensity)) {
-        return numericDensity > 0 && numericDensity <= 1 ? numericDensity * 100 : numericDensity;
-    }
-    return capacity > 0 ? (people / capacity) * 100 : 0;
-};
 
 const getNiceCeiling = (value) => {
     if (!Number.isFinite(value) || value <= 0) return 10;
@@ -121,19 +116,7 @@ const createWeeklyDay = (date) => {
     };
 };
 
-const addTrafficRowToGroup = (group, row) => {
-    const people = row.people_count ?? row.total_people ?? 0;
-    const capacity = row.total_capacity ?? 0;
-    const occupancy = normalizeOccupancy(row.density ?? row.avg_speed, people, capacity);
-
-    group.peopleSum += people;
-    group.occupancySum += occupancy;
-    group.v85Sum = (group.v85Sum || 0) + (Number(row.v85_speed) || 0);
-    group.maxSpeed = Math.max(group.maxSpeed || 0, Number(row.max_speed) || 0);
-    group.approachSum = (group.approachSum || 0) + (Number(row.approach_volume) || 0);
-    group.awaySum = (group.awaySum || 0) + (Number(row.away_volume) || 0);
-    group.count += 1;
-};
+const addTrafficRowToGroup = addTrafficReportRow;
 
 const groupToTrafficPoint = (group) => ({
     sortKey: group.sortKey || group.sortDate || group.key || group.time,
@@ -141,12 +124,7 @@ const groupToTrafficPoint = (group) => ({
     axisLabel: group.axisLabel,
     dateLabel: group.dateLabel,
     hasData: group.count > 0,
-    occupancy: group.count > 0 ? Math.round(group.occupancySum / group.count) : null,
-    total_people: group.count > 0 ? Math.round(group.peopleSum / group.count) : null,
-    v85_speed: group.count > 0 ? Math.round(group.v85Sum / group.count) : null,
-    max_speed: group.count > 0 ? group.maxSpeed : null,
-    approach_volume: group.count > 0 ? Math.round(group.approachSum / group.count) : null,
-    away_volume: group.count > 0 ? Math.round(group.awaySum / group.count) : null,
+    ...trafficReportPointValues(group),
 });
 
 const getLatestObservedDate = (rows = []) => rows.reduce((latest, row) => {
@@ -642,7 +620,7 @@ const AggregateChart = ({
                 }
                 if (isMounted) {
                     setLiveChartData(processedData);
-                    onSnapshotData?.(processedData);
+                    onSnapshotData?.(processedData, buildChartEvidence({ rows: rawData, points: processedData, sources: [shouldUseLocalData ? 'Demo traffic dataset' : 'ten_minute_summaries'], isDemo: shouldUseLocalData, filters: effectiveFilters, timeframe: type }));
                 }
             } catch (error) {
                 console.error(`Error fetching ${level} chart data:`, error);
@@ -687,7 +665,7 @@ const AggregateChart = ({
                 {point.hasData === false ? (
                     <div style={{ color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>No samples recorded</div>
                 ) : showsSpeed && 'occupancy' in point && (
-                    <div style={{ color: occupancyColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.occupancy ?? 0} mph</div>
+                    <div style={{ color: occupancyColor, fontSize: '12px', fontWeight: 600 }}>Avg speed: {point.occupancy == null ? 'No speed samples' : `${point.occupancy} mph`}</div>
                 )}
                 {point.hasData !== false && showsVolume && 'total_people' in point && (
                     <div style={{ color: peopleColor, fontSize: '12px', marginTop: '4px' }}>Traffic volume: {point.total_people ?? 0}</div>
@@ -700,8 +678,8 @@ const AggregateChart = ({
                 )}
                 {point.hasData !== false && (plotType === 'speed_profile' || plotType === 'custom') && (
                     <>
-                        {(plotType === 'speed_profile' || effectiveCustomMetrics.v85Speed) && <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>85th speed: {point.v85_speed ?? 0} mph</div>}
-                        {(plotType === 'speed_profile' || effectiveCustomMetrics.maxSpeed) && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>Max speed: {point.max_speed ?? 0} mph</div>}
+                        {(plotType === 'speed_profile' || effectiveCustomMetrics.v85Speed) && <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>85th speed: {point.v85_speed == null ? 'No speed samples' : `${point.v85_speed} mph`}</div>}
+                        {(plotType === 'speed_profile' || effectiveCustomMetrics.maxSpeed) && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>Max speed: {point.max_speed == null ? 'No speed samples' : `${point.max_speed} mph`}</div>}
                     </>
                 )}
             </div>

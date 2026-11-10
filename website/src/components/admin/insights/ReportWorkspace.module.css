@@ -1,0 +1,45 @@
+.overlay { position:fixed; inset:0; z-index:10060; display:flex; justify-content:flex-end; background:rgba(20,37,32,.25); }
+.drawer { width:min(660px,100%); height:100%; height:100dvh; max-height:100dvh; box-sizing:border-box; display:flex; flex-direction:column; background:#fafbf9; color:#263b35; box-shadow:-12px 0 48px rgba(20,37,32,.15); font:14px/1.5 Inter,system-ui,sans-serif; }
+.drawer header { flex-shrink:0; display:flex; justify-content:space-between; align-items:center; gap:16px; padding:22px 24px 16px; border-bottom:1px solid #dce4df; }
+.drawer h2 { margin:0; font-size:21px; }
+.drawer h3 { margin:0 0 8px; font-size:15px; }
+.drawer p { margin:8px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.drawer header > div:first-child { min-width:0; }
+.drawer header p { margin:3px 0 0; color:#60746b; font-size:12px; }
+.body { flex:1; min-height:0; overflow-y:auto; padding:22px 24px 40px; }
+.controls { border:0; padding:0; margin:0; min-width:0; }
+.drawer button { border:1px solid #cbd8cf; background:#fff; color:#34524d; border-radius:8px; min-height:36px; padding:8px 13px; font:inherit; font-weight:600; cursor:pointer; }
+.drawer button:hover { border-color:#819b8e; background:#f0f5f0; }
+.drawer button:disabled { cursor:not-allowed; opacity:.55; }
+.drawer button:focus-visible,.drawer input:focus-visible,.drawer textarea:focus-visible,.drawer select:focus-visible,.drawer summary:focus-visible { outline:2px solid #527c69; outline-offset:3px; }
+.drawer .primary { background:#34524d; color:#fff; }
+.drawer label { display:block; margin:0 0 14px; color:#4e6459; font-size:12px; font-weight:600; }
+.drawer input,.drawer select,.drawer textarea { display:block; width:100%; box-sizing:border-box; margin-top:5px; padding:10px; border:1px solid #ccd8d0; border-radius:7px; background:#fff; color:#253e32; font:inherit; font-size:14px; line-height:1.45; }
+.drawer textarea { min-height:82px; resize:vertical; }
+.drawer details { margin:16px 0; }
+.drawer summary { cursor:pointer; font-weight:600; margin-bottom:12px; }
+.item { border:1px solid #d9e3dc; border-radius:10px; padding:16px; margin:16px 0; background:#fff; }
+.item small { color:#64786c; }
+.buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.error { padding:12px 14px; background:#fff5ef; color:#884321; border:1px solid #ebd3c1; border-radius:9px; margin-bottom:16px; }
+.notice { color:#345e46; background:#eaf2eb; padding:10px 12px; border-radius:8px; }
+.dataNotes { color:#43574b; font:12px/1.5 Inter,system-ui,sans-serif; overflow-wrap:anywhere; }
+.dataNotes p { margin:6px 0; }
+.dataNotes h3 { color:#263b35; margin:0 0 9px; font-size:16px; }
+.sourceNote { padding:10px 0; border-bottom:1px solid #e0e7e1; }
+.dataNotes dl { margin:12px 0; }
+.dataNotes dt { font-weight:600; }
+.dataNotes dd { margin:2px 0 12px; }
+.drawer table { width:100%; border-collapse:collapse; font-size:12px; }
+.drawer th,.drawer td { padding:8px 5px; text-align:left; border-bottom:1px solid #dce4df; }
+@media(max-width:560px) { .fields { grid-template-columns:1fr; gap:0; } .body,.drawer header { padding-left:16px; padding-right:16px; } .workspaceTabs { padding-left:12px; padding-right:12px; } }
+
+.workspaceTabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); flex-shrink:0; gap:6px; padding:10px 16px; background:#fafbf9; border-bottom:1px solid #dce4df; }
+.drawer .workspaceTabs button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; min-height:56px; padding:7px 3px; font-size:12px; border-color:transparent; background:transparent; white-space:nowrap; }
+.drawer .workspaceTabs button[aria-selected=true] { background:#e4ece7; border-color:#cbd8cf; color:#28483a; }
+.headerActions { display:flex; align-items:center; flex-shrink:0; gap:8px; }
+.iconHint { display:inline-flex; position:relative; width:36px; height:36px; flex:0 0 36px; }
+.drawer .headerIcon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; }
+.iconHint::after { content:attr(data-tooltip); position:absolute; top:calc(100% + 7px); right:0; z-index:2; padding:6px 9px; background:#28423e; color:#fff; border-radius:6px; font-size:12px; white-space:nowrap; pointer-events:none; opacity:0; visibility:hidden; }
+.iconHint:hover::after,.iconHint:focus-within::after { opacity:1; visibility:visible; }

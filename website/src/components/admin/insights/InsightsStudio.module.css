@@ -1,46 +1,12 @@
-/* =========================================================
-   PART 1: MINIMALIST WORKSPACE LANDING PAGE (GOOGLE DOCS VIBE)
-   ========================================================= */
-
+/* Insights Studio main page */
 .page {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  background: var(--checkit-bg, #e5eae7); /* Soft gray workspace canvas */
-  color: #0f172a;
+  width: 100%; height: 100%; overflow-y: auto;
+  background: var(--checkit-bg-soft, #e9eeeb); color: #1f322a;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
-
-.content {
-  min-height: 100%;
-  max-width: 1140px; /* Aligns content cleanly into a document grid layout */
-  margin: 0 auto;
-  padding: 48px 24px 80px;
-  box-sizing: border-box;
-}
-
-.hero h1 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 32px;
-  letter-spacing: -0.02em;
-  font-weight: 700;
-}
-
-.hero p {
-  margin: 8px 0 0;
-  color: #475569;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 400;
-}
-
-.hero p + p {
-  margin-top: 4px;
-  color: #94a3b8;
-  font-size: 14px;
-}
-
+.content { min-height: 100%; max-width: 1140px; margin: 0 auto; padding: 36px 24px 56px; box-sizing: border-box; }
+.hero h1 { margin: 0; color: #20352c; font-size: 30px; letter-spacing: -.035em; font-weight: 650; line-height: 1.25; }
+.hero p { margin: 8px 0 0; color: #63756b; font-size: 14px; line-height: 1.6; }
 .cardGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(280px, 1fr));
@@ -139,7 +105,7 @@
   width: 100%;
   max-width: 18px;
   min-height: 8px;
-  background: #b9cbbf;
+  background: #ffffff;
   border-radius: 5px 5px 0 0;
   box-shadow: none;
 }
@@ -186,7 +152,7 @@
 .comparisonFill {
   display: block;
   height: 100%;
-  background: #b9cbbf;
+  background: #ffffff;
   border-radius: 999px;
 }
 
@@ -214,216 +180,53 @@
   transform: translateY(-1px);
 }
 
-.templates {
-  margin-top: 64px;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 48px;
+.templates { margin-top: 36px; border-top: 1px solid #d0dad2; padding-top: 24px; }
+.templates h2 { margin: 0; color: #2b4436; font-size: 18px; font-weight: 650; letter-spacing: -.02em; }
+.reportTabsPanel { margin-top: 16px; }
+.reportTabs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 16px; padding: 3px; border: 1px solid #d2ddd4; border-radius: 8px; background: #f3f6f1; }
+.reportTab { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 7px 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #6a7d70; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
+.reportTab:hover { color: #34524d; background: #eaf0e8; }
+.reportTabActive { border-color: #ccd9cd; background: #fff; color: #294936; box-shadow: 0 1px 3px rgba(31,50,42,.035); }
+.reportTabActive:hover { background: #fff; color: #294936; }
+.reportTab span { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 4px; background: #e7eee4; color: #53715d; font-size: 11px; font-weight: 600; }
+.reportTabActive span { background: #e7eee4; color: #34583f; }
+.emptyReportGroup { display: grid; justify-items: center; gap: 6px; padding: 32px 24px; margin-top: 16px; border: 1px solid #d6e0d7; border-radius: 10px; background: #fafcf8; color: #8ba08e; text-align: center; }
+.emptyReportGroup p { margin: 4px 0 0; color: #49604e; font-size: 14px; font-weight: 600; }
+.emptyReportGroup span { color: #7a8b7e; font-size: 13px; line-height: 1.6; }
+.reportTabsPanel .emptyReportGroup { margin-top: 0; }
+.reportsLoading { min-height: 96px; display: flex; align-items: center; justify-content: center; color: #7a8b7e; font-size: 13px; }
+.reportsError { display: grid; justify-items: center; gap: 8px; margin-top: 16px; padding: 24px; border: 1px solid #e4d5c3; border-radius: 10px; background: #fbf8f1; color: #816a48; text-align: center; }
+.reportsError p { margin: 0; font-size: 14px; font-weight: 600; }
+.reportsError span { font-size: 12px; overflow-wrap: anywhere; }
+.savedReportsTable { overflow-x: auto; overflow-y: hidden; border: 1px solid #d4ded5; border-radius: 10px; background: #fff; }
+.savedReportsGrid { display: grid; grid-template-columns: minmax(240px,2fr) minmax(150px,1fr) minmax(140px,1fr) minmax(144px,auto); column-gap: 20px; align-items: center; min-width: 760px; }
+.savedReportsHeader { padding: 12px 18px; border-bottom: 1px solid #dfe7df; background: #f6f9f4; color: #7b8c7e; font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.savedReportsHeader > div:first-child { padding-left: 46px; }
+.savedReportsRow { padding: 16px 18px; border-bottom: 1px solid #e9eee8; transition: background-color .15s ease; }
+.savedReportsRow:last-child { border-bottom: 0; }
+.savedReportsRow:hover { background: #fafcf8; }
+.savedReportNameCell,.savedReportDateCell,.savedReportActions { display: flex; align-items: center; }
+.savedReportNameCell { min-width: 0; gap: 12px; }
+.savedReportIcon { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid #e0e8de; border-radius: 8px; background: #f0f5ed; color: #607c65; }
+.savedReportTitleBlock { min-width: 0; }
+.savedReportTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #2b4436; font-size: 13px; font-weight: 600; }
+.reportAuthor { margin-top: 4px; color: #829084; font-size: 11px; }
+.reportStatus { display: inline-block; max-width: 100%; margin-top: 5px; padding: 2px 6px; border: 1px solid #d8e2d5; border-radius: 4px; background: #f0f5ed; color: #658068; font-size: 10px; line-height: 1.4; }
+.savedReportPeriodCell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5f7563; font-size: 12px; font-weight: 400; }
+.savedReportDateCell { display: grid; grid-template-columns: 16px minmax(0,1fr); min-width: 0; gap: 5px; color: #7b8e7e; font-size: 12px; white-space: nowrap; }
+.savedReportActions { justify-content: flex-start; gap: 8px; }
+.openReportButton { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 10px; box-sizing: border-box; border: 1px solid #d1ddcf; border-radius: 6px; background: #f8fbf6; color: #3f6549; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background-color .15s ease, border-color .15s ease; }
+.openReportButton:hover { background: #edf4e8; border-color: #adc3a9; }
+.deleteReportButton { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #8a9d8b; cursor: pointer; }
+.deleteReportButton:hover { background: #faf0ec; border-color: #ead7cd; color: #995d4c; }
+.cardButton:focus-visible,.openReportButton:focus-visible,.deleteReportButton:focus-visible,.reportTab:focus-visible { outline: 2px solid #527c69; outline-offset: 3px; }
+@media (max-width: 860px) { .cardGrid { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 560px) {
+  .content { padding: 28px 16px 40px; }
+  .hero h1 { font-size: 27px; }
+  .templates { margin-top: 28px; padding-top: 22px; }
 }
-
-.templates h2 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.reportTabsPanel {
-  margin-top: 24px;
-}
-
-.reportTabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 4px;
-  border: 1px solid #cbd8d4;
-  border-radius: 999px;
-  background: var(--checkit-panel, #f1f3f0);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.reportTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 7px 13px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #64748b;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease;
-}
-
-.reportTab:hover {
-  color: #1e293b;
-}
-
-.reportTabActive {
-  background: #34524D;
-  color: #ffffff;
-}
-
-.reportTabActive:hover {
-  color: #ffffff;
-}
-
-.reportTab span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: #eef3f1;
-  color: #34524D;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.reportTabActive span {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-.emptyReportGroup {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 32px 24px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #94a3b8;
-  text-align: center;
-}
-
-.emptyReportGroup p {
-  margin: 4px 0 0;
-  color: #475569;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.emptyReportGroup span {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.savedReportsTable {
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-}
-
-.savedReportsGrid {
-  display: grid;
-  grid-template-columns:
-    minmax(320px, 2fr)
-    minmax(220px, 1fr)
-    minmax(170px, 1fr)
-    minmax(250px, 250px);
-  column-gap: 32px;
-  align-items: center;
-  min-width: 980px;
-}
-
-.savedReportsHeader {
-  padding: 14px 24px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.savedReportsHeader > div:first-child {
-  padding-left: 48px;
-}
-
-.savedReportsRow {
-  padding: 18px 24px;
-  border-bottom: 1px solid #f1f5f9;
-  transition: background-color 0.2s ease;
-}
-
-.savedReportsRow:last-child {
-  border-bottom: 0;
-}
-
-.savedReportsRow:hover {
-  background: #f8fafc;
-}
-
-.savedReportNameCell,
-.savedReportDateCell,
-.savedReportActions {
-  display: flex;
-  align-items: center;
-}
-
-.savedReportNameCell {
-  min-width: 0;
-  gap: 12px;
-}
-
-.savedReportIcon {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #eef3f1;
-  color: #34524D;
-}
-
-.savedReportTitleBlock {
-  min-width: 0;
-}
-
-.savedReportTitleBlock > div:first-child,
-.savedReportPeriodCell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.savedReportPeriodCell {
-  min-width: 0;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.savedReportDateCell {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  min-width: 0;
-  gap: 6px;
-  color: #64748b;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.savedReportActions {
-  justify-content: flex-start;
-  gap: 8px;
-}
-
+@media (prefers-reduced-motion: reduce) { .insightCard,.cardButton,.reportTab,.savedReportsRow,.openReportButton { transition: none; } .insightCard:hover,.cardButton:hover { transform: none; } }
 
 /* =========================================================
    PART 2: CUSTOM LAYOUT BUILDER (FULLSCREEN WORKSPACE)
@@ -2245,3 +2048,42 @@
   background: #ffffff;
   pointer-events: none;
 }
+
+.builderErrorActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.backLink:disabled,
+.toolbarBtn:disabled,
+.primaryBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.reportActions {
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Fixed icon dimensions keep the report toolbar stable through every save state. */
+.builderIdentity { gap: 10px; min-width: 0; max-width: 100%; }
+.builderIdentity .navTitle { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.builderIdentity .collaborationPill { width: 104px; min-width: 104px; flex: 0 0 104px; }
+.iconAction { position: relative; display: inline-flex; flex: 0 0 36px; width: 36px; height: 36px; }
+.builderPage .toolbarIconButton { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; max-width: 36px; height: 36px; min-height: 36px; padding: 0; flex: 0 0 36px; border-radius: 8px; }
+.toolbarIconButton svg { flex-shrink: 0; }
+.toolbarIconButton:focus-visible { outline: 2px solid #527c69; outline-offset: 3px; }
+.iconAction::after { content: attr(data-tooltip); position: absolute; z-index: 10020; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); padding: 7px 10px; border-radius: 6px; background: #28423e; color: #fff; font: 500 12px/1.4 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 4px 12px rgba(21,32,31,.15); pointer-events: none; opacity: 0; visibility: hidden; }
+.iconAction:hover::after, .iconAction:focus-within::after { opacity: 1; visibility: visible; }
+.iconAction[data-tooltip-align="start"]::after { left: 0; transform: none; }
+.iconAction[data-tooltip-align="end"]::after { left: auto; right: 0; transform: none; }
+.saveSpinner { animation: builderAccessSpin .85s linear infinite; }
+.screenReaderOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) { .saveSpinner { animation: none; } }
+
+.iconAction[data-popup-open="true"]::after { display: none; }

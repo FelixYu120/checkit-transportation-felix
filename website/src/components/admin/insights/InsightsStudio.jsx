@@ -1,6 +1,15 @@
+import ReportWorkspace from './ReportWorkspace.jsx';
+import { REPORT_METRICS, getDecisionQuestion, loadReportVersion, runReportCommand } from './ReportEnterprise.js';
+import {
+  applyTextDraftsToLayout, createSingleFlightTask, decodeReportLayout,
+  getCheckpointDocMeta, getComparableReportState, hasSelectionValue,
+  inferReportModeFromLayout, normalizeReportPageCount, normalizeStudioRole,
+  requireReportReady, saveReportRecord, removeReportDataNotes,
+} from './ReportSafety.js';
+import { sanitizeReportHtml } from './ReportHtml.js';
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useBlocker } from 'react-router-dom';
 import {
   Download,
   Type,
@@ -26,6 +35,13 @@ import {
   Maximize2,
   Share2,
   X,
+  ArrowLeft,
+  PanelRightOpen,
+  MessageSquare,
+  Save,
+  Check,
+  LoaderCircle,
+  Undo2,
 } from 'lucide-react';
 import supabase from "../../helper/SupabaseClients";
 import html2canvas from 'html2canvas';
@@ -57,6 +73,7 @@ const SUMMARY_CARD_GAP = 12;
 const SUMMARY_CARD_MIN_HEIGHT = 132;
 const SUMMARY_CARD_MAX_COLUMNS = 4;
 const SNAP_THRESHOLD = 12;
+const STUDIO_PRODUCT = 'transportation';
 const DEFAULT_REPORT_SETTINGS = {
   timeframe: 'weekly',
   startDate: '',
@@ -158,19 +175,19 @@ const TEMPLATE_OPTIONS = {
     {
       id: 'default',
       name: 'Weekly Corridor Report',
-      description: 'Cover, KPI cards, and a weekly traffic trend for one selected corridor.',
+      description: 'Find busy periods and decide where corridor operations should focus.',
       previewClass: 'default',
     },
     {
       id: 'operations',
       name: 'Traffic Volume Review',
-      description: 'Compact KPI strip, 24h movement, and a notes area for operations follow-up.',
+      description: 'Choose hours for staffing, access, or traffic-management changes.',
       previewClass: 'operations',
     },
     {
       id: 'trend-review',
       name: 'Speed Profile Review',
-      description: 'Large trend view with traffic takeaways and supporting metrics.',
+      description: 'Review recorded speed patterns and identify periods that need attention.',
       previewClass: 'trend',
     },
     {
@@ -190,13 +207,13 @@ const TEMPLATE_OPTIONS = {
     {
       id: 'executive-compare',
       name: 'Peak Traffic Review',
-      description: 'A comparison banner, chart, and interpretation block for busy corridors.',
+      description: 'Compare peak activity and prioritize corridors for operational attention.',
       previewClass: 'executive',
     },
     {
       id: 'corridor-benchmark',
       name: 'Corridor Benchmark',
-      description: 'Side-by-side comparison modules for identifying high and low traffic corridors.',
+      description: 'Compare similar corridors, record a finding, and assign a follow-up.',
       previewClass: 'benchmark',
     },
     {
@@ -280,15 +297,19 @@ const TEMPLATE_COVER_SETTINGS = {
   },
 };
 
-const getTemplateReportSettings = (templateId) => ({
+const getTemplateReportSettings = (templateId, mode = 'solo') => ({
   ...DEFAULT_REPORT_SETTINGS,
   ...(TEMPLATE_COVER_SETTINGS[templateId] || {}),
+  timeframe: templateId === 'operations' ? 'daily' : DEFAULT_REPORT_SETTINGS.timeframe,
+  decisionQuestion: getDecisionQuestion(STUDIO_PRODUCT, templateId, mode),
+  metricDefinitions: REPORT_METRICS[STUDIO_PRODUCT],
+  metricDefinitionVersion: 1,
 });
 
 const TEMPLATE_DOC_META = {
   operations: {
     title: 'Operations Snapshot',
-    period: 'Last 24 Hours',
+    period: 'Daily Review Window',
   },
   'trend-review': {
     title: 'Usage Trend Review',
@@ -314,16 +335,7 @@ const createPageImageFromCanvas = (canvas, pageIndex) => ({
   height: canvas.height,
 });
 
-const waitForReportReady = async (element, timeoutMs = 8000) => {
-  const startedAt = Date.now();
 
-  while (element?.querySelector('[data-report-loading="true"]')) {
-    if (Date.now() - startedAt > timeoutMs) return false;
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-
-  return true;
-};
 
 const getSnappedElementPosition = (movingElement, layout, nextX, nextY) => {
   if (!movingElement) return { x: nextX, y: nextY, verticalGuides: [], horizontalGuides: [] };
@@ -414,7 +426,7 @@ const stripHtml = (html = '') => {
   return element.textContent || element.innerText || '';
 };
 
-const getTextHtml = (element) => element.html || element.content || '';
+const getTextHtml = (element) => sanitizeReportHtml(element.html ?? element.content ?? '');
 
 const getTextFontSize = (element) => {
   const baseSize = Number(getFontSizeNumber(element?.style?.fontSize, 16));
@@ -907,69 +919,60 @@ const getSavedReportState = ({
   selections,
   comparisonSelections,
   reportSettings,
-}) => ({
-  version: 2,
-  mode,
-  elements,
-  pageCount,
-  selections,
-  comparisonSelections,
-  reportSettings,
-});
-
-const stripTransientElementState = (element) => {
-  const stableElement = { ...element };
-  delete stableElement.snapshotData;
-  delete stableElement.snapshotKey;
-  return stableElement;
+}) => {
+  const cleaned = removeReportDataNotes(elements, pageCount, PAGE_HEIGHT);
+  return {
+    version: 2,
+    mode,
+    elements: cleaned.elements.map((element) => element.type === 'text' ? { ...element, html: getTextHtml(element) } : element),
+    pageCount: cleaned.pageCount,
+    selections,
+    comparisonSelections,
+    reportSettings,
+  };
 };
 
-const getComparableReportState = (reportState) => ({
-  ...reportState,
-  elements: (reportState.elements || []).map(stripTransientElementState),
-});
+
+
+
 
 const parseSavedLayoutData = (layoutData) => {
+  layoutData = decodeReportLayout(layoutData);
+  if (!layoutData) return null;
   if (Array.isArray(layoutData)) {
-    const elements = normalizeReportElements(layoutData);
+    const cleaned = removeReportDataNotes(normalizeReportElements(layoutData), 1, PAGE_HEIGHT);
+    const elements = cleaned.elements;
 
     return {
       elements,
-      pageCount: getRequiredPageCount(elements),
+      pageCount: normalizeReportPageCount(cleaned.pageCount, getRequiredPageCount(elements)),
       selections: EMPTY_TARGET_SELECTION,
       comparisonSelections: EMPTY_TARGET_SELECTION,
       reportSettings: DEFAULT_REPORT_SETTINGS,
-      mode: 'solo',
+      mode: undefined,
     };
   }
 
   if (layoutData && typeof layoutData === 'object') {
-    const savedElements = normalizeReportElements(Array.isArray(layoutData.elements) ? layoutData.elements : []);
+    const normalized = normalizeReportElements(layoutData.elements);
+    const cleaned = removeReportDataNotes(normalized, normalizeReportPageCount(layoutData.pageCount, getRequiredPageCount(normalized)), PAGE_HEIGHT);
+    const savedElements = cleaned.elements;
     return {
       elements: savedElements,
-      pageCount: layoutData.pageCount || getRequiredPageCount(savedElements),
+      pageCount: normalizeReportPageCount(cleaned.pageCount, getRequiredPageCount(savedElements)),
       selections: { ...EMPTY_TARGET_SELECTION, ...(layoutData.selections || {}) },
       comparisonSelections: { ...EMPTY_TARGET_SELECTION, ...(layoutData.comparisonSelections || {}) },
       reportSettings: { ...DEFAULT_REPORT_SETTINGS, ...(layoutData.reportSettings || {}) },
-      mode: layoutData.mode || 'solo',
+      mode: layoutData.mode,
     };
   }
 
   return null;
 };
 
-const hasSelectionValue = (selections = {}) => Boolean(selections.areaId || selections.buildingId || selections.floorNumber || selections.roomId);
 
-const inferReportModeFromLayout = (savedLayout) => {
-  if (!savedLayout) return 'solo';
-  if (['solo', 'comparison'].includes(savedLayout.mode)) return savedLayout.mode;
-  if (hasSelectionValue(savedLayout.comparisonSelections)) return 'comparison';
-  if ((savedLayout.elements || []).some((element) => (
-    hasSelectionValue(element.comparisonSelections)
-    || (Array.isArray(element.comparisonSelectionList) && element.comparisonSelectionList.some(hasSelectionValue))
-  ))) return 'comparison';
-  return 'solo';
-};
+
+
 
 const getReportMode = (report) => inferReportModeFromLayout(parseSavedLayoutData(report?.layout_data));
 
@@ -1120,7 +1123,7 @@ const createDefaultTemplateElements = (isComparison) => {
   ];
 };
 
-const createTemplateElements = (templateId, isComparison) => {
+const createTemplateLayoutElements = (templateId, isComparison) => {
   if (templateId === 'blank') return [];
 
   if (!isComparison && templateId === 'operations') {
@@ -1138,9 +1141,9 @@ const createTemplateElements = (templateId, isComparison) => {
   }
 
   if (!isComparison && templateId === 'trend-review') {
-    const summaryRow = createSummaryCardRow(['total', 'peak'], { idPrefix: 'summary', x: 48, y: 756, attachedChartId: 'chart-1', maxWidth: 336 });
+    const summaryRow = createSummaryCardRow(['averageSpeed', 'v85Speed', 'maxSpeed'], { idPrefix: 'summary', x: 48, y: 756, attachedChartId: 'chart-1', maxWidth: 336 });
     return [
-      { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 528, timeType: 'weekly', chartType: 'combo', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
+      { id: 'chart-1', type: 'chart', x: 48, y: 192, width: DEFAULT_REPORT_WIDTH, height: 528, timeType: 'weekly', chartType: 'speed_profile', useReportTimeframe: true, style: { background: 'transparent', borderRadius: '12px' } },
       createDividerElement('divider-1', 48, 732),
       ...summaryRow.elements,
       createDividerElement('divider-2', 396, 756, 24, 216, 'vertical'),
@@ -1178,10 +1181,33 @@ const createTemplateElements = (templateId, isComparison) => {
   return createDefaultTemplateElements(isComparison);
 };
 
+const createTemplateElements = (templateId, isComparison) => {
+  const layout = createTemplateLayoutElements(templateId, isComparison);
+  if (templateId === 'blank') return layout;
+  const question = getDecisionQuestion(STUDIO_PRODUCT, templateId, isComparison ? 'comparison' : 'solo');
+  const note = layout.find(element => element.type === 'text');
+  if (note) { note.content = `${question}\n\nFinding:\nRecommended action:\nEvidence and limitations:`; note.style = { ...note.style, fontSize: '15px', fontWeight: 'normal' }; }
+  return layout;
+};
+
+const ToolbarIconButton = ({ label, tooltip = label, tooltipAlign = 'center', primary = false, children, ...props }) => (
+  <span className={styles.iconAction} data-tooltip={tooltip} data-tooltip-align={tooltipAlign} data-popup-open={props['aria-expanded'] || undefined}>
+    <button type="button" aria-label={label}
+      className={`${primary ? styles.primaryBtn : styles.toolbarBtn} ${styles.toolbarIconButton}`} {...props}>
+      {children}
+    </button>
+  </span>
+);
+
 export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams(); 
   const isComparison = type === 'comparison';
+  const viewingVersionId = searchParams.get('version');
+  const isViewingVersion = Boolean(viewingVersionId);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [workspaceInitialTab, setWorkspaceInitialTab] = useState('overview');
+  const latestElementsRef = useRef([]);
   const template = searchParams.get('template') || 'default';
   const templateConfig = getTemplateConfig(type, template);
 
@@ -1190,6 +1216,15 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const uploadInputRef = useRef(null);
   const summaryCardsMenuRef = useRef(null);
   const hasLoadedReportRef = useRef(false);
+  const createdReportIdRef = useRef(null);
+  const pendingSavedUrlRef = useRef(null);
+  const navigationBlockerRef = useRef(null);
+  const lastSavedRevisionRef = useRef(null);
+  const mountedRef = useRef(true);
+  const urlDocumentKey = `${searchParams.get('id') || ''}|${templateConfig.id}`;
+  const lastUrlDocumentRef = useRef(urlDocumentKey);
+  const editRevisionRef = useRef(0);
+  const savedIndicatorTimerRef = useRef(null);
   const lastCleanSnapshotRef = useRef(null);
   const confirmResolveRef = useRef(null);
   const undoStackRef = useRef([]);
@@ -1201,6 +1236,17 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const collaborationChannelRef = useRef(null);
   
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [runSaveTask] = useState(createSingleFlightTask);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(savedIndicatorTimerRef.current);
+    };
+  }, []);
+  const [reportLoadError, setReportLoadError] = useState('');
+  const [reportReloadVersion, setReportReloadVersion] = useState(0);
   const [isSavingAndLeaving, setIsSavingAndLeaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -1209,7 +1255,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [exportPreviewPages, setExportPreviewPages] = useState([]);
   const [reportId, setReportId] = useState(searchParams.get('id'));
   const [isReportLoading, setIsReportLoading] = useState(Boolean(searchParams.get('id')));
-  const [reportSettings, setReportSettings] = useState(() => getTemplateReportSettings(templateConfig.id));
+  const [reportSettings, setReportSettings] = useState(() => getTemplateReportSettings(templateConfig.id, type));
   const [editingTextId, setEditingTextId] = useState(null);
   const [snapGuides, setSnapGuides] = useState({ vertical: [], horizontal: [] });
   const [collaborationUser, setCollaborationUser] = useState(null);
@@ -1226,9 +1272,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const [reportAccessRole, setReportAccessRole] = useState(() => (searchParams.get('id') ? 'loading' : 'owner'));
   const [currentProfileRole, setCurrentProfileRole] = useState('viewer');
   const [isProfileRoleLoading, setIsProfileRoleLoading] = useState(true);
+  const [profileRoleError, setProfileRoleError] = useState('');
   const isViewerProfile = currentProfileRole === 'viewer';
-  const isReportAccessPending = reportAccessRole === 'loading' || (!reportId && isProfileRoleLoading);
-  const isReadOnlyReport = reportAccessRole === 'viewer' || isReportAccessPending || isViewerProfile;
+  const isReportAccessPending = reportAccessRole === 'loading' || isProfileRoleLoading;
+  const isReadOnlyReport = isViewingVersion || reportAccessRole === 'viewer' || isReportAccessPending || isViewerProfile;
   const canUseBuilderTools = !isReadOnlyReport;
   const returnReportTab = searchParams.get('fromTab') === 'shared' ? 'shared' : 'owned';
   const insightsLandingPath = returnReportTab === 'shared' ? '/insights-studio?tab=shared' : '/insights-studio';
@@ -1277,23 +1324,27 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     let isMounted = true;
 
     const fetchCurrentRole = async () => {
+      setIsProfileRoleLoading(true);
+      setProfileRoleError('');
       try {
-        const { data: userResult } = await supabase.auth.getUser();
+        const { data: userResult, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
         const userId = userResult?.user?.id;
-        if (!userId) {
-          if (isMounted) setCurrentProfileRole('viewer');
-          return;
-        }
+        if (!userId) throw new Error('No signed-in account.');
 
-        const { data: profile } = await supabase
+        const { data: profile, error: roleError } = await supabase
           .from('profile')
           .select('role')
           .eq('id', userId)
           .maybeSingle();
+        if (roleError) throw roleError;
 
-        if (isMounted) setCurrentProfileRole(String(profile?.role || 'viewer').trim().toLowerCase());
+        if (isMounted) setCurrentProfileRole(normalizeStudioRole(profile?.role));
       } catch {
-        if (isMounted) setCurrentProfileRole('viewer');
+        if (isMounted) {
+          setCurrentProfileRole('viewer');
+          setProfileRoleError('Your report access could not be verified. Please try again.');
+        }
       } finally {
         if (isMounted) setIsProfileRoleLoading(false);
       }
@@ -1304,13 +1355,13 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reportReloadVersion]);
 
   useEffect(() => {
-    if (!isProfileRoleLoading && isViewerProfile && (!reportId || reportAccessRole === 'owner')) {
+    if (!isProfileRoleLoading && !profileRoleError && isViewerProfile && (!reportId || reportAccessRole === 'owner')) {
       navigate('/insights-studio?tab=shared', { replace: true });
     }
-  }, [isProfileRoleLoading, isViewerProfile, navigate, reportAccessRole, reportId]);
+  }, [isProfileRoleLoading, isViewerProfile, navigate, profileRoleError, reportAccessRole, reportId]);
 
   useEffect(() => {
     fetchSensorDirectory(supabase).then(({ institutes }) => setAreas((institutes || []).map((institute) => ({
@@ -1322,81 +1373,87 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     fetchSensorDirectory(supabase).then(({ sensors }) => setAllRooms(sensors || []));
   }, []);
   useEffect(() => {
+    let active = true;
+    hasLoadedReportRef.current = false;
     const fetchExistingLayout = async () => {
-      if (reportId) { 
-        setIsReportLoading(true);
-        setReportAccessRole('loading');
-        try {
-          const { data, error } = await supabase
-            .from('saved_reports')
-            .select('*')
-            .eq('id', reportId)
-            .single();
-
-          if (error) throw error;
-          
-          if (data) {
-            const { data: userResult } = await supabase.auth.getUser();
-            const currentEmail = userResult?.user?.email?.toLowerCase() || '';
-            const sharedAccessForUser = getReportSharedAccess(data)[currentEmail];
-            setReportAccessRole(data.owner_id === userResult?.user?.id ? 'owner' : (sharedAccessForUser || 'viewer'));
-
-            setDocMeta({
-              title: data.title || 'Activity & Operations Report',
-              author: data.author || 'Transportation Analytics Team',
-              date: data.date || new Date().toLocaleDateString(),
-              period: data.period || 'Last 7 Days'
-            });
-            
-            const savedLayout = parseSavedLayoutData(data.layout_data);
-            if (savedLayout) {
-              const savedReportMode = inferReportModeFromLayout(savedLayout);
-              if (savedReportMode !== type) {
-                navigate(`/insights-studio/${savedReportMode}?id=${reportId}`, { replace: true });
-                return;
-              }
-
-              setElements(savedLayout.elements);
-              setPageCount(savedLayout.pageCount);
-              setSelections(savedLayout.selections);
-              setComparisonSelections(savedLayout.comparisonSelections);
-              const sharedWith = getReportSharedEmails(data);
-              const sharedAccess = getReportSharedAccess(data);
-              setReportSettings({
-                ...savedLayout.reportSettings,
-                sharedWith,
-                sharedAccess,
-              });
-              lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
-                mode: type,
-                elements: savedLayout.elements,
-                pageCount: savedLayout.pageCount,
-                selections: savedLayout.selections,
-                comparisonSelections: savedLayout.comparisonSelections,
-                reportSettings: {
-                  ...savedLayout.reportSettings,
-                  sharedWith,
-                  sharedAccess,
-                },
-              })));
-            }
-            setIsDirty(false);
-          }
-        } catch (err) {
-          console.error("Failed to load existing layout:", err.message);
-        } finally {
-          hasLoadedReportRef.current = true;
-          setIsReportLoading(false);
-        }
-      } else {
+      if (!reportId || createdReportIdRef.current === reportId) {
+        createdReportIdRef.current = null;
         hasLoadedReportRef.current = true;
         setReportAccessRole('owner');
+        setReportLoadError('');
         setIsReportLoading(false);
+        return;
+      }
+      setIsReportLoading(true);
+      setReportAccessRole('loading');
+      setReportLoadError('');
+      try {
+        const [result, auth] = await Promise.all([
+          supabase.from('saved_reports').select('*').eq('id', reportId).single(),
+          supabase.auth.getUser(),
+        ]);
+        if (!active) return;
+        if (result.error) throw result.error;
+        if (auth.error) throw auth.error;
+        let data = result.data;
+        if (viewingVersionId && data) {
+          const version = await loadReportVersion(supabase, reportId, viewingVersionId);
+          if (!active) return;
+          data = { ...data, ...version.snapshot };
+        }
+        const user = auth.data?.user;
+        if (!data || !user?.id) throw new Error('Report access is unavailable.');
+        const savedLayout = parseSavedLayoutData(data.layout_data);
+        if (!savedLayout) throw new Error('The saved report layout could not be read.');
+        const savedMode = inferReportModeFromLayout(savedLayout);
+        if (savedMode !== type) {
+          const params = new URLSearchParams({ id: reportId });
+          if (viewingVersionId) params.set('version', viewingVersionId);
+          if (returnReportTab === 'shared') params.set('fromTab', 'shared');
+          navigate('/insights-studio/' + savedMode + '?' + params, { replace: true });
+          return;
+        }
+        const loadedDocMeta = {
+          title: data.title || 'Activity & Operations Report',
+          author: data.author || 'Transportation Analytics Team',
+          date: data.date || new Date().toLocaleDateString(),
+          period: data.period || 'Last 7 Days',
+        };
+        const sharedWith = getReportSharedEmails(data);
+        const sharedAccess = getReportSharedAccess(data);
+        const settings = { ...savedLayout.reportSettings, sharedWith, sharedAccess };
+        textDraftsRef.current = {};
+        textSelectionRef.current = null;
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        setDocMeta(loadedDocMeta);
+        setElements(savedLayout.elements);
+        setPageCount(savedLayout.pageCount);
+        setSelections(savedLayout.selections);
+        setComparisonSelections(savedLayout.comparisonSelections);
+        setReportSettings(settings);
+        setSelectedElementId(null);
+        setEditingTextId(null);
+        setReportAccessRole(data.owner_id === user.id ? 'owner' : (sharedAccess[String(user.email || '').toLowerCase()] || 'viewer'));
+        lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
+          mode: type, elements: savedLayout.elements, pageCount: savedLayout.pageCount,
+          selections: savedLayout.selections, comparisonSelections: savedLayout.comparisonSelections,
+          reportSettings: settings,
+        }), loadedDocMeta));
+        hasLoadedReportRef.current = true;
+        setIsDirty(false);
+      } catch (error) {
+        if (active) {
+          console.error('Failed to open report:', error.message);
+          setReportLoadError('This report could not be opened. Please try again.');
+        }
+      } finally {
+        if (active) setIsReportLoading(false);
       }
     };
-
-    fetchExistingLayout();
-  }, [navigate, reportId, type]);
+    void fetchExistingLayout();
+    return () => { active = false; };
+  }, [navigate, reportId, reportReloadVersion, returnReportTab, type, viewingVersionId]);
 
   useEffect(() => {
     if (!reportId) {
@@ -1480,12 +1537,50 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   // Initial Elements - Resized to fit nicely
   const [elements, setElements] = useState(() => (reportId ? [] : createTemplateElements(templateConfig.id, isComparison)));
   const [pageCount, setPageCount] = useState(DEFAULT_PAGE_COUNT);
+  useEffect(() => { latestElementsRef.current = elements; }, [elements]);
 
   // Only gate entry behind a scope prompt for a genuinely new, non-blank report —
   // loading a saved report or starting from the blank template should never show this.
   const [showTargetPrompt, setShowTargetPrompt] = useState(() => !reportId && templateConfig.id !== 'blank');
 
   const [isSummaryCardsMenuOpen, setIsSummaryCardsMenuOpen] = useState(false);
+
+  // A query-string navigation can switch reports without remounting this route.
+  useEffect(() => {
+    if (lastUrlDocumentRef.current === urlDocumentKey) return;
+    lastUrlDocumentRef.current = urlDocumentKey;
+    const urlReportId = searchParams.get('id');
+    if (urlReportId && urlReportId === reportId) return;
+    hasLoadedReportRef.current = false;
+    lastCleanSnapshotRef.current = null;
+    createdReportIdRef.current = null;
+    pendingSavedUrlRef.current = null;
+    textDraftsRef.current = {};
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setEditingTextId(null);
+    setSelectedElementId(null);
+    setIsDirty(false);
+    setIsSaved(false);
+    setReportId(urlReportId);
+    setIsReportLoading(Boolean(urlReportId));
+    setReportLoadError('');
+    setReportAccessRole(urlReportId ? 'loading' : 'owner');
+    setShowTargetPrompt(!urlReportId && templateConfig.id !== 'blank');
+    if (!urlReportId) {
+      setElements(createTemplateElements(templateConfig.id, isComparison));
+      setPageCount(DEFAULT_PAGE_COUNT);
+      setReportSettings(getTemplateReportSettings(templateConfig.id, type));
+      setSelections(EMPTY_TARGET_SELECTION);
+      setComparisonSelections(EMPTY_TARGET_SELECTION);
+      setDocMeta({
+        title: TEMPLATE_DOC_META[templateConfig.id]?.title || (isComparison ? 'Comparison Report' : 'Activity & Operations Report'),
+        author: 'Transportation Analytics Team',
+        date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        period: TEMPLATE_DOC_META[templateConfig.id]?.period || 'Last 7 Days',
+      });
+    }
+  }, [isComparison, reportId, searchParams, templateConfig.id, type, urlDocumentKey]);
 
   useEffect(() => {
     if (!isSummaryCardsMenuOpen) return undefined;
@@ -1509,16 +1604,45 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const getCurrentReportSnapshotString = useCallback((candidateElements = elements, candidateReportSettings = reportSettings) => JSON.stringify(getComparableReportState(getSavedReportState({
     mode: type,
-    elements: candidateElements,
+    elements: applyTextDraftsToLayout(candidateElements, textDraftsRef.current),
     pageCount: visiblePageCount,
     selections,
     comparisonSelections,
     reportSettings: candidateReportSettings,
-  }))), [comparisonSelections, elements, reportSettings, selections, type, visiblePageCount]);
+  }), docMeta)), [comparisonSelections, docMeta, elements, reportSettings, selections, type, visiblePageCount]);
 
   const hasActualUnsavedChanges = useCallback((candidateElements = elements) => (
     !lastCleanSnapshotRef.current || getCurrentReportSnapshotString(candidateElements) !== lastCleanSnapshotRef.current
   ), [elements, getCurrentReportSnapshotString]);
+
+  useEffect(() => {
+    if (reportId || !hasLoadedReportRef.current || lastCleanSnapshotRef.current) return;
+    lastCleanSnapshotRef.current = getCurrentReportSnapshotString();
+    setIsDirty(false);
+  }, [getCurrentReportSnapshotString, reportId]);
+
+  const navigationBlocker = useBlocker(({ currentLocation, nextLocation, historyAction }) => {
+    const nextId = new URLSearchParams(nextLocation.search).get('id');
+    const isSavedUrlUpdate = historyAction === 'REPLACE'
+      && currentLocation.pathname === nextLocation.pathname
+      && pendingSavedUrlRef.current === nextId && nextId === reportId;
+    if (isSavedUrlUpdate) return false;
+    return !isReadOnlyReport && hasLoadedReportRef.current
+      && (isSaving || hasActualUnsavedChanges());
+  });
+
+  useEffect(() => { navigationBlockerRef.current = navigationBlocker; }, [navigationBlocker]);
+
+  useEffect(() => {
+    const savedId = pendingSavedUrlRef.current;
+    if (!savedId || savedId !== reportId || navigationBlocker.state !== 'unblocked') return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('id', savedId);
+      return next;
+    }, { replace: true });
+    pendingSavedUrlRef.current = null;
+  }, [navigationBlocker.state, reportId, setSearchParams]);
 
   const broadcastWidgetLock = useCallback((elementId) => {
     if (!elementId || elementId === 'cover' || !collaborationChannelRef.current || !collaborationUser) return;
@@ -1630,6 +1754,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const markDirty = useCallback(() => {
     if (isReadOnlyReport) return;
+    editRevisionRef.current += 1;
+    setIsSaved(false);
     if (hasLoadedReportRef.current) setIsDirty(true);
   }, [isReadOnlyReport]);
 
@@ -1652,6 +1778,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const restoreSnapshot = useCallback((snapshot) => {
     if (isReadOnlyReport) return;
     if (!snapshot) return;
+    textDraftsRef.current = {};
+    textSelectionRef.current = null;
+    setEditingTextId(null);
     setDocMeta(snapshot.docMeta);
     setElements(snapshot.elements);
     setPageCount(snapshot.pageCount);
@@ -1758,7 +1887,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       span.style[property] = value;
       span.appendChild(selectedText.range.extractContents());
       selectedText.range.insertNode(span);
-      const nextHtml = selectedText.container.innerHTML;
+      const nextHtml = sanitizeReportHtml(selectedText.container.innerHTML);
       textDraftsRef.current[id] = nextHtml;
       setElements(elements.map(el => el.id === id ? { ...el, html: nextHtml, content: stripHtml(nextHtml) } : el));
       markDirty();
@@ -1799,7 +1928,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const nextElements = sourceElements.map((element) => {
       if (element.type !== 'text') return element;
       const node = document.querySelector(`[data-text-element-id="${element.id}"]`);
-      const nextHtml = textDraftsRef.current[element.id] ?? node?.innerHTML;
+      const rawHtml = textDraftsRef.current[element.id] ?? node?.innerHTML;
+      const nextHtml = typeof rawHtml === 'string' ? sanitizeReportHtml(rawHtml) : rawHtml;
       if (typeof nextHtml !== 'string' || nextHtml === getTextHtml(element)) return element;
       didChange = true;
       return { ...element, html: nextHtml, content: stripHtml(nextHtml) };
@@ -1815,11 +1945,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const getNextZIndex = useCallback(() => Math.max(0, ...elements.map((element) => element.zIndex || 1)) + 1, [elements]);
 
-  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData) => {
+  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence) => {
     if (isReadOnlyReport) return;
     setElements((currentElements) => currentElements.map((element) => {
       if (element.id !== id || element.snapshotKey === snapshotKey) return element;
-      return { ...element, snapshotKey, snapshotData };
+      return { ...element, snapshotKey, snapshotData, ...(dataEvidence ? { dataEvidence } : {}) };
     }));
   }, [isReadOnlyReport]);
 
@@ -2336,7 +2466,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       
       originalHeight = element.style.height;
       element.style.height = `${totalRequiredHeight}px`;
-      await waitForReportReady(element, 2500);
+      await requireReportReady(element);
       await waitForNextPaint();
 
       const captureOptions = {
@@ -2391,6 +2521,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       const pageCanvases = [];
       for (const [index, pageNode] of previewPages.entries()) {
         try {
+          await requireReportReady(pageNode);
+          await waitForNextPaint();
           const pageCanvas = await captureCanvasWithFallbacks(pageNode, {
             useCORS: true,
             allowTaint: true,
@@ -2550,7 +2682,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       return false;
     }
 
-    setReportSettings(nextReportSettings);
+    setReportSettings((current) => ({ ...current, sharedWith: nextReportSettings.sharedWith, sharedAccess: nextReportSettings.sharedAccess }));
     setShareNotice('Access updated.');
     lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
       mode: type,
@@ -2559,7 +2691,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       selections,
       comparisonSelections,
       reportSettings: nextReportSettings,
-    })));
+    }), getCheckpointDocMeta(lastCleanSnapshotRef.current, docMeta)));
     setIsDirty(false);
     setIsSharing(false);
     return true;
@@ -2714,12 +2846,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     if (error) {
       console.error('Failed to mark report as shared:', error.message);
-      setShareError('The report was shared, but the local share indicator could not be saved.');
+      setShareError('Couldn’t share the report. Please try again.');
       setIsSharing(false);
       return;
     }
 
-    setReportSettings(nextReportSettings);
+    setReportSettings((current) => ({ ...current, sharedWith: nextReportSettings.sharedWith, sharedAccess: nextReportSettings.sharedAccess }));
     lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
       mode: type,
       elements: committedElements,
@@ -2727,7 +2859,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       selections,
       comparisonSelections,
       reportSettings: nextReportSettings,
-    })));
+    }), getCheckpointDocMeta(lastCleanSnapshotRef.current, docMeta)));
     setIsDirty(false);
     setShareEmail('');
     setSelectedShareRecipients([]);
@@ -2748,144 +2880,135 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     exportPageCountRef.current = DEFAULT_PAGE_COUNT;
   };
 
-  const handleSaveLayout = async() => {
+  const handleSaveLayout = () => runSaveTask(async () => {
     if (isReadOnlyReport) {
       alert('You have viewer access for this report. Ask the owner for editor access to save changes.');
       return null;
     }
-
+    setIsSaving(true);
     setIsSaved(false);
-    const committedElements = commitTextDrafts();
-    if (reportRef.current) {
-      await waitForReportReady(reportRef.current, 2500);
-      await waitForNextPaint();
-    }
-
-    const { data: userResult } = await supabase.auth.getUser();
-    const currentUser = userResult?.user || null;
-    const savedBy = currentUser?.email || docMeta.author || 'Unknown user';
-    const nextReportSettings = {
-      ...reportSettings,
-      lastSavedBy: savedBy,
-      lastSavedAt: new Date().toISOString(),
-    };
-
-    const payload = {
-        title: docMeta.title,
-        author: docMeta.author,
-        period: docMeta.period,
-        date: docMeta.date,
-        layout_data: getSavedReportState({
-          mode: type,
-          elements: committedElements,
-          pageCount: visiblePageCount,
-          selections,
-          comparisonSelections,
-          reportSettings: nextReportSettings,
-        }),
-    };
-
+    clearTimeout(savedIndicatorTimerRef.current);
     try {
-      let response;
-      let savedReportId = reportId;
-      
-      if (reportId) {
-        // Update existing report
-        response = await supabase
-          .from('saved_reports')
-          .update(payload)
-          .eq('id', reportId);
-      } else {
-        // Insert brand new report
-        response = await supabase
-          .from('saved_reports')
-          .insert([{ ...payload, ...(currentUser?.id ? { owner_id: currentUser.id } : {}) }])
-          .select(); 
-          
-        if (!response.error && response.data?.[0]) {
-          const newId = response.data[0].id;
-          savedReportId = newId;
-          setReportId(newId);
-          // Safely updates the URL so React Router knows this is now an existing document
-          setSearchParams({ id: newId, ...(returnReportTab === 'shared' ? { fromTab: 'shared' } : {}) }); 
-        }
+      const committedElements = commitTextDrafts();
+      const savedRevision = editRevisionRef.current;
+      if (reportRef.current) {
+        await requireReportReady(reportRef.current);
+        await waitForNextPaint();
       }
-
-      if (response.error) throw response.error;
-
-      setReportSettings(nextReportSettings);
-      lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(getSavedReportState({
-        mode: type,
-        elements: committedElements,
-        pageCount: visiblePageCount,
-        selections,
-        comparisonSelections,
-        reportSettings: nextReportSettings,
-      })));
-      setIsSaved(true);
-      setIsDirty(false);
-      setTimeout(() => setIsSaved(false), 3000);
-      return savedReportId || true;
+      const { data: userResult, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      const currentUser = userResult?.user;
+      if (!currentUser?.id) throw new Error('Sign in again before saving this report.');
+      const nextReportSettings = {
+        ...reportSettings,
+        metricDefinitions: reportSettings.metricDefinitions || REPORT_METRICS[STUDIO_PRODUCT],
+        metricDefinitionVersion: reportSettings.metricDefinitionVersion || 1,
+        lastSavedBy: currentUser.email || currentUser.id,
+        lastSavedAt: new Date().toISOString(),
+      };
+      const savedState = getSavedReportState({
+        mode: type, elements: committedElements.map(element => {
+          const latest = latestElementsRef.current.find(candidate => candidate.id === element.id);
+          return latest ? { ...element, snapshotData: latest.snapshotData, snapshotKey: latest.snapshotKey,
+            ...(latest.dataEvidence ? { dataEvidence: latest.dataEvidence } : {}) } : element;
+        }), pageCount: visiblePageCount,
+        selections, comparisonSelections, reportSettings: nextReportSettings,
+      });
+      const payload = {
+        title: docMeta.title, author: docMeta.author, period: docMeta.period,
+        date: docMeta.date, layout_data: savedState,
+      };
+      const savedReportId = await saveReportRecord(supabase, { reportId, payload, user: currentUser });
+      if (!mountedRef.current) return savedReportId;
+      lastSavedRevisionRef.current = savedRevision;
+      if (!reportId) {
+        // This document is already in memory. Reloading it would erase edits made while saving.
+        createdReportIdRef.current = savedReportId;
+        setReportId(savedReportId);
+        pendingSavedUrlRef.current = savedReportId;
+      }
+      setReportSettings((current) => ({ ...current,
+        lastSavedBy: nextReportSettings.lastSavedBy, lastSavedAt: nextReportSettings.lastSavedAt,
+      }));
+      lastCleanSnapshotRef.current = JSON.stringify(getComparableReportState(savedState, docMeta));
+      const newerEdits = editRevisionRef.current !== savedRevision;
+      setIsSaved(!newerEdits);
+      setIsDirty(newerEdits);
+      if (!newerEdits) savedIndicatorTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
+      return savedReportId;
     } catch (error) {
-      console.error('Failed to save layout:', error.message);
-      alert('Failed to save layout. Please try again.');
+      console.error('Failed to save report:', error.message);
+      if (mountedRef.current) alert(error.message === 'Charts are still loading. Try again once they finish.'
+        ? error.message : 'Couldn’t save the report. Please try again.');
       return false;
+    } finally {
+      if (mountedRef.current) setIsSaving(false);
     }
-  };
+  });
 
-  const handleExitRequest = async () => {
-    const committedElements = commitTextDrafts();
-    if (!isDirty) {
-      navigate(insightsLandingPath);
-      return;
-    }
+  const handleExitRequest = () => navigate(insightsLandingPath);
 
-    if (!hasActualUnsavedChanges(committedElements)) {
-      setIsDirty(false);
-      navigate(insightsLandingPath);
-      return;
-    }
+  const isNavigationBlocked = navigationBlocker.state === 'blocked';
+  const navigationDialog = isNavigationBlocked ? {
+    title: 'Unsaved report changes',
+    message: 'Save this report before leaving Insights Studio?',
+    actions: [
+      { value: 'cancel', label: 'Keep editing', variant: 'secondary' },
+      { value: 'discard', label: 'Leave without saving', variant: 'danger' },
+      { value: 'save', label: 'Save and leave', variant: 'primary' },
+    ],
+  } : null;
 
-    const exitAction = await requestConfirmation({
-      title: 'Unsaved report changes',
-      message: 'Save this report before leaving Insights Studio?',
-      actions: [
-        { value: 'cancel', label: 'Keep editing', variant: 'secondary' },
-        { value: 'discard', label: 'Leave without saving', variant: 'danger' },
-        { value: 'save', label: 'Save and leave', variant: 'primary' },
-      ],
-    });
-
-    if (exitAction === 'save') {
+  const resolveNavigation = async (action) => {
+    if (isSavingAndLeaving) return;
+    if (action === 'save') {
       setIsSavingAndLeaving(true);
       try {
-        const didSave = await handleSaveLayout();
-        if (didSave) navigate(insightsLandingPath);
+        const savedId = await handleSaveLayout();
+        if (!mountedRef.current) return;
+        const blocker = navigationBlockerRef.current;
+        if (savedId && editRevisionRef.current === lastSavedRevisionRef.current) {
+          pendingSavedUrlRef.current = null;
+          if (blocker?.state === 'blocked') blocker.proceed();
+        } else if (blocker?.state === 'blocked') {
+          blocker.reset();
+        }
       } finally {
+        if (mountedRef.current) setIsSavingAndLeaving(false);
+      }
+    } else if (action === 'discard') {
+      // Let an already-started write settle before switching to another report.
+      // Otherwise its completion could overwrite the next report's editor state.
+      if (isSaving) {
+        setIsSavingAndLeaving(true);
+        await handleSaveLayout();
+        if (!mountedRef.current) return;
         setIsSavingAndLeaving(false);
       }
-    }
-
-    if (exitAction === 'discard') {
-      navigate(insightsLandingPath);
+      pendingSavedUrlRef.current = null;
+      const blocker = navigationBlockerRef.current;
+      if (blocker?.state === 'blocked') blocker.proceed();
+    } else {
+      navigationBlocker.reset();
     }
   };
 
   useEffect(() => {
-    if (!isDirty || !hasActualUnsavedChanges()) return undefined;
+    if (isReadOnlyReport) return undefined;
 
     const handleBeforeUnload = (event) => {
+      if (!hasLoadedReportRef.current || !hasActualUnsavedChanges()) return;
       event.preventDefault();
       event.returnValue = '';
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasActualUnsavedChanges, isDirty]);
+  }, [hasActualUnsavedChanges, isDirty, isReadOnlyReport]);
 
   useEffect(() => {
     const handleKeyboardDelete = (event) => {
-      if (isReadOnlyReport) return;
+      if (isReadOnlyReport || isSavingAndLeaving || isNavigationBlocked) return;
       const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
       const isRedo = isUndo && event.shiftKey;
       const isCopy = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c';
@@ -2924,7 +3047,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     window.addEventListener('keydown', handleKeyboardDelete);
     return () => window.removeEventListener('keydown', handleKeyboardDelete);
-  }, [confirmDialog, copySelectedElement, deleteSelected, isReadOnlyReport, pasteCopiedElement, redoLastChange, selectedElementId, undoLastChange]);
+  }, [confirmDialog, copySelectedElement, deleteSelected, isReadOnlyReport, isSavingAndLeaving, isNavigationBlocked, pasteCopiedElement, redoLastChange, selectedElementId, undoLastChange]);
 
   const renderTargetControls = ({
     title: sectionTitle = 'Data Source',
@@ -3054,6 +3177,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   };
 
   const renderElementContent = (el) => {
+    if (isViewingVersion && ['chart', 'summary'].includes(el.type) && !el.snapshotData) return <p>No data was saved for this module in this version.</p>;
+
     const elementPrimarySelections = getElementPrimarySelections(el);
     const elementComparisonSelections = getElementComparisonSelections(el);
     const elementPrimaryTarget = getTargetFromSelections(elementPrimarySelections, '');
@@ -3075,7 +3200,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     if (el.type === 'text') {
       const isEditing = editingTextId === el.id;
       const savedTextHtml = getTextHtml(el);
-      const textHtml = textDraftsRef.current[el.id] ?? savedTextHtml;
+      const textHtml = sanitizeReportHtml(textDraftsRef.current[el.id] ?? savedTextHtml);
 
       return (
         <div
@@ -3085,15 +3210,22 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           onFocus={() => {
             if (!isReadOnlyReport) setSelectedElementId(el.id);
           }}
+          onPaste={(event) => {
+            if (isReadOnlyReport) return;
+            const html = event.clipboardData?.getData('text/html');
+            if (!html) return;
+            event.preventDefault();
+            document.execCommand('insertHTML', false, sanitizeReportHtml(html));
+          }}
           onInput={(event) => {
             if (isReadOnlyReport) return;
-            const nextHtml = event.currentTarget.innerHTML;
+            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
             textDraftsRef.current[el.id] = nextHtml;
             markDirty();
           }}
           onBlur={(event) => {
             if (isReadOnlyReport) return;
-            const nextHtml = event.currentTarget.innerHTML;
+            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
             textDraftsRef.current[el.id] = nextHtml;
             if (event.relatedTarget?.closest?.('[data-insights-editor-sidebar="true"]')) {
               markDirty();
@@ -3153,7 +3285,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       </div>
     );
 
-    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} /></div>;
     if (el.type === 'summary') {
       const attachedChart = getAttachedChart(el);
       const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
@@ -3164,16 +3296,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         timeframe: getElementTimeframe(attachedChart),
       }) : '';
       const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
-      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} /></div>;
+      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} /></div>;
     }
     if (el.type === 'chart' && isComparison) return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data) => updateElementSnapshot(el.id, elementSnapshotKey, data)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -3324,6 +3456,20 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
   };
 
+  if (reportLoadError || profileRoleError) {
+    return (
+      <main className={styles.builderPage} data-theme="light">
+        <div className={styles.builderAccessLoading} role="alert">
+          <p>{reportLoadError || profileRoleError}</p>
+          <div className={styles.builderErrorActions}>
+            <button type="button" className={styles.primaryBtn} onClick={() => setReportReloadVersion((version) => version + 1)}>Try again</button>
+            <button type="button" className={styles.toolbarBtn} onClick={() => navigate(insightsLandingPath)}>Back to reports</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (isReportAccessPending) {
     return (
       <main className={styles.builderPage} data-theme="light">
@@ -3341,23 +3487,24 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       
       {/* TOP NAVBAR */}
       <header className={styles.builderTopNav}>
-        <div className={styles.navGroup}>
-          <button onClick={handleExitRequest} className={styles.backLink}>← Back</button>
-          <span className={styles.navTitle}>{title} Builder</span>
-          <span className={styles.collaborationPill} title={isReadOnlyReport ? 'View only' : collaborators.map((user) => user.email || user.name).join(', ')}>
-            {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Save to collaborate'}
+        <div className={`${styles.navGroup} ${styles.builderIdentity}`}>
+          <ToolbarIconButton label="Back to reports" tooltipAlign="start" onClick={handleExitRequest} disabled={isSaving || isSharing}><ArrowLeft size={18} aria-hidden="true" /></ToolbarIconButton>
+          <span className={styles.navTitle} title={`${title} Builder`}>{title} Builder</span>
+          <span className={styles.collaborationPill} title={isReadOnlyReport ? 'View only' : !reportId ? 'Save the report to collaborate' : collaborators.map((user) => user.email || user.name).join(', ')}>
+            {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Draft'}
           </span>
         </div>
         
         {canUseBuilderTools && <div className={`${styles.navGroup} ${styles.toolbarGroup}`}>
-          <button onClick={() => addNewElement('text')} className={styles.toolbarBtn}><Type size={14} /> Text</button>
-          <button onClick={() => addNewElement('chart')} className={styles.toolbarBtn}><BarChart2 size={14} /> Chart</button>
+          <ToolbarIconButton label="Add text" onClick={() => addNewElement('text')}><Type size={18} aria-hidden="true" /></ToolbarIconButton>
+          <ToolbarIconButton label="Add chart" onClick={() => addNewElement('chart')}><BarChart2 size={18} aria-hidden="true" /></ToolbarIconButton>
           <div className={styles.toolbarBtnGroup} ref={summaryCardsMenuRef}>
-            <button onClick={() => setIsSummaryCardsMenuOpen((isOpen) => !isOpen)} className={styles.toolbarBtn}>
-              <Layers size={14} /> Summary Cards
-            </button>
+            <ToolbarIconButton label="Add summary card" aria-expanded={isSummaryCardsMenuOpen}
+              aria-controls="insights-summary-menu" onClick={() => setIsSummaryCardsMenuOpen((isOpen) => !isOpen)}>
+              <Layers size={18} aria-hidden="true" />
+            </ToolbarIconButton>
             {isSummaryCardsMenuOpen && (
-              <div className={styles.toolbarDropdownMenu}>
+              <div id="insights-summary-menu" className={styles.toolbarDropdownMenu}>
                 {(isComparison ? COMPARISON_SUMMARY_MODES : SUMMARY_METRIC_OPTIONS).map((metric) => (
                   <button
                     key={metric.value}
@@ -3371,9 +3518,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
               </div>
             )}
           </div>
-          <button onClick={() => uploadInputRef.current?.click()} className={styles.toolbarBtn}><ImagePlus size={14} /> Insert</button>
-          <button onClick={addLinkElement} className={styles.toolbarBtn}><Link2 size={14} /> Link</button>
-          <button onClick={() => addNewElement('divider')} className={styles.toolbarBtn}><MinusSquare size={14} /> Divider</button>
+          <ToolbarIconButton label="Insert file" onClick={() => uploadInputRef.current?.click()}><ImagePlus size={18} aria-hidden="true" /></ToolbarIconButton>
+          <ToolbarIconButton label="Add link" onClick={addLinkElement}><Link2 size={18} aria-hidden="true" /></ToolbarIconButton>
+          <ToolbarIconButton label="Add divider" onClick={() => addNewElement('divider')}><MinusSquare size={18} aria-hidden="true" /></ToolbarIconButton>
           <input
             ref={uploadInputRef}
             type="file"
@@ -3386,19 +3533,33 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           />
         </div>}
 
-        {canUseBuilderTools && <div className={styles.navGroup}>
-          <button onClick={handleExportPreview} disabled={isDownloading} className={styles.toolbarBtn}>
-             <Download size={16} /> Preview Export
-          </button>
-          {reportAccessRole === 'owner' && (
-          <button onClick={handleOpenShareDialog} className={styles.toolbarBtn}>
-             <Share2 size={16} /> Share
-          </button>
+        <div className={`${styles.navGroup} ${styles.reportActions}`}>
+          <ToolbarIconButton label="Report details" aria-haspopup="dialog" onClick={() => {
+            setWorkspaceInitialTab('overview'); setIsWorkspaceOpen(true);
+          }}><PanelRightOpen size={18} aria-hidden="true" /></ToolbarIconButton>
+          <ToolbarIconButton label="Comments" aria-haspopup="dialog" onClick={() => {
+            setWorkspaceInitialTab('discussion'); setIsWorkspaceOpen(true);
+          }}><MessageSquare size={18} aria-hidden="true" /></ToolbarIconButton>
+          {isViewingVersion && <ToolbarIconButton label="Return to draft" onClick={() => setSearchParams(current => {
+            const next = new URLSearchParams(current); next.delete('version'); return next;
+          })}><Undo2 size={18} aria-hidden="true" /></ToolbarIconButton>}
+          <ToolbarIconButton label="Preview export" onClick={handleExportPreview} disabled={isDownloading}>
+            <Download size={18} aria-hidden="true" />
+          </ToolbarIconButton>
+          {canUseBuilderTools && reportAccessRole === 'owner' && (
+            <ToolbarIconButton label="Share report" onClick={handleOpenShareDialog} disabled={isSaving || isSharing}>
+              <Share2 size={18} aria-hidden="true" />
+            </ToolbarIconButton>
           )}
-          <button onClick={handleSaveLayout} disabled={isReadOnlyReport} className={styles.primaryBtn}>
-             {isSaved ? 'Saved!' : 'Save Layout'}
-          </button>
-        </div>}
+          {canUseBuilderTools && <ToolbarIconButton label="Save report" tooltipAlign="end" primary
+            tooltip={isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save report'}
+            aria-busy={isSaving} data-save-state={isSaving ? 'saving' : isSaved ? 'saved' : 'idle'}
+            onClick={handleSaveLayout} disabled={isReadOnlyReport || isSaving || isSharing}>
+            {isSaving ? <LoaderCircle size={18} aria-hidden="true" className={styles.saveSpinner} />
+              : isSaved ? <Check size={18} aria-hidden="true" /> : <Save size={18} aria-hidden="true" />}
+          </ToolbarIconButton>}
+          <span className={styles.screenReaderOnly} role="status" aria-live="polite">{isSaving ? 'Saving report' : isSaved ? 'Report saved' : ''}</span>
+        </div>
       </header>
 
       <div className={`${styles.workspace} ${isReadOnlyReport ? styles.viewerWorkspace : ''}`}>
@@ -4325,8 +4486,36 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         </div>}
 
       </div>
+      {isWorkspaceOpen && <ReportWorkspace initialTab={workspaceInitialTab} client={supabase} reportId={reportId} product={STUDIO_PRODUCT}
+        elements={elements} decisionQuestion={reportSettings.decisionQuestion || ''} metricDefinitions={reportSettings.metricDefinitions} readOnly={reportAccessRole === 'viewer' || isReportAccessPending || isViewerProfile} documentReadOnly={isViewingVersion} currentVersionId={viewingVersionId}
+        onDecisionChange={value => updateReportSettings({ decisionQuestion: value })}
+        onClose={() => setIsWorkspaceOpen(false)}
+        onSave={async () => {
+          const savedId = await handleSaveLayout();
+          if (savedId && editRevisionRef.current !== lastSavedRevisionRef.current) throw new Error('New edits arrived during saving. Save again before requesting review.');
+          return savedId;
+        }}
+        onRefreshData={() => {
+          pushUndoSnapshot();
+          setElements(current => current.map(element => ({ ...element, snapshotData: undefined, snapshotKey: undefined, dataEvidence: undefined })));
+          setReportSettings(current => ({ ...current, metricDefinitions: REPORT_METRICS[STUDIO_PRODUCT], metricDefinitionVersion: 1 }));
+          markDirty(); setIsWorkspaceOpen(false);
+        }}
+        onOpenVersion={id => { setIsWorkspaceOpen(false); setSearchParams(current => {
+          const next = new URLSearchParams(current); next.set('version', id); return next;
+        }); }}
+        onRestore={async versionId => {
+          if (hasActualUnsavedChanges() && !window.confirm('Replace the unsaved working copy with this saved version?')) return;
+          await runReportCommand(supabase, reportId, 'restore', { version_id: versionId });
+          setIsWorkspaceOpen(false);
+          setSearchParams(current => { const next = new URLSearchParams(current); next.delete('version'); return next; });
+          setReportReloadVersion(value => value + 1);
+        }} />}
       <SavingReportOverlay isOpen={isSavingAndLeaving} />
-      <ConfirmDialog dialog={confirmDialog} onClose={resolveConfirmation} />
+      <ConfirmDialog
+        dialog={isSavingAndLeaving ? null : navigationDialog || confirmDialog}
+        onClose={navigationDialog ? resolveNavigation : resolveConfirmation}
+      />
       {renderTargetPromptModal()}
       <ExportPreviewModal
         isOpen={Boolean(exportPreviewImage)}
@@ -4446,7 +4635,7 @@ const InsightsStudio = () => {
   const isViewerRole = currentUserRole === 'viewer';
   const visibleReportTab = isViewerRole ? 'shared' : activeReportTab;
   const activeReports = visibleReportTab === 'owned' ? ownReports : sharedReports;
-  const builderReturnQuery = activeReportTab === 'shared' ? '&fromTab=shared' : '';
+  const builderReturnQuery = visibleReportTab === 'shared' ? '&fromTab=shared' : '';
 
   const updateActiveReportTab = (tab) => {
     if (isViewerRole && tab !== 'shared') return;
@@ -4462,7 +4651,7 @@ const InsightsStudio = () => {
 
     const confirmDelete = await requestConfirmation({
       title: 'Delete saved report?',
-      message: 'This report will be removed from Insights Studio. This cannot be undone.',
+      message: 'This report, its saved versions, comments, and follow-up actions will be permanently removed.',
       actions: [
         { value: false, label: 'Cancel', variant: 'secondary' },
         { value: true, label: 'Delete report', variant: 'danger' },
@@ -4507,12 +4696,13 @@ const InsightsStudio = () => {
         const { data: userResult } = await supabase.auth.getUser();
         setCurrentUser(userResult?.user || null);
         if (userResult?.user?.id) {
-          const { data: profile } = await supabase
+          const { data: profile, error: roleError } = await supabase
             .from('profile')
             .select('role')
             .eq('id', userResult.user.id)
             .maybeSingle();
-          setCurrentUserRole(String(profile?.role || 'viewer').trim().toLowerCase());
+          if (roleError) throw roleError;
+          setCurrentUserRole(normalizeStudioRole(profile?.role));
         } else {
           setCurrentUserRole('viewer');
         }
@@ -4529,8 +4719,15 @@ const InsightsStudio = () => {
           return;
         }
         
+        let reportRows = data || [];
+        if (reportRows.length) {
+          const { data: workflows } = await supabase.from('insight_report_workflows')
+            .select('report_id,status,published_version_id').in('report_id', reportRows.map(report => report.id));
+          const byId = new Map((workflows || []).map(workflow => [workflow.report_id, workflow]));
+          reportRows = reportRows.map(report => ({ ...report, workflow: byId.get(report.id) }));
+        }
         setSavedReportsError('');
-        setReports(sortReportsByLastSaved(data || []));
+        setReports(sortReportsByLastSaved(reportRows));
       } catch (err) {
         console.error('Failed to retrieve archived reports:', err.message);
         setSavedReportsError(err.message);
@@ -4578,8 +4775,9 @@ const InsightsStudio = () => {
                   {sharedEmails.length ? <Users size={18} /> : <User size={18} />}
                 </div>
                 <div className={styles.savedReportTitleBlock}>
-                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>{report.title || 'Untitled Snapshot'}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>By {report.author || 'System Agent'}</div>
+                  <div className={styles.savedReportTitle}>{report.title || 'Untitled report'}</div>
+                  {report.workflow && <small className={styles.reportStatus}>{({ draft: 'Draft', in_review: 'In review', reviewed: 'Reviewed', published: 'Published' })[report.workflow.status] || 'Draft'}{report.workflow.published_version_id && report.workflow.status !== 'published' ? ' · Published version available' : ''}</small>}
+                  <div className={styles.reportAuthor}>{report.author ? `By ${report.author}` : 'Author not specified'}</div>
                 </div>
               </div>
               
@@ -4591,24 +4789,14 @@ const InsightsStudio = () => {
               </div>
               
               <div className={styles.savedReportActions}>
-                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '999px', background: '#34524D', color: '#ffffff', fontSize: '13px', fontWeight: 700, textDecoration: 'none', transition: 'background-color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#28423E'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#34524D'}>
-                  Open Workspace <ArrowRight size={14} />
+                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} className={styles.openReportButton}>
+                  Open report <ArrowRight size={14} aria-hidden="true" />
                 </Link>
 
                 {owned && (
-                  <button
-                    onClick={() => handleDeleteReport(report)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: '34px', height: '34px', borderRadius: '50%',
-                      background: '#fef2f2', border: '1px solid #fee2e2',
-                      color: '#ef4444', cursor: 'pointer', transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.transform = 'scale(1)'; }}
-                    title="Delete Report"
-                  >
-                    <Trash2 size={16} />
+                  <button type="button" className={styles.deleteReportButton}
+                    onClick={() => handleDeleteReport(report)} aria-label={`Delete ${report.title || 'report'}`} title="Delete report">
+                    <Trash2 size={16} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -4627,11 +4815,10 @@ const InsightsStudio = () => {
         <header className={styles.hero}>
           <h1>Insights Studio</h1>
           <p>Turn activity data into clear, presentation-ready insights.</p>
-          <p>Choose an insight type to begin.</p>
         </header>
 
         {/* INSIGHT CREATION CARDS */}
-        {!isViewerRole && <section className={styles.cardGrid}>
+        {currentUserRole !== null && !isViewerRole && <section className={styles.cardGrid}>
           <article className={styles.insightCard}>
             <div className={styles.cardCopy}>
               <h2>Solo Insight</h2>
@@ -4682,7 +4869,7 @@ const InsightsStudio = () => {
           </article>
         </section>}
 
-        {!isViewerRole && templatePickerMode && (
+        {currentUserRole !== null && !isViewerRole && templatePickerMode && (
           <div className={styles.modalOverlay} role="presentation" onMouseDown={() => setTemplatePickerMode(null)}>
             <div className={styles.templateChoiceDialog} role="dialog" aria-modal="true" aria-labelledby="template-choice-title" onMouseDown={(event) => event.stopPropagation()}>
               <div className={styles.templateChoiceHeader}>
@@ -4717,28 +4904,28 @@ const InsightsStudio = () => {
           </div>
         )}
 
-        {/* --- RECENT REPORTS ARCHIVE VAULT --- */}
+        {/* Saved reports */}
         <section className={styles.templates}>
-          <h2>Previously Generated Reports</h2>
+          <h2>Saved reports</h2>
           
           {isLoading ? (
-            <div style={{ minHeight: '96px' }} aria-hidden="true" />
+            <div className={styles.reportsLoading} role="status">Loading reports…</div>
           ) : savedReportsError ? (
-            <div style={{ marginTop: '24px', padding: '32px', background: '#fff7ed', borderRadius: '12px', border: '1px solid #fed7aa', color: '#9a3412', textAlign: 'center' }}>
-              <FileText size={32} style={{ color: '#fb923c', marginBottom: '12px' }} />
-              <p style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Saved reports could not connect.</p>
-              <p style={{ margin: '6px 0 0', fontSize: '13px', opacity: 0.9 }}>{savedReportsError}</p>
+            <div className={styles.reportsError} role="alert">
+              <FileText size={24} aria-hidden="true" />
+              <p>Saved reports could not connect.</p>
+              <span>{savedReportsError}</span>
             </div>
           ) : reports.length === 0 ? (
-            <div style={{ marginTop: '24px', padding: '48px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', textAlign: 'center' }}>
-              <FileText size={32} style={{ color: '#bcb4b7', marginBottom: '12px' }} />
-              <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>No saved documents found.</p>
-              <p style={{ margin: '4px 0 0', fontSize: '13px', opacity: 0.8 }}>Reports generated in the Custom Layout Builder will appear here.</p>
+            <div className={styles.emptyReportGroup}>
+              <FileText size={26} aria-hidden="true" />
+              <p>No saved reports yet.</p>
+              <span>Reports you save will appear here.</span>
             </div>
           ) : (
             <div className={styles.reportTabsPanel}>
               <div className={styles.reportTabs} role="tablist" aria-label="Saved report ownership">
-                {!isViewerRole && <button
+                {currentUserRole !== null && !isViewerRole && <button
                   type="button"
                   role="tab"
                   aria-selected={visibleReportTab === 'owned'}
