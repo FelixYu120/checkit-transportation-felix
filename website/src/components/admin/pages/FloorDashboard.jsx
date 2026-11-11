@@ -396,7 +396,11 @@ const FloorDashboard = () => {
                         label: areaName,
                         to: areaPath,
                     },
-                    { label: corridorName },
+                    { label: <span className={styles.sensorName}>{corridorName}{sensor && <SensorHeartbeatBadge
+                                        dotOnly
+                                        sensorId={sensor.sensor_id}
+                                        state={{ heartbeats: new Map([[String(sensor.sensor_id), sensor.last_seen_at || null]]), now: Date.now() }}
+                                    />}</span> },
                 ]}
             />
 
@@ -408,11 +412,7 @@ const FloorDashboard = () => {
                         <div className={styles.sensorStatusRow}>
                             <div className={styles.sensorStatusStack}>
                                 <div className={styles.sensorStatusControls}>
-                                    <SensorHeartbeatBadge
-                                        showLabel
-                                        sensorId={sensor.sensor_id}
-                                        state={{ heartbeats: new Map([[String(sensor.sensor_id), sensor.last_seen_at || null]]), now: Date.now() }}
-                                    />
+
                                     <button
                                         type="button"
                                         className={styles.metadataInfoButton}

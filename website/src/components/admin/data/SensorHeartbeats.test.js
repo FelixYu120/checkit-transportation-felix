@@ -129,23 +129,25 @@ afterEach(async () => {
 });
 after(() => { dom.window.close(); Date.now = originalNow; globalThis.setInterval = originalInterval; globalThis.clearInterval = originalClearInterval; delete globalThis.__heartbeatTestClient; delete globalThis.__heartbeatTestFixture; delete globalThis.__heartbeatTestHook; delete globalThis.__heartbeatTestBadge; delete globalThis.IntersectionObserver; });
 
-test('three borderless status indicators age from active to down and offline without last-heartbeat text', async () => {
+test('only the current sensor status appears as it ages from active to down and offline', async () => {
   fixture.rows = [{ [SOURCE.idColumn]: 'sensor', last_seen_at: atAge(30) }];
   await mount();
   assert.equal(currentStatus(), 'Active');
-  assert.deepEqual([...document.querySelectorAll('[data-state]')].map(node => node.textContent), ['Active', 'Down', 'Offline']);
+  assert.deepEqual([...document.querySelectorAll('[data-state]')].map(node => node.textContent), ['Active']);
   assert.equal(document.querySelector('time'), null, 'active sensors have no last-heartbeat date');
   assert.equal(document.body.textContent.includes('Heartbeat'), false);
   assert.equal([...timers.values()][0].delay, 10000);
   clock += 60001;
   await tick();
   assert.equal(currentStatus(), 'Down');
+  assert.deepEqual([...document.querySelectorAll('[data-state]')].map(node => node.textContent), ['Down']);
   assert.equal(document.querySelector('[aria-current="true"]').getAttribute('data-status-since'), new Date(NOW).toISOString());
   assert.match(document.querySelector('[aria-current="true"]').getAttribute('aria-label'), /Down since/);
   assert.equal(document.body.textContent.includes('Down since'), false, 'date stays out of the status row');
   clock = NOW + 1441 * 60000;
   await tick();
   assert.equal(currentStatus(), 'Offline');
+  assert.deepEqual([...document.querySelectorAll('[data-state]')].map(node => node.textContent), ['Offline']);
   assert.equal(document.querySelector('[aria-current="true"]').getAttribute('data-status-since'), new Date(Date.parse(atAge(30)) + HEARTBEAT_OFFLINE_AFTER_MS).toISOString());
   assert.match(document.querySelector('[aria-current="true"]').getAttribute('aria-label'), /Offline since/);
   assert.equal(document.body.textContent.includes('Offline since'), false, 'date stays out of the status row');
@@ -206,7 +208,7 @@ test('scope changes cancel old responses and cleanup stops polling and subscript
 });
 
 
-test('the actual main directory attaches check-ins to sensor IDs rather than room or area IDs', async () => {
+test('the public real-time directory shows names without sensor health indicators or health requests', async () => {
   fixture.rows = [{ [SOURCE.idColumn]: 'sensor', last_seen_at: atAge(2) }];
   fixture.rooms = [{ id: 'room-id', room_name: 'Boardroom', radar_id: 'sensor', building_id: 'building-id', floor_number: 1, room_capacity: 6, current_people_count: 0, current_density: 0, buildings: { name: 'Library' } }];
   fixture.directorySensors = [{ sensor_id: 'sensor', institute_id: 'ucsd', area_name: 'Gilman', corridor_name: 'North Lane', status: 'active' }];
@@ -214,18 +216,26 @@ test('the actual main directory attaches check-ins to sensor IDs rather than roo
   root = createRoot(document.getElementById('root'));
   await act(async () => root.render(React.createElement(Dashboard)));
   assert.match(document.body.textContent, SOURCE.idColumn === 'radar_id' ? /Boardroom/ : /North Lane/);
-  assert.equal(currentStatus(), 'Active');
-  assert.equal(document.body.textContent.includes('Heartbeat'), false);
-  const healthReads = fixture.calls.filter(query => query.table === SOURCE.table);
-  assert.ok(healthReads.length > 0);
-  assert.ok(healthReads.every(query => query.ids.length === 1 && query.ids[0] === 'sensor'));
-  fixture.rows = [];
-  await act(async () => window.dispatchEvent(new dom.window.Event('focus')));
-  assert.match(document.body.textContent, SOURCE.idColumn === 'radar_id' ? /Boardroom/ : /North Lane/);
-  assert.equal(document.body.textContent.includes('Awaiting heartbeat'), false);
-  assert.equal(document.querySelector('[data-status]'), null, 'missing check-ins cannot become an online/offline label');
+  assert.equal(document.querySelector('[data-status]'), null);
+  assert.doesNotMatch(document.body.textContent, /Active|Down|Offline|Sensor Status|Heartbeat/);
+  assert.equal(document.querySelector('[role="tooltip"]'), null);
+  assert.equal(fixture.calls.filter(query => query.table === SOURCE.table).length, 0);
 });
 
+
+test('analytics dot-only indicators hide health text and retain the date on demand', async () => {
+  root = createRoot(document.getElementById('root'));
+  await act(async () => root.render(React.createElement(Badge, {
+    sensorId: 'sensor', dotOnly: true,
+    state: { heartbeats: new Map([['sensor', atAge(60)]]), now: NOW },
+  })));
+  const dot = document.querySelector('[data-status="down"]');
+  assert.ok(dot);
+  assert.equal(dot.textContent, '');
+  assert.equal(document.querySelector('[role="tooltip"]'), null);
+  await act(async () => dot.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true })));
+  assert.match(document.querySelector('[role="tooltip"]').textContent, /Down since/);
+});
 
 test('status dates use the existing inactivity thresholds and never invent outage events or unknown dates', () => {
   for (const value of ['', null, 'invalid', atAge(-6), atAge(0), atAge(30)]) {

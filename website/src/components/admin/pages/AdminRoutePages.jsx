@@ -302,7 +302,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     className={styles.comparisonLink}
                                     to={getAdminFloorPath(collegeId, sensor.sensor_id)}
                                 >
-                                    {label}
+                                    <span className={styles.sensorName}>{label}<SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} dotOnly /></span>
                                 </Link>
                                 <div className={styles.comparisonMeta}>
                                     <Link
@@ -314,7 +314,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     </Link>
                                     {categoryLabel ? <><span aria-hidden="true">·</span><span>{categoryLabel}</span></> : null}
                                 </div>
-                                <SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} />
+
                                 <button
                                     type="button"
                                     className={styles.viewOnMap}

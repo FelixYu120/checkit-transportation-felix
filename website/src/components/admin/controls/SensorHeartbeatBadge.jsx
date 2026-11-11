@@ -70,7 +70,7 @@ function StatusDateIndicator({ dateLabel, since, children, className, ...statusP
   </>;
 }
 
-export default function SensorHeartbeatBadge({ sensorId, state, showLabel = false }) {
+export default function SensorHeartbeatBadge({ sensorId, state, showLabel = false, dotOnly = false }) {
   const id = sensorId == null ? '' : String(sensorId).trim();
   if (!id || !state.heartbeats.has(id)) return null;
   const heartbeat = getSensorHeartbeatPresentation({ health_last_seen_at: state.heartbeats.get(id) }, state.now);
@@ -80,11 +80,18 @@ export default function SensorHeartbeatBadge({ sensorId, state, showLabel = fals
   const statusDateLabel = statusSince ? `${currentLabel} since ${new Date(statusSince).toLocaleString(undefined, {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
   })}` : '';
+  if (dotOnly) {
+    const props = { className: `${styles.indicator} ${styles.compact}`, 'data-status': heartbeat.status, 'data-state': heartbeat.status, 'aria-current': 'true' };
+    const dot = <span className={styles.dot} aria-hidden="true" />;
+    return statusSince
+      ? <StatusDateIndicator {...props} dateLabel={statusDateLabel} since={statusSince}>{dot}</StatusDateIndicator>
+      : <span {...props} role="img" aria-label={`Sensor status: ${currentLabel}`}>{dot}</span>;
+  }
   return <div className={styles.root} data-status={heartbeat.status} role="group" aria-label={`Sensor status: ${currentLabel}`}
     title={state.unavailable?.has(id) ? 'Last known status; refresh unavailable' : undefined}>
     <div className={styles.indicators}>
       {showLabel && <strong className={styles.label}>Sensor Status:</strong>}
-      {STATUS_OPTIONS.map(option => {
+      {STATUS_OPTIONS.filter(option => option.key === heartbeat.status).map(option => {
         const current = heartbeat.status === option.key;
         const indicatorProps = { className: styles.indicator, 'data-state': option.key, 'aria-current': current ? 'true' : undefined };
         const content = <><span className={styles.dot} aria-hidden="true" />{option.label}</>;

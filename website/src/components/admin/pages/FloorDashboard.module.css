@@ -2172,3 +2172,5 @@
 .statusDot.awaiting { background: #b4944d; }
 
 .sensorStatusControls > div { margin-top: 0; }
+
+.sensorName, .comparisonLink .sensorName { display: inline-flex; align-items: center; gap: 7px; color: var(--checkit-ink, #15201f); font-size: 1.125rem; font-weight: 700; line-height: 1.35; }

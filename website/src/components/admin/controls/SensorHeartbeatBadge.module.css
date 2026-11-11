@@ -12,3 +12,9 @@
 .dateTrigger:focus-visible { outline: 2px solid var(--checkit-green, #34524d); outline-offset: 4px; border-radius: 3px; }
 .tooltip { position: fixed; z-index: 10100; display: grid; gap: 6px; box-sizing: border-box; max-width: calc(100vw - 24px); padding: 12px 14px; border: 1px solid var(--checkit-border, #d0dad2); border-radius: 8px; color: var(--checkit-ink, #15201f); background: #fbfcfa; box-shadow: 0 8px 24px rgba(21, 32, 31, .16); font-family: var(--checkit-font, system-ui, sans-serif); font-size: 12px; line-height: 1.5; }
 .tooltip strong { font-weight: 600; }
+
+.compact { padding: 4px; margin: -4px; flex-shrink: 0; }
+.indicator.compact[aria-current="true"] .dot { width: 9px; height: 9px; border: 0; box-shadow: none; }
+.indicator.compact[data-state="active"] .dot { background: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
+.indicator.compact[data-state="down"] .dot { background: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
+.indicator.compact[data-state="offline"] .dot { background: #6b7280; box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2); }
