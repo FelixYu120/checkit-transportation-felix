@@ -16,23 +16,13 @@ import { fetchSensorById, fetchSensorDirectory, normalizeInstituteId, getEffecti
 import { fetchTrafficDirectionRows } from '../data/TrafficSummaryData';
 import { getSensorSpeedSetupRows } from '../data/SensorSpeedData';
 import AnalyticsControlBar from '../controls/AnalyticsControlBar';
+import SensorHeartbeatBadge from '../controls/SensorHeartbeatBadge';
 import OperatingLens from '../controls/OperatingLens';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import TrafficTrendChart from '../visualizations/TrafficTrendChart';
 import SummaryMetrics from '../summaries/SummaryMetrics';
 import { getSensorCategory, getSensorCategoryLabel } from '../../maps/TrafficSensorCategories';
 import { getSensorCoordinates } from '../../maps/TrafficSensorData';
-
-const formatDateTime = (value) => value
-    ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    : 'No data yet';
-
-const formatSensorDownTime = (value) => {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
 
 const formatMetadataValue = (value, fallback = 'Not set') => {
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -41,19 +31,6 @@ const formatMetadataValue = (value, fallback = 'Not set') => {
     if (value === null || value === undefined) return fallback;
     const trimmed = String(value).trim();
     return trimmed || fallback;
-};
-
-const formatMetadataDate = (value) => {
-    if (!value) return 'Not set';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Not set';
-    return date.toLocaleString([], {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
 };
 
 const formatCoordinates = (latitude, longitude) => {
@@ -79,7 +56,6 @@ const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorNam
     {
         title: 'Installation',
         rows: [
-            ['Sensor ID', sensor?.sensor_id],
             ...(getSensorCategoryLabel(sensor) ? [['Transportation Type', getSensorCategoryLabel(sensor)]] : []),
             ['WiFi', sensor?.health_wifi_ssid || sensor?.wifi_ssid || 'Not set'],
         ],
@@ -112,7 +88,6 @@ const createCsvFilename = (label) => (
         .replace(/(^-|-$)/g, '') || 'transportation-export'}-traffic.csv`
 );
 
-const SENSOR_STATUS_OPTIONS = ['awaiting', 'active', 'down', 'offline'];
 const TRAFFIC_TIMEFRAMES = [
     { value: 'daily', label: '24 hr' },
     { value: 'weekly', label: 'Weekly' },
@@ -433,20 +408,11 @@ const FloorDashboard = () => {
                         <div className={styles.sensorStatusRow}>
                             <div className={styles.sensorStatusStack}>
                                 <div className={styles.sensorStatusControls}>
-                                    <div className={`${styles.sensorStatusLegend} ${styles[`sensorStatusLegend_${sensor.status}`] || ''}`} aria-label="Sensor status">
-                                        <strong>Sensor Status:</strong>
-                                        {SENSOR_STATUS_OPTIONS.map((status) => (
-                                            <span key={status} className={sensor.status === status ? styles.currentStatus : ''}>
-                                                <i className={`${styles.statusDot} ${sensor.status === status ? styles[status] : ''}`} aria-hidden="true" />
-                                                {status === 'awaiting' ? 'Awaiting heartbeat' : formatAdminRouteLabel(status)}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {sensor.status === 'down' && formatSensorDownTime(sensor.last_seen_at) ? (
-                                        <em title={formatDateTime(sensor.last_seen_at)}>
-                                            Down at {formatSensorDownTime(sensor.last_seen_at)}
-                                        </em>
-                                    ) : null}
+                                    <SensorHeartbeatBadge
+                                        showLabel
+                                        sensorId={sensor.sensor_id}
+                                        state={{ heartbeats: new Map([[String(sensor.sensor_id), sensor.last_seen_at || null]]), now: Date.now() }}
+                                    />
                                     <button
                                         type="button"
                                         className={styles.metadataInfoButton}

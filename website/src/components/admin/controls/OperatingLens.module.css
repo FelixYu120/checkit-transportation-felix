@@ -3,8 +3,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid #cbd8d4;
-  border-radius: 16px;
+  border: 1px solid var(--checkit-border);
+  border-radius: var(--checkit-radius);
   background: var(--checkit-panel, #f1f3f0);
   box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   padding: 10px 14px;
@@ -18,8 +18,8 @@
 }
 
 .profileHeading {
-  color: #263241;
-  font-weight: 800;
+  color: var(--checkit-ink);
+  font-weight: 650;
 }
 
 .profileButtons {
@@ -29,9 +29,9 @@
 
 .profileButton,
 .addLensButton {
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   background: var(--checkit-panel, #f1f3f0);
-  color: #263241;
+  color: var(--checkit-ink);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
@@ -40,7 +40,7 @@
   min-height: 34px;
   border-radius: 999px;
   padding: 0 12px;
-  font-weight: 800;
+  font-weight: 650;
   font-size: 12px;
 }
 
@@ -70,10 +70,10 @@
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   border-radius: 999px;
   background: var(--checkit-panel, #f1f3f0);
-  color: #263241;
+  color: var(--checkit-ink);
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
@@ -88,7 +88,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .savedLensPill button:first-child {
@@ -97,7 +97,7 @@
 
 .savedLensPill button:last-child {
   width: 23px;
-  color: #64748b;
+  color: var(--checkit-muted);
 }
 
 .savedLensPill:hover {
@@ -115,7 +115,7 @@
   position: fixed;
   z-index: 90;
   min-width: 118px;
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   border-radius: 10px;
   background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
@@ -128,11 +128,11 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #263241;
+  color: var(--checkit-ink);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 650;
   text-align: left;
   padding: 0 10px;
 }
@@ -155,12 +155,12 @@
 
 .lensModal {
   width: min(420px, 100%);
-  border: 1px solid #cbd8d4;
-  border-radius: 18px;
+  border: 1px solid var(--checkit-border);
+  border-radius: var(--checkit-dialog-radius);
   background: var(--checkit-panel, #f1f3f0);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
   padding: 18px;
-  color: #172033;
+  color: var(--checkit-ink);
 }
 
 .lensModalHeader {
@@ -183,7 +183,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   border-radius: 999px;
   background: var(--checkit-panel, #f1f3f0);
   color: #52606d;
@@ -200,20 +200,20 @@
 .lensModalField span {
   color: #738195;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .lensModalField input {
   min-height: 38px;
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   border-radius: 10px;
   background: var(--checkit-panel, #f1f3f0);
-  color: #172033;
+  color: var(--checkit-ink);
   font: inherit;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 650;
   padding: 0 10px;
   outline: none;
 }
@@ -233,7 +233,7 @@
   margin: 0 0 12px;
   color: #b91c1c;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .lensModalSave {
@@ -245,14 +245,14 @@
   color: #ffffff;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .lensConfirmText {
   margin: 0;
   color: #52606d;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 650;
   line-height: 1.45;
 }
 
@@ -269,14 +269,14 @@
   border-radius: 11px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   padding: 0 14px;
 }
 
 .lensCancelButton {
-  border: 1px solid #cbd8d4;
+  border: 1px solid var(--checkit-border);
   background: var(--checkit-panel, #f1f3f0);
-  color: #263241;
+  color: var(--checkit-ink);
 }
 
 .lensCancelButton:hover {

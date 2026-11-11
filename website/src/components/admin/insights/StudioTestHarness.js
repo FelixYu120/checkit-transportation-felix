@@ -96,7 +96,7 @@ export async function createStudioHarness() {
     let target;
     if (['react', 'react-dom', 'react-router-dom'].includes(specifier)) target = import.meta.resolve(specifier);
     else if (specifier === './ReportWorkspace.jsx') target = workspaceModule;
-    else if (['./ReportSafety.js', './ReportHtml.js', './ReportEnterprise.js'].includes(specifier)) target = new URL(specifier, import.meta.url).href;
+    else if (['./ReportSafety.js', './ReportHtml.js', './ReportEnterprise.js', '../visualizations/ChartTheme.js'].includes(specifier)) target = new URL(specifier, import.meta.url).href;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, name) => String(name)});');
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__checkitStudioFixture.supabase;');
     else if (specifier === 'html2canvas') target = asModule(`export default async function capture(node){globalThis.__checkitStudioFixture.captures.push(node);return {width:820,height:1200,toDataURL:()=> 'data:image/png;base64,test'};}`);

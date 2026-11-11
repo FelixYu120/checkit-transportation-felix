@@ -1,3 +1,4 @@
+import { CHART_COLORS, CHART_SERIES_COLORS, CHART_PEOPLE_COLORS } from './ChartTheme.js';
 import { addTrafficReportRow, trafficReportPointValues } from '../insights/TrafficReportAggregation.js';
 import { buildChartEvidence, mergeChartEvidence } from '../insights/ReportEnterprise.js';
 import React, { useEffect, useId, useMemo, useState } from 'react';
@@ -20,12 +21,9 @@ import {
     ReferenceLine,
 } from 'recharts';
 
-const PRIMARY_COLOR = '#34524D';
-const SECONDARY_COLOR = '#8b5cf6';
-const PEOPLE_PRIMARY_COLOR = '#64748b';
-const PEOPLE_SECONDARY_COLOR = '#b8a2f3';
-const OCCUPANCY_COLORS = [PRIMARY_COLOR, SECONDARY_COLOR, '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
-const PEOPLE_COLORS = [PEOPLE_PRIMARY_COLOR, PEOPLE_SECONDARY_COLOR, '#94a3b8', '#d97706', '#059669', '#dc2626', '#818cf8', '#0f766e'];
+const PRIMARY_COLOR = CHART_COLORS.primary;
+const OCCUPANCY_COLORS = CHART_SERIES_COLORS;
+const PEOPLE_COLORS = CHART_PEOPLE_COLORS;
 const DEFAULT_CUSTOM_METRICS = { volume: true, avgSpeed: true };
 const PACIFIC_TIME_ZONE = 'America/Los_Angeles';
 const tooltipDateFormatter = new Intl.DateTimeFormat([], {
@@ -652,7 +650,7 @@ const ComparisonAggregateChart = ({
         );
     };
 
-    const renderGrid = () => <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />;
+    const renderGrid = () => <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.grid} />;
     const renderXAxis = () => (
         <XAxis
             dataKey={xAxisKey}
@@ -774,7 +772,7 @@ const ComparisonAggregateChart = ({
                     {(hasSpeedMetric || hasVolumeMetric) && renderThresholdLine({ yAxisId: thresholdAxisId })}
                     <Tooltip content={renderTooltip} />
                     {effectiveCustomMetrics.volume && targetSeries.map((series) => (
-                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
+                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume`} fill={series.peopleColor} opacity={0.9} radius={[5, 5, 0, 0]} />
                     ))}
                     {effectiveCustomMetrics.avgSpeed && targetSeries.map((series) => (
                         <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} avg speed mph`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />
@@ -823,7 +821,7 @@ const ComparisonAggregateChart = ({
                     {renderThresholdLine({ yAxisId: 'occupancy' })}
                     <Tooltip content={renderTooltip} />
                     {targetSeries.map((series) => (
-                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume (right axis)`} fill={series.peopleColor} opacity={0.58} radius={[5, 5, 0, 0]} />
+                        <Bar key={series.peopleKey} yAxisId="people" dataKey={series.peopleKey} name={`${series.label} traffic volume (right axis)`} fill={series.peopleColor} opacity={0.9} radius={[5, 5, 0, 0]} />
                     ))}
                     {targetSeries.map((series) => (
                         <Line key={series.occupancyKey} yAxisId="occupancy" type="monotone" dataKey={series.occupancyKey} name={`${series.label} avg speed mph (left axis)`} stroke={series.occupancyColor} strokeWidth={3} strokeDasharray={series.dash} dot={{ r: 3.5, strokeWidth: 2 }} activeDot={{ r: 5.5 }} connectNulls={type !== 'weekly'} isAnimationActive={false} />
@@ -837,7 +835,7 @@ const ComparisonAggregateChart = ({
                 <AreaChart data={chartData} margin={commonMargin}>
                     <defs>
                         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={PRIMARY_COLOR} stopOpacity={0.28}/>
+                            <stop offset="5%" stopColor={PRIMARY_COLOR} stopOpacity={0.5}/>
                             <stop offset="95%" stopColor={PRIMARY_COLOR} stopOpacity={0}/>
                         </linearGradient>
                     </defs>

@@ -1,3 +1,4 @@
+import { CHART_COLORS, CHART_HEATMAP_COLORS } from './ChartTheme.js';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bar,
@@ -18,11 +19,11 @@ import styles from './TrafficTrendChart.module.css';
 const PACIFIC_TIME_ZONE = 'America/Los_Angeles';
 const HOUR_MS = 60 * 60 * 1000;
 const TRAFFIC_COLORS = {
-  volume: '#4f9f98',
-  approach: '#4f9f98',
-  away: '#6b8fcb',
-  avgSpeed: '#d97706',
-  v85Speed: '#64748b',
+  volume: CHART_COLORS.primary,
+  approach: CHART_COLORS.primary,
+  away: CHART_COLORS.secondary,
+  avgSpeed: CHART_COLORS.accent,
+  v85Speed: CHART_COLORS.slate,
 };
 
 const timeFormatter = new Intl.DateTimeFormat([], {
@@ -522,8 +523,8 @@ const getLegendItems = (mode) => {
 
   if (mode === 'volume') {
     return [
-      { label: 'Low', color: '#d9efec' },
-      { label: 'High', color: '#4f9f98' },
+      { label: 'Low', color: CHART_HEATMAP_COLORS.low },
+      { label: 'High', color: CHART_HEATMAP_COLORS.high },
     ];
   }
 
@@ -560,18 +561,18 @@ const getHeatmapLabel = (mode) => {
 };
 
 const getHeatmapColor = (value, maxValue) => {
-  if (!value || !maxValue) return '#f1f5f9';
+  if (!value || !maxValue) return CHART_HEATMAP_COLORS.missing;
   const intensity = value / maxValue;
-  if (intensity >= 0.8) return '#4f9f98';
-  if (intensity >= 0.6) return '#6bb5ad';
-  if (intensity >= 0.4) return '#8ecac3';
-  if (intensity >= 0.2) return '#bfe3df';
-  return '#e5f5f3';
+  if (intensity >= 0.8) return CHART_HEATMAP_COLORS.high;
+  if (intensity >= 0.6) return CHART_HEATMAP_COLORS.strong;
+  if (intensity >= 0.4) return CHART_HEATMAP_COLORS.medium;
+  if (intensity >= 0.2) return CHART_HEATMAP_COLORS.light;
+  return CHART_HEATMAP_COLORS.low;
 };
 
 const getHeatmapTextColor = (value, maxValue) => {
   if (!value || !maxValue) return '#64748b';
-  return value / maxValue >= 0.72 ? '#ffffff' : '#172033';
+  return value / maxValue >= 0.6 ? '#ffffff' : '#172033';
 };
 
 const MonthlyTooltipContent = ({ cell, mode }) => {
@@ -843,7 +844,7 @@ const TrafficTrendChart = ({ sensorId, filters, type = 'daily', mode = 'combined
         ) : (
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={chartMargin}>
-            <CartesianGrid stroke="#eef3f6" vertical={false} />
+            <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
             <XAxis
               dataKey="key"
               height={getXAxisHeight(type)}

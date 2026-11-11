@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styles from './Dashboard.module.css';
 import supabase from '../helper/SupabaseClients';
 import { fetchSensorDirectory } from '../admin/data/SensorDirectoryData';
+import useSensorHeartbeats from '../admin/data/useSensorHeartbeats';
+import SensorHeartbeatBadge from '../admin/controls/SensorHeartbeatBadge';
 
 const slugify = (text) => {
     if (!text) return "unknown";
@@ -16,6 +18,7 @@ function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState('');
     const [searchTerm, setSearchTerm] = useState("");
+    const heartbeatState = useSensorHeartbeats(campusData.flatMap(area => area.corridors));
 
     // 1. MOVED INSIDE THE COMPONENT: useCallback must be inside the React function
     const formatData = useCallback((rawSensors) => {
@@ -31,6 +34,7 @@ function Dashboard() {
 
             areasMap[areaKey].corridors[sensor.sensor_id] = {
                 id: sensor.sensor_id,
+                sensor_id: sensor.sensor_id,
                 name: sensor.corridor_name || `Corridor ${sensor.sensor_id}`,
                 status: sensor.status || "unknown",
                 density: sensor.status === "active" ? 0 : 100,
@@ -136,6 +140,7 @@ function Dashboard() {
                         <AreaGroup
                             key={area.id}
                             area={area}
+                            heartbeatState={heartbeatState}
                             isSearching={searchTerm.length > 0}
                         />
                     ))}
@@ -147,7 +152,7 @@ function Dashboard() {
     );
 }
 
-const AreaGroup = ({ area, isSearching }) => {
+const AreaGroup = ({ area, isSearching, heartbeatState }) => {
     const [isOpen, setIsOpen] = useState(true);
     const showContent = isSearching ? true : isOpen;
     const totalCorridors = area.corridors.length;
@@ -168,7 +173,7 @@ const AreaGroup = ({ area, isSearching }) => {
             {showContent && (
                 <div className={styles.floorList}>
                     {area.corridors.map((corridor) => (
-                        <CorridorCard key={corridor.id} corridor={corridor} />
+                        <CorridorCard key={corridor.id} corridor={corridor} heartbeatState={heartbeatState} />
                     ))}
                 </div>
             )}
@@ -176,7 +181,7 @@ const AreaGroup = ({ area, isSearching }) => {
     );
 };
 
-const CorridorCard = ({ corridor }) => {
+const CorridorCard = ({ corridor, heartbeatState }) => {
     let dotClass = styles.greenDot;
     if (corridor.status === 'partially-full') dotClass = styles.yellowDot;
     else if (corridor.status === 'nearly-full') dotClass = styles.orangeDot;
@@ -192,7 +197,7 @@ const CorridorCard = ({ corridor }) => {
                         <div className={`${styles.statusDot} ${dotClass}`}></div>
                     </div>
                 </div>
-                <p className={styles.roomDetails}>Status: {corridor.status}</p>
+                <SensorHeartbeatBadge sensorId={corridor.sensor_id} state={heartbeatState} />
             </div>
         </div>
     );

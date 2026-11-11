@@ -1,3 +1,4 @@
+import { CHART_COLORS, CHART_HEATMAP_COLORS } from './ChartTheme.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     ResponsiveContainer,
@@ -272,7 +273,7 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
         return isMajorDateTick ? value : '';
     };
     
-    const lineColor = type === 'weekly' || type === 'monthly' ? "#6b8e23" : "#7cb49c";
+    const lineColor = CHART_COLORS.primary;
 
     useEffect(() => {
         const fetchHistory = async ({ showLoading = true } = {}) => {
@@ -339,11 +340,11 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
                         <AreaChart data={chartData} margin={{ top: 18, right: 16, left: -12, bottom: 22 }}>
                             <defs>
                                 <linearGradient id={`colorOccupancy_${type}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={lineColor} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={lineColor} stopOpacity={0.52}/>
                                     <stop offset="95%" stopColor={lineColor} stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.grid} />
                             
                             <XAxis 
                                 dataKey={isDateAxis ? (type === 'weekly' || type === 'monthly' ? 'dateLabel' : 'time') : 'time'}

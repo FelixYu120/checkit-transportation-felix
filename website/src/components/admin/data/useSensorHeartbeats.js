@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import supabase from '../../helper/SupabaseClients';
+import { fetchSensorHeartbeats, normalizeSensorIds } from './SensorHeartbeatData.js';
 
-export default function useSensorHeartbeats(sensors) {
-  const sensorIdsKey = JSON.stringify([...new Set(sensors.map((sensor) => sensor.sensor_id).filter(Boolean))].sort());
-  const [heartbeats, setHeartbeats] = useState(() => new Map());
+const HEALTH_SOURCE = { table: 'sensor_health', idColumn: 'sensor_id' };
+
+export default function useSensorHeartbeats(sensors = []) {
+  const sensorIdsKey = JSON.stringify(normalizeSensorIds(sensors.map(sensor => sensor[HEALTH_SOURCE.idColumn])));
+  const [health, setHealth] = useState(() => ({ heartbeats: new Map(), unavailable: new Set() }));
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const sensorIds = JSON.parse(sensorIdsKey);
-    if (!supabase || !sensorIds.length) return undefined;
+    if (!sensorIds.length) return undefined;
+    const wanted = new Set(sensorIds);
     let disposed = false;
     let loading = false;
     let pending = false;
@@ -17,29 +21,12 @@ export default function useSensorHeartbeats(sensors) {
       if (loading) { pending = true; return; }
       loading = true;
       try {
-        // Batch health queries; never issue one request per lane.
-        const batches = [];
-        for (let offset = 0; offset < sensorIds.length; offset += 200) {
-          const ids = sensorIds.slice(offset, offset + 200);
-          batches.push((async () => {
-            const { data, error } = await supabase.from('sensor_health')
-              .select('sensor_id, last_seen_at').in('sensor_id', ids);
-            if (error) throw error;
-            const rows = new Map((data || []).map((row) => [row.sensor_id, row.last_seen_at || null]));
-            return ids.map((id) => [id, rows.get(id) || null]);
-          })());
-        }
-        const results = await Promise.allSettled(batches);
+        const result = await fetchSensorHeartbeats(supabase, sensorIds, HEALTH_SOURCE);
         if (disposed) return;
-        setHeartbeats((current) => {
-          const next = new Map(current);
-          for (const result of results) {
-            // Preserve the last known heartbeat on network failure; it still ages normally.
-            if (result.status === 'fulfilled') {
-              result.value.forEach(([id, value]) => next.set(id, value));
-            }
-          }
-          return next;
+        setHealth(current => {
+          const heartbeats = new Map([...current.heartbeats].filter(([id]) => wanted.has(id)));
+          result.updates.forEach((timestamp, id) => heartbeats.set(id, timestamp));
+          return { heartbeats, unavailable: result.unavailable };
         });
         setNow(Date.now());
       } finally {
@@ -47,23 +34,21 @@ export default function useSensorHeartbeats(sensors) {
         if (pending && !disposed) { pending = false; void refresh(); }
       }
     };
-
-    const interval = setInterval(() => {
-      setNow(Date.now());
-      void refresh();
-    }, 10000);
-    const channel = supabase.channel(`lane-heartbeats-${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sensor_health' }, refresh)
-      .subscribe();
+    const interval = setInterval(() => { setNow(Date.now()); void refresh(); }, 10000);
+    const channel = supabase?.channel(`sensor-heartbeats-${HEALTH_SOURCE.table}-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: HEALTH_SOURCE.table }, (payload = {}) => {
+        const id = payload.new?.[HEALTH_SOURCE.idColumn] || payload.old?.[HEALTH_SOURCE.idColumn];
+        if (!id || wanted.has(String(id))) void refresh();
+      }).subscribe();
     window.addEventListener('focus', refresh);
     void refresh();
     return () => {
       disposed = true;
       clearInterval(interval);
       window.removeEventListener('focus', refresh);
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [sensorIdsKey]);
 
-  return { heartbeats, now };
+  return { ...health, now };
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Plus, Search, Send, Trash2, UserCog, Users, X } from "lucide-react";
+import { Check, Copy, Plus, Search, Send, Trash2, UserCog, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember, updateTeamMemberRole } from "./TeamData";
 import styles from "./TeamPage.module.css";
@@ -295,7 +295,7 @@ const TeamPage = () => {
             <span>{memberCountLabel}</span>
           </div>
           {canInviteMembers ? (
-            <button className={styles.addMemberButton} type="button" onClick={openInviteModal} aria-label="Invite member">
+            <button className={styles.inviteTrigger} type="button" onClick={openInviteModal} aria-label="Invite member">
               <Plus size={18} aria-hidden="true" />
             </button>
           ) : null}
@@ -484,7 +484,10 @@ const TeamPage = () => {
             onSubmit={sendInvite}
           >
             <div className={styles.modalHeader}>
-              <div>
+              <div className={styles.inviteModalTitle}>
+                <div className={styles.inviteIcon}>
+                  <UserPlus size={18} aria-hidden="true" />
+                </div>
                 <h2 id="team-invite-title">Invite member</h2>
               </div>
               <button className={styles.iconButton} type="button" onClick={closeInviteModal} aria-label="Close">
@@ -524,7 +527,7 @@ const TeamPage = () => {
               {inviteLoading ? "Sending..." : "Send invite"}
             </button>
 
-            {inviteError ? <div className={styles.actionError}>{inviteError}</div> : null}
+            {inviteError ? <div className={styles.inviteError}>{inviteError}</div> : null}
           </form>
         </div>
       ) : null}

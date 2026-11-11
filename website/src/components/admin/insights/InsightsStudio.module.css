@@ -165,8 +165,8 @@
   padding: 12px 28px;
   border: 0;
   border-radius: 999px;
-  background: #34524D; /* Deep complementary contract green */
-  color: #ffffff;
+  background: #ffffff;
+  color: #34524D;
   font-size: 15px;
   font-weight: 600;
   text-decoration: none;
@@ -176,7 +176,7 @@
 }
 
 .cardButton:hover {
-  background: #143332;
+  background: #eef3f1;
   transform: translateY(-1px);
 }
 
@@ -419,6 +419,11 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.toolbarDropdownDivider {
+  margin: 4px 6px;
+  border-top: 1px solid var(--border-color);
 }
 
 .toolbarDropdownItem {
@@ -784,12 +789,22 @@
   align-items: center; 
 }
 
+.paperBoundaryScaler {
+  flex-shrink: 0;
+  margin: 48px auto;
+}
+
 .paperBoundary {
   width: 820px;
-  flex-shrink: 0; 
+  flex-shrink: 0;
   margin: 48px auto;
   position: relative;
   box-shadow: var(--shadow);
+  transform-origin: top left;
+}
+
+.paperBoundaryScaler .paperBoundary {
+  margin: 0;
 }
 
 .snapGuideLayer {

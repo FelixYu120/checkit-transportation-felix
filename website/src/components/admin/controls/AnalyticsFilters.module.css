@@ -73,7 +73,7 @@
   color: #1f2937;
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
   white-space: nowrap;
   min-width: max-content;
@@ -131,7 +131,7 @@
   cursor: pointer;
   min-height: 30px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 650;
   width: auto;
 }
 
@@ -153,9 +153,9 @@
 }
 
 .timeDivider {
-  color: #64748b;
+  color: var(--checkit-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.1;
   flex: 0 0 auto;
 }
@@ -172,7 +172,7 @@
   box-sizing: border-box;
   font: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .filterControl .timeInput:focus-visible {

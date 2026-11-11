@@ -1,0 +1,14 @@
+.root { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 30px; max-width: 100%; margin-top: 5px; padding: 5px 0; border: 0; background: transparent; box-shadow: none; }
+.indicators { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; min-width: 0; max-width: 100%; }
+.label { color: #374151; font-size: 14px; font-weight: 600; }
+.indicator { display: inline-flex; align-items: center; gap: 6px; color: #6b7280; font-size: 12px; font-weight: 500; line-height: 1.2; white-space: nowrap; }
+.dot { width: 10px; height: 10px; flex: 0 0 auto; border: 2px solid #e5e7eb; border-radius: 50%; background: #9ca3af; box-shadow: none; }
+.indicator[aria-current="true"] { color: #374151; }
+.indicator[data-state="active"][aria-current="true"] .dot { background: #10b981; border-color: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
+.indicator[data-state="down"][aria-current="true"] .dot { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
+.indicator[data-state="offline"][aria-current="true"] .dot { background: #6b7280; border-color: #6b7280; box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2); }
+
+.dateTrigger { padding: 0; border: 0; background: transparent; cursor: help; font-family: inherit; text-align: left; }
+.dateTrigger:focus-visible { outline: 2px solid var(--checkit-green, #34524d); outline-offset: 4px; border-radius: 3px; }
+.tooltip { position: fixed; z-index: 10100; display: grid; gap: 6px; box-sizing: border-box; max-width: calc(100vw - 24px); padding: 12px 14px; border: 1px solid var(--checkit-border, #d0dad2); border-radius: 8px; color: var(--checkit-ink, #15201f); background: #fbfcfa; box-shadow: 0 8px 24px rgba(21, 32, 31, .16); font-family: var(--checkit-font, system-ui, sans-serif); font-size: 12px; line-height: 1.5; }
+.tooltip strong { font-weight: 600; }

@@ -58,7 +58,7 @@
     padding: 10px 18px; /* Reduced padding */
     min-width: 0; /* REMOVED 40vh - this was causing the scroll */
     font-size: 16px; 
-    color: #667572;
+    color: var(--checkit-muted);
     border: 1px solid rgba(52, 82, 77, 0.16); 
     border-radius: 50px;
     outline: none; 
@@ -71,7 +71,7 @@
    ========================================= */
 .collegeCard {
     background: #fafbfa;
-    border-radius: 18px; /* Slightly smaller radius */
+    border-radius: var(--checkit-dialog-radius); /* Slightly smaller radius */
     padding: 15px; /* Reduced from 30px */
     width: 100%; /* Changed from 95% to fill container */
     max-width: 100%; 
@@ -81,7 +81,7 @@
 
 .collegeTitle {
     font-size: 1.2rem; /* Reduced from 1.8rem */
-    font-weight: 800;
+    font-weight: 650;
     color: #15201f;
     margin-top: 0;
     margin-bottom: 15px;
@@ -113,10 +113,10 @@
     gap: 4px; 
 }
 
-.buildingName { font-size: 1rem; font-weight: 700; color: #15201f; }
-.buildingSub { font-size: 0.85rem; color: #667572; font-weight: 500; }
+.buildingName { font-size: 1rem; font-weight: 650; color: #15201f; }
+.buildingSub { font-size: 0.85rem; color: var(--checkit-muted); font-weight: 500; }
 
-.arrow { font-size: 14px; color: #667572; transition: transform 0.3s; }
+.arrow { font-size: 14px; color: var(--checkit-muted); transition: transform 0.3s; }
 .down { transform: rotate(180deg); }
 
 /* =========================================
@@ -144,7 +144,7 @@
 .floorTitle {
     font-size: 0.96rem;
     font-weight: 500;
-    color: #667572;
+    color: var(--checkit-muted);
     letter-spacing: 0.01em;
 }
 
@@ -184,7 +184,7 @@
     margin: 2px 0 0;
     font-size: 0.88rem;
     font-weight: 500;
-    color: #667572;
+    color: var(--checkit-muted);
     line-height: 1.4;
 }
 
@@ -242,7 +242,7 @@
 
     .statusLegend {
         padding: 10px 12px;
-        border-radius: 24px;
+        border-radius: var(--checkit-dialog-radius);
         gap: 8px 14px;
         font-size: 0.82rem;
     }
@@ -258,7 +258,7 @@
 
     .collegeCard {
         padding: 12px;
-        border-radius: 16px;
+        border-radius: var(--checkit-radius);
     }
 
     .collegeTitle {
@@ -268,7 +268,7 @@
 
     .buildingCard {
         padding: 14px 12px;
-        border-radius: 14px;
+        border-radius: var(--checkit-radius);
     }
 
     .buildingHeader {

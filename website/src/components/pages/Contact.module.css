@@ -2,29 +2,35 @@
     min-height: calc(100vh - 80px);
     width: 100%;
     max-width: 600px;
-    padding: 56px 20px;
+    padding: 36px 24px 56px;
     margin: 0 auto;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--checkit-font);
     text-align: center;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    justify-content: flex-start;
+    align-items: stretch;
     box-sizing: border-box;
 }
 
 .heading {
-    font-size: 2rem;
-    font-weight: 800;
-    color: #000;
+    font-size: var(--checkit-heading-size);
+    font-weight: 650;
+    color: var(--checkit-ink);
     margin-bottom: 5px;
+  text-align: left;
+  letter-spacing: -.035em;
+  line-height: 1.25;
+  margin: 0 0 20px;
 }
 
 .subHeading {
-    font-size: 1.1rem;
-    color: #000;
+    font-size: .875rem;
+    color: var(--checkit-muted);
     font-weight: 500;
-    margin-bottom: 40px;
+    margin-bottom: 28px;
+  text-align: left;
+  line-height: 1.6;
 }
 
 .formContainer {
@@ -39,12 +45,12 @@
 .inputField, .textArea {
     width: 100%;
     padding: 12px 15px;
-    border: 1px solid #888;
+    border: 1px solid var(--checkit-border);
     border-radius: 6px;
     font-size: 1rem;
     outline: none;
     transition: border-color 0.2s;
-    font-family: inherit; /* Ensures textarea uses same font */
+    font-family: var(--checkit-font); /* Ensures textarea uses same font */
 }
 
 .inputField:focus, .textArea:focus {
@@ -58,17 +64,18 @@
 
 /* SUBMIT BUTTON */
 .submitButton {
-    background-color: #34524D; /* Teal color from screenshot */
+    background-color: #ffffff; /* Teal color from screenshot */
     color: #000;
-    font-weight: 700;
+    font-weight: 650;
     border: none;
     padding: 12px 40px;
     border-radius: 8px;
-    font-size: 1.1rem;
+    font-size: .875rem;
     cursor: pointer;
     align-self: center; /* Centers the button */
     transition: opacity 0.2s;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: none;
+  min-height: 40px;
 }
 
 .submitButton:hover {
@@ -77,7 +84,7 @@
 
 /* "OR" SEPARATOR */
 .separator {
-    font-weight: 800;
+    font-weight: 650;
     font-size: 1.1rem;
     margin: 20px 0;
     color: #000;
@@ -92,7 +99,7 @@
 }
 
 .emailLink {
-    font-weight: 800;
+    font-weight: 650;
     color: #000;
     text-decoration: none;
 }

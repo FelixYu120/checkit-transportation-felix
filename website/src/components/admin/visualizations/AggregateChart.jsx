@@ -1,3 +1,4 @@
+import { CHART_COLORS } from './ChartTheme.js';
 import { addTrafficReportRow, trafficReportPointValues } from '../insights/TrafficReportAggregation.js';
 import { buildChartEvidence } from '../insights/ReportEnterprise.js';
 import React, { useState, useEffect, useId, useMemo } from 'react';
@@ -21,9 +22,9 @@ import {
     ReferenceLine
 } from 'recharts';
 
-const OCCUPANCY_COLOR = '#7cb49c';
-const PEOPLE_COLOR = '#6b7280';
-const HIGHLIGHT_COLOR = '#f59e0b';
+const OCCUPANCY_COLOR = CHART_COLORS.accent;
+const PEOPLE_COLOR = CHART_COLORS.primary;
+const HIGHLIGHT_COLOR = CHART_COLORS.rust;
 const DEFAULT_CUSTOM_METRICS = {
     volume: true,
     avgSpeed: true,
@@ -687,7 +688,7 @@ const AggregateChart = ({
     };
 
     const renderCommonGrid = () => (
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.grid} />
     );
 
     const renderXAxis = () => (
@@ -821,9 +822,9 @@ const AggregateChart = ({
                     {hasVolumeMetric && renderPeopleYAxis({ yAxisId: "people", orientation: "right", width: 46 })}
                     {(hasSpeedMetric || hasVolumeMetric) && renderThresholdLine({ yAxisId: thresholdAxisId })}
                     <Tooltip content={renderTooltip} />
-                    {effectiveCustomMetrics.volume && <Bar yAxisId="people" dataKey="total_people" name="Traffic volume" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.58} />}
-                    {effectiveCustomMetrics.approach && <Bar yAxisId="people" dataKey="approach_volume" name="Approach" fill="#34524D" radius={[5, 5, 0, 0]} opacity={0.72} />}
-                    {effectiveCustomMetrics.away && <Bar yAxisId="people" dataKey="away_volume" name="Away" fill="#9fbfb8" radius={[5, 5, 0, 0]} opacity={0.72} />}
+                    {effectiveCustomMetrics.volume && <Bar yAxisId="people" dataKey="total_people" name="Traffic volume" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.9} />}
+                    {effectiveCustomMetrics.approach && <Bar yAxisId="people" dataKey="approach_volume" name="Approach" fill="#34524D" radius={[5, 5, 0, 0]} opacity={0.9} />}
+                    {effectiveCustomMetrics.away && <Bar yAxisId="people" dataKey="away_volume" name="Away" fill="#9fbfb8" radius={[5, 5, 0, 0]} opacity={0.9} />}
                     {effectiveCustomMetrics.avgSpeed && <Line yAxisId="occupancy" type="monotone" dataKey="occupancy" name="Avg speed" stroke={occupancyColor} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
                     {effectiveCustomMetrics.v85Speed && <Line yAxisId="occupancy" type="monotone" dataKey="v85_speed" name="85th speed" stroke="#64748b" strokeWidth={2.2} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
                     {effectiveCustomMetrics.maxSpeed && <Line yAxisId="occupancy" type="monotone" dataKey="max_speed" name="Max speed" stroke="#ef4444" strokeWidth={2} strokeDasharray="3 5" dot={false} activeDot={{ r: 5 }} connectNulls={type !== 'weekly'} />}
@@ -927,7 +928,7 @@ const AggregateChart = ({
                     {renderPeopleYAxis({ yAxisId: "people", orientation: "right", width: 46 })}
                     {renderThresholdLine({ yAxisId: "occupancy" })}
                     <Tooltip content={renderTooltip} />
-                    <Bar yAxisId="people" dataKey="total_people" name="Traffic volume (right axis)" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.62}>
+                    <Bar yAxisId="people" dataKey="total_people" name="Traffic volume (right axis)" fill={peopleColor} radius={[6, 6, 0, 0]} opacity={0.9}>
                         {chartData.map((entry, index) => (
                             <Cell key={`${entry.time || entry.dateLabel}-${index}`} fill={peopleColor} />
                         ))}
@@ -953,7 +954,7 @@ const AggregateChart = ({
             <AreaChart data={chartData} margin={commonMargin}>
                 <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={occupancyColor} stopOpacity={0.4}/>
+                        <stop offset="5%" stopColor={occupancyColor} stopOpacity={0.52}/>
                         <stop offset="95%" stopColor={occupancyColor} stopOpacity={0}/>
                     </linearGradient>
                 </defs>

@@ -3,33 +3,36 @@
     min-height: calc(100vh - 80px);
     width: 100%;
     max-width: 900px;
-    padding: 56px 20px;
+    padding: 36px 24px 56px;
     margin: 0 auto;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--checkit-font);
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    align-items: center;
+    align-items: stretch;
     box-sizing: border-box;
 }
 
 /* The Main Heading */
 .heading {
-    font-size: 2rem;
-    font-weight: 800;
-    color: #111;
+    font-size: var(--checkit-heading-size);
+    font-weight: 650;
+    color: var(--checkit-ink);
     margin-bottom: 30px;
-    text-align: center;
+    text-align: left;
     width: 100%;
+  letter-spacing: -.035em;
+  line-height: 1.25;
+  margin: 0 0 20px;
 }
 
 /* The White Card */
 .contentCard {
-    background: white;
-    border-radius: 24px;
-    padding: 40px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    border: 1px solid #e0e0e0;
+    background: var(--checkit-panel);
+    border-radius: var(--checkit-dialog-radius);
+    padding: 28px;
+    box-shadow: var(--checkit-shadow);
+    border: 1px solid var(--checkit-border);
     width: 100%;
     box-sizing: border-box;
 }
@@ -37,7 +40,7 @@
 /* Section Titles inside the card */
 .sectionTitle {
     font-size: 1.25rem;
-    font-weight: 700;
+    font-weight: 650;
     color: #333;
     margin-bottom: 15px;
     border-bottom: 2px solid #f0f0f0;
@@ -46,9 +49,9 @@
 
 /* The Legal Text */
 .legalText {
-    font-size: 1rem;
-    color: #555;
-    line-height: 1.6;
+    font-size: .875rem;
+    color: var(--checkit-muted);
+    line-height: 1.7;
     margin-bottom: 20px;
 }
 

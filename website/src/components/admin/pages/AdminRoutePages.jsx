@@ -18,7 +18,7 @@ import OperatingLens from '../controls/OperatingLens';
 import { getSensorCategoryLabel } from '../../maps/TrafficSensorCategories';
 import { DEFAULT_ANALYTICS_FILTERS } from '../controls/AnalyticsFilterUtils';
 import { getSensorCoordinates } from '../../maps/TrafficSensorData';
-import { getSensorHeartbeatPresentation } from '../data/SensorHeartbeatPresentation';
+import SensorHeartbeatBadge from '../controls/SensorHeartbeatBadge';
 import useSensorHeartbeats from '../data/useSensorHeartbeats';
 import { getInstituteDisplayName } from '../data/InstituteNames.js';
 
@@ -212,7 +212,7 @@ const COMPARISON_PAGE_SIZE = 25;
 
 const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
     const { focusSensorOnMap, focusedSensorId } = useOutletContext();
-    const { heartbeats, now } = useSensorHeartbeats(summaries);
+    const heartbeatState = useSensorHeartbeats(summaries);
     const [selectedMetric, setSelectedMetric] = useState('totalVolume');
     const [sortDirection, setSortDirection] = useState('desc');
     const [page, setPage] = useState(1);
@@ -292,10 +292,6 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                     const categoryLabel = getSensorCategoryLabel(sensor);
                     const label = labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane';
                     const hasLocation = Boolean(getSensorCoordinates(sensor));
-                    const heartbeat = getSensorHeartbeatPresentation({
-                        health_last_seen_at: heartbeats.has(sensor.sensor_id)
-                            ? heartbeats.get(sensor.sensor_id) : sensor.health_last_seen_at,
-                    }, now);
                     const metricValue = Number(sensor[selectedMetric]) || 0;
                     const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
 
@@ -318,19 +314,7 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                     </Link>
                                     {categoryLabel ? <><span aria-hidden="true">·</span><span>{categoryLabel}</span></> : null}
                                 </div>
-                                <div className={styles.laneHealth}>
-                                    <span className={`${styles.heartbeatBadge} ${styles[`heartbeat_${heartbeat.status}`]}`}>
-                                        <span className={styles.heartbeatDot} aria-hidden="true" />
-                                        {heartbeat.label}
-                                    </span>
-                                    {heartbeat.timestamp && (
-                                        <span className={styles.heartbeatTime}>
-                                            Heartbeat <time dateTime={heartbeat.timestamp} title={new Date(heartbeat.timestamp).toLocaleString()}>
-                                                {heartbeat.relativeTime}
-                                            </time>
-                                        </span>
-                                    )}
-                                </div>
+                                <SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} />
                                 <button
                                     type="button"
                                     className={styles.viewOnMap}

@@ -1,17 +1,21 @@
 html,
 #root {
+    --checkit-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --checkit-heading-size: clamp(1.65rem, 2.4vw, 1.875rem);
+    --checkit-radius: 10px;
+    --checkit-dialog-radius: 12px;
     --checkit-green: #34524D;
     --checkit-green-dark: #28423E;
-    --checkit-bg: #e5eae7;
+    --checkit-bg: #e9eeeb;
     --checkit-bg-soft: #e9eeeb;
-    --checkit-panel: #f1f3f0;
-    --checkit-border: #c7d1cb;
+    --checkit-panel: #fbfcfa;
+    --checkit-border: #d0dad2;
     --checkit-ink: #15201f;
-    --checkit-muted: #607168;
+    --checkit-muted: #63756b;
     --checkit-nav: #2f4641;
     --checkit-surface-muted: #e3e9e4;
-    --checkit-sidebar: #dfe6e1;
-    --checkit-shadow: 0 6px 18px rgba(35, 55, 45, 0.06);
+    --checkit-sidebar: #e3e9e4;
+    --checkit-shadow: 0 2px 8px rgba(35, 55, 45, 0.04);
     width: 100%;
     height: 100%;
     background-color: var(--checkit-bg);
@@ -21,6 +25,8 @@ html,
 }
 
 body {
+    font-family: var(--checkit-font);
+    color: var(--checkit-ink);
     margin: 0;
     padding: 0;
     min-width: 0;

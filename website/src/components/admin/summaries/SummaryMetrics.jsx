@@ -348,16 +348,18 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         };
     }, [chartMetrics, level, id, effectiveFilters, timeframe, snapshotData, onSnapshotData, preferSourceChartData, thresholdValue]);
 
+    const hasMetricGroups = Array.isArray(metricGroups) && metricGroups.length > 0;
     const cardStyle = {
         backgroundColor: 'var(--checkit-summary-surface, #ffffff)',
         borderRadius: '10px',
-        padding: 'clamp(10px, 0.9vw, 14px)',
+        padding: hasMetricGroups ? '12px' : 'clamp(10px, 0.9vw, 14px)',
         boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
         border: '1px solid #e2e8f0',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        minHeight: 'clamp(94px, 7vw, 118px)',
+        justifyContent: hasMetricGroups ? 'flex-start' : 'center',
+        boxSizing: 'border-box',
+        minHeight: hasMetricGroups ? '104px' : 'clamp(94px, 7vw, 118px)',
         minWidth: 0,
         overflow: 'hidden'
     };
@@ -377,10 +379,21 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
         !(timeframe === 'daily' && metric === 'busiestDay') &&
         !(timeframe !== 'daily' && metric === 'busiestTime')
     ));
+    // Auto-fill keeps empty tracks, so every analytics group shares column edges.
+    // The minimum track width wraps cards responsively without a horizontal scroller.
+    const groupedColumnCount = Math.max(1, ...(hasMetricGroups ? metricGroups : []).map(group =>
+        selectedVisibleMetrics.filter(metric => group.metrics?.includes(metric)).length));
+    const groupedGridTemplate = `repeat(auto-fill, minmax(min(100%, max(150px, calc((100% - ${(groupedColumnCount - 1) * 12}px) / ${groupedColumnCount}))), 1fr))`;
+    if (hasMetricGroups) {
+        Object.assign(labelStyle, { display: 'block', minHeight: '2.6em', fontSize: '11px', fontWeight: 600, lineHeight: 1.3, marginBottom: '6px', color: 'var(--checkit-muted, #63756b)' });
+        Object.assign(valueStyle, { minHeight: '1.2em', fontSize: 'clamp(1.1rem, 1.3vw, 1.4rem)', lineHeight: 1.2, overflowWrap: 'anywhere', color: 'var(--checkit-ink, #15201f)' });
+    }
     const gridStyle = {
         display: 'grid',
         gridTemplateColumns: `repeat(${Math.max(selectedVisibleMetrics.length, 1)}, minmax(140px, 1fr))`,
         alignContent: 'start',
+        alignItems: 'stretch',
+        gridAutoRows: hasMetricGroups ? '1fr' : undefined,
         gap: 'clamp(8px, 1vw, 12px)',
         width: '100%',
         height: metricGroups ? 'auto' : '100%',
@@ -406,7 +419,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                                 ) : null}
                                 <div style={{
                                     ...gridStyle,
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                                    gridTemplateColumns: groupedGridTemplate,
                                 }}>
                                     {groupMetrics.map((metricKey) => (
                                         <div key={metricKey} style={{ ...cardStyle, gap: '10px' }}>
@@ -544,7 +557,7 @@ const SummaryMetrics = ({ level, id, filters, timeframe = 'weekly', metrics: vis
                             ) : null}
                             <div style={{
                                 ...gridStyle,
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                                gridTemplateColumns: groupedGridTemplate,
                             }}>
                                 {groupMetrics.map(renderMetricCard)}
                             </div>

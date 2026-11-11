@@ -1,3 +1,4 @@
+import { CHART_COLORS, CHART_SERIES_COLORS, CHART_PEOPLE_COLORS } from '../visualizations/ChartTheme.js';
 import ReportWorkspace from './ReportWorkspace.jsx';
 import { REPORT_METRICS, getDecisionQuestion, loadReportVersion, runReportCommand } from './ReportEnterprise.js';
 import {
@@ -3305,7 +3306,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || '#7cb49c'} peopleColor={el.peopleColor || '#6b7280'} highlightColor={el.highlightColor || '#f59e0b'} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || CHART_COLORS.accent} peopleColor={el.peopleColor || CHART_COLORS.primary} highlightColor={el.highlightColor || CHART_COLORS.rust} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -4156,11 +4157,11 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                         <div className={styles.twoColumnFields}>
                           <div>
                             <label className={styles.inputLabel}>Line / Bar</label>
-                            <input type="color" value={getColorInputValue(activeElement.occupancyColor, '#7cb49c')} onChange={(e) => updateElement(activeElement.id, { occupancyColor: e.target.value })} className={styles.colorPicker} />
+                            <input type="color" value={getColorInputValue(activeElement.occupancyColor, CHART_COLORS.accent)} onChange={(e) => updateElement(activeElement.id, { occupancyColor: e.target.value })} className={styles.colorPicker} />
                           </div>
                           <div>
                             <label className={styles.inputLabel}>Traffic Bars</label>
-                            <input type="color" value={getColorInputValue(activeElement.peopleColor, '#6b7280')} onChange={(e) => updateElement(activeElement.id, { peopleColor: e.target.value })} className={styles.colorPicker} />
+                            <input type="color" value={getColorInputValue(activeElement.peopleColor, CHART_COLORS.primary)} onChange={(e) => updateElement(activeElement.id, { peopleColor: e.target.value })} className={styles.colorPicker} />
                           </div>
                         </div>
                       </>
@@ -4172,7 +4173,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               <label className={styles.inputLabel}>Series {index + 1}</label>
                               <input
                                 type="color"
-                                value={getColorInputValue(activeElement.seriesColors?.[index], ['#34524D', '#8b5cf6', '#0ea5e9', '#f59e0b'][index] || '#34524D')}
+                                value={getColorInputValue(activeElement.seriesColors?.[index], CHART_SERIES_COLORS[index % CHART_SERIES_COLORS.length])}
                                 onChange={(e) => updateElementArrayValue(activeElement.id, 'seriesColors', index, e.target.value)}
                                 className={styles.colorPicker}
                               />
@@ -4181,7 +4182,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                               <label className={styles.inputLabel}>Traffic {index + 1}</label>
                               <input
                                 type="color"
-                                value={getColorInputValue(activeElement.peopleSeriesColors?.[index], ['#64748b', '#b8a2f3', '#94a3b8', '#d97706'][index] || '#64748b')}
+                                value={getColorInputValue(activeElement.peopleSeriesColors?.[index], CHART_PEOPLE_COLORS[index % CHART_PEOPLE_COLORS.length])}
                                 onChange={(e) => updateElementArrayValue(activeElement.id, 'peopleSeriesColors', index, e.target.value)}
                                 className={styles.colorPicker}
                               />
@@ -4294,7 +4295,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                           <label className={styles.inputLabel}>Highlight Label</label>
                           <input type="text" value={activeElement.highlightLabel || 'Peak'} onChange={(e) => updateElement(activeElement.id, { highlightLabel: e.target.value })} className={styles.inputField} />
                           <label className={styles.inputLabel}>Highlight Color</label>
-                          <input type="color" value={getColorInputValue(activeElement.highlightColor, '#f59e0b')} onChange={(e) => updateElement(activeElement.id, { highlightColor: e.target.value })} className={styles.colorPicker} />
+                          <input type="color" value={getColorInputValue(activeElement.highlightColor, CHART_COLORS.rust)} onChange={(e) => updateElement(activeElement.id, { highlightColor: e.target.value })} className={styles.colorPicker} />
                         </>
                       )}
                     </>

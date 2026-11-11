@@ -30,19 +30,20 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--checkit-border);
 }
 
 .modalHeader h2 {
   margin: 0;
   font-size: 18px;
-  color: #0f172a;
+  color: var(--checkit-ink);
+  font-weight: 650;
 }
 
 .closeBtn {
   background: none;
   border: none;
-  color: #64748b;
+  color: var(--checkit-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
@@ -50,7 +51,7 @@
 
 .closeBtn:hover {
   background: #f1f5f9;
-  color: #0f172a;
+  color: var(--checkit-ink);
 }
 
 .modalBody {
@@ -65,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: #fef2f2;
+  background-color: var(--checkit-bg-soft);
   color: #ef4444;
   padding: 10px 14px;
   border-radius: 8px;
@@ -79,7 +80,7 @@
   background-color: #ef4444;
   padding: 10px 12px;
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 650;
   font-size: 13px;
 }
 
@@ -88,7 +89,7 @@
   background-color: #34524D;
   padding: 10px 12px;
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 650;
   font-size: 13px;
 }
 
@@ -102,11 +103,11 @@
 .input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--checkit-border);
   border-radius: 8px;
   font-size: 15px;
   min-height: 42px;
-  color: #0f172a;
+  color: var(--checkit-ink);
   box-sizing: border-box;
 }
 
@@ -135,7 +136,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #64748b;
+  color: var(--checkit-muted);
   cursor: pointer;
   display: inline-flex;
   height: 42px;
@@ -176,7 +177,7 @@
 
 .saveBtn:hover { background-color: #28423E; }
 .saveBtn:disabled { opacity: 0.7; cursor: not-allowed; }
-.loading { padding: 40px; text-align: center; color: #64748b; }
+.loading { padding: 40px; text-align: center; color: var(--checkit-muted); }
 
 
 .accessBadge {
@@ -184,10 +185,10 @@
   align-items: center;
   gap: 12px;
   background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--checkit-border);
   padding: 10px 14px;
   border-radius: 8px;
-  color: #0f172a;
+  color: var(--checkit-ink);
   margin-bottom: 8px;
 }
 
