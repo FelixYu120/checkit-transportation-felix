@@ -1,4 +1,12 @@
 .page {
+    /* Authentication uses the same CheckIt palette across platform themes. */
+    --checkit-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --checkit-green: #34524d;
+    --checkit-green-dark: #28423e;
+    --checkit-bg: #e9eeeb;
+    --checkit-panel: #fbfcfa;
+    --checkit-ink: #15201f;
+    --checkit-surface-muted: #e3e9e4;
     position: absolute;
     inset: 0;
     display: grid;
@@ -13,6 +21,10 @@
     font-family: var(--checkit-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
     -webkit-font-smoothing: antialiased;
     color-scheme: light;
+}
+
+.page button:hover {
+    transform: none;
 }
 
 .card {
