@@ -121,7 +121,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
     return (
         <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             
-            {isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />}
+            {!['/login', '/create-account'].includes(location.pathname) && (isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />)}
             
             <div className={styles.mainContent} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                 <Routes>

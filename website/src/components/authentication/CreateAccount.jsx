@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
-import styles from './Login.module.css';
+import styles from './LoginPage.module.css';
 
 function CreateAccount({ setIsLoggedIn }) {
     const navigate = useNavigate();
@@ -149,136 +149,130 @@ function CreateAccount({ setIsLoggedIn }) {
     };
 
     return (
-        <div className={styles.authcontainer}>
+        <main className={styles.page} aria-labelledby="signup-title">
             <div className={styles.card}>
-                <div className={styles.brandBlock}>
-                    <a href="https://checkit.dev" aria-label="Go to CheckIt landing page" className={styles.logoLink}>
-                        <img src="/checkit-logo.png" alt="CheckIt logo" className={styles.icon} />
+                <div className={styles.brandRow}>
+                    <a href="https://checkit.dev" aria-label="CheckIt home" className={styles.logoLink}>
+                        <img src="/checkit-logo.png" alt="CheckIt" className={styles.logo} />
                     </a>
+                    <span className={styles.productName}>Transportation</span>
                 </div>
+                <h1 id="signup-title" className={styles.title}>Create account</h1>
+                <p id="signup-intro" className={styles.intro}>
+                    {hasInviteSession ? 'Add your name and choose a password.' : 'Use the email approved for platform access.'}
+                </p>
 
-                <div className={styles.fadein}>
-                    <div className={styles.headerBlock}>
-                        <h1 className={styles.logintitle}>CREATE ACCOUNT</h1>
-                        <p className={styles.helperText}>
-                            {hasInviteSession
-                                ? 'Add your name and choose a password.'
-                                : 'Use the email approved for platform access.'}
-                        </p>
-                    </div>
+                {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
+                {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
 
-                    {errorMessage && <div className={styles.errorMessage}>{errorMessage}</div>}
-                    {successMessage && <div className={styles.successMessage}>{successMessage}</div>}
-
-                    <form className={styles.formlayout} onSubmit={handleSubmit} autoComplete="off">
-                        <div className={styles.nameRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel} htmlFor="signup-first-name">First name</label>
-                                <input
-                                    id="signup-first-name"
-                                    name="new-admin-first-name"
-                                    className={styles.loginemail}
-                                    type="text"
-                                    value={firstName}
-                                    placeholder="First name"
-                                    autoComplete="given-name"
-                                    required
-                                    onChange={(event) => setFirstName(event.target.value)}
-                                />
-                            </div>
-
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel} htmlFor="signup-last-name">Last name</label>
-                                <input
-                                    id="signup-last-name"
-                                    name="new-admin-last-name"
-                                    className={styles.loginemail}
-                                    type="text"
-                                    value={lastName}
-                                    placeholder="Last name"
-                                    autoComplete="family-name"
-                                    required
-                                    onChange={(event) => setLastName(event.target.value)}
-                                />
-                            </div>
-                        </div>
-
+                <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
+                    <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-signup-email">Email address</label>
+                            <label htmlFor="signup-first-name">First name</label>
                             <input
-                                id="transportation-signup-email"
-                                name="checkit-transportation-new-account-email"
-                                className={styles.loginemail}
-                                type="email"
-                                value={email}
-                                placeholder="you@organization.edu"
-                                autoComplete="section-checkit-transportation email"
-                                disabled={hasInviteSession}
+                                id="signup-first-name"
+                                name="new-admin-first-name"
+                                className={styles.input}
+                                type="text"
+                                value={firstName}
+                                placeholder="First name"
+                                autoComplete="given-name"
                                 required
-                                onChange={(event) => setEmail(event.target.value)}
+                                onChange={(event) => setFirstName(event.target.value)}
                             />
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-signup-password">Password</label>
-                            <div className={styles.passwordField}>
-                                <input
-                                    id="transportation-signup-password"
-                                    name="checkit-transportation-new-account-password"
-                                    className={`${styles.loginemail} ${styles.passwordInput}`}
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    placeholder="Use at least 8 characters"
-                                    autoComplete="section-checkit-transportation new-password"
-                                    required
-                                    onChange={(event) => setPassword(event.target.value)}
-                                />
-                                <button
-                                    type="button"
-                                    className={styles.passwordToggle}
-                                    onClick={() => setShowPassword((current) => !current)}
-                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
+                            <label htmlFor="signup-last-name">Last name</label>
+                            <input
+                                id="signup-last-name"
+                                name="new-admin-last-name"
+                                className={styles.input}
+                                type="text"
+                                value={lastName}
+                                placeholder="Last name"
+                                autoComplete="family-name"
+                                required
+                                onChange={(event) => setLastName(event.target.value)}
+                            />
                         </div>
+                    </div>
 
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-signup-confirm-password">Confirm password</label>
-                            <div className={styles.passwordField}>
-                                <input
-                                    id="transportation-signup-confirm-password"
-                                    name="checkit-transportation-new-account-confirm-password"
-                                    className={`${styles.loginemail} ${styles.passwordInput}`}
-                                    type={showConfirmPassword ? 'text' : 'password'}
-                                    value={confirmPassword}
-                                    placeholder="Re-enter your password"
-                                    autoComplete="section-checkit-transportation new-password"
-                                    required
-                                    onChange={(event) => setConfirmPassword(event.target.value)}
-                                />
-                                <button
-                                    type="button"
-                                    className={styles.passwordToggle}
-                                    onClick={() => setShowConfirmPassword((current) => !current)}
-                                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                                >
-                                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
+                    <div className={styles.fieldGroup}>
+                        <label htmlFor="transportation-signup-email">Email address</label>
+                        <input
+                            id="transportation-signup-email"
+                            name="checkit-transportation-new-account-email"
+                            className={styles.input}
+                            type="email"
+                            value={email}
+                            placeholder="name@organization.com"
+                            autoComplete="section-checkit-transportation email"
+                            disabled={hasInviteSession}
+                            required
+                            onChange={(event) => setEmail(event.target.value)}
+                        />
+                    </div>
 
-                        <div className={styles.navrow}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>BACK</button>
-                            <button type="submit" className={styles.continuebutton} disabled={loading || !authReady || !supabase}>
-                                {!authReady ? 'CHECKING INVITE...' : loading ? 'CREATING...' : hasInviteSession ? 'SAVE PASSWORD' : 'CREATE'}
+                    <div className={styles.fieldGroup}>
+                        <label htmlFor="transportation-signup-password">Password</label>
+                        <div className={styles.passwordField}>
+                            <input
+                                id="transportation-signup-password"
+                                name="checkit-transportation-new-account-password"
+                                className={`${styles.input} ${styles.passwordInput}`}
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                placeholder="Use at least 8 characters"
+                                autoComplete="section-checkit-transportation new-password"
+                                required
+                                onChange={(event) => setPassword(event.target.value)}
+                            />
+                            <button
+                                type="button"
+                                className={styles.passwordToggle}
+                                onClick={() => setShowPassword((current) => !current)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                aria-pressed={showPassword}
+                            >
+                                {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                             </button>
                         </div>
-                    </form>
-                </div>
+                    </div>
+
+                    <div className={styles.fieldGroup}>
+                        <label htmlFor="transportation-signup-confirm-password">Confirm password</label>
+                        <div className={styles.passwordField}>
+                            <input
+                                id="transportation-signup-confirm-password"
+                                name="checkit-transportation-new-account-confirm-password"
+                                className={`${styles.input} ${styles.passwordInput}`}
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                value={confirmPassword}
+                                placeholder="Re-enter your password"
+                                autoComplete="section-checkit-transportation new-password"
+                                required
+                                onChange={(event) => setConfirmPassword(event.target.value)}
+                            />
+                            <button
+                                type="button"
+                                className={styles.passwordToggle}
+                                onClick={() => setShowConfirmPassword((current) => !current)}
+                                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                                aria-pressed={showConfirmPassword}
+                            >
+                                {showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" className={styles.submitButton} disabled={loading || !authReady || !supabase}>
+                        {!authReady ? 'Checking invite…' : loading ? 'Creating account…' : hasInviteSession ? 'Save password' : 'Create account'}
+                    </button>
+                </form>
+                <Link className={styles.backLink} to="/login">Back to sign in</Link>
             </div>
-        </div>
+        </main>
     );
 }
 

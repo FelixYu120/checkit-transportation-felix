@@ -387,15 +387,14 @@ const TeamPage = () => {
               </dd>
             </div>
           </dl>
-          <div className={styles.memberDetailsFooter}>
-            {canManageMember(currentUserRole, currentUserId, activeMember) ? (
+          {canManageMember(currentUserRole, currentUserId, activeMember) ? (
+            <div className={styles.memberDetailsFooter}>
               <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)}>
                 <X size={16} aria-hidden="true" />
                 Remove from team
               </button>
-            ) : null}
-            <button className={styles.doneButton} type="button" onClick={closeMemberDetails}>Done</button>
-          </div>
+            </div>
+          ) : null}
         </dialog>
       ) : null}
 

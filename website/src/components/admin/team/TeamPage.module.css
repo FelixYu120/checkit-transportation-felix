@@ -665,24 +665,6 @@
   line-height: 1.5;
 }
 
-.doneButton {
-  min-width: 84px;
-  min-height: 36px;
-  padding: 0 16px;
-  border: 1px solid var(--checkit-green, #34524d);
-  border-radius: 6px;
-  background: var(--checkit-green, #34524d);
-  color: #fff;
-  font: inherit;
-  font-size: .8125rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.doneButton:hover {
-  background: var(--checkit-green-dark, #28423e);
-}
-
 .removalProfile {
   display: flex;
   align-items: center;
@@ -821,7 +803,6 @@
 }
 
 .removeFromProfileButton:focus-visible,
-.doneButton:focus-visible,
 .memberDetailsButton:focus-visible,
 .inviteTrigger:focus-visible,
 .removeMemberButton:focus-visible,

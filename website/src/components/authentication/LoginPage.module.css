@@ -1,0 +1,296 @@
+.page {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(min-content, 1fr);
+    place-items: center;
+    box-sizing: border-box;
+    padding: 24px;
+    overflow-y: auto;
+    background: var(--checkit-surface-muted, #e3e9e4);
+    color: var(--checkit-ink, #15201f);
+    font-family: var(--checkit-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    -webkit-font-smoothing: antialiased;
+    color-scheme: light;
+}
+
+.card {
+    box-sizing: border-box;
+    width: min(100%, 416px);
+    padding: 36px;
+    border: 1px solid #bfcdc4;
+    border-radius: 10px;
+    background: var(--checkit-bg, #e9eeeb);
+    box-shadow: 0 8px 24px rgba(35, 55, 45, .06);
+}
+
+.brandRow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--checkit-green-dark, #28423e);
+    margin: -36px -36px 0;
+    padding: 24px 36px;
+    border-radius: 9px 9px 0 0;
+    background: var(--checkit-green, #34524d);
+}
+
+.productName {
+    padding-left: 16px;
+    border-left: 1px solid rgba(213, 225, 217, .18);
+    color: #bacbc2;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: .02em;
+    white-space: nowrap;
+}
+
+.logoLink {
+    display: inline-flex;
+    border-radius: 3px;
+}
+
+.logo {
+    display: block;
+    width: 112px;
+    height: auto;
+    filter: none;
+    opacity: 1;
+}
+
+.title {
+    margin: 24px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -.02em;
+    color: var(--checkit-green, #34524d);
+}
+
+.intro {
+    margin: -12px 0 24px;
+    color: #53685c;
+    font-size: .8125rem;
+    line-height: 1.5;
+}
+
+.nameRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.form {
+    display: grid;
+    gap: 20px;
+}
+
+.autofillUsernameInput {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fieldGroup {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.fieldGroup label {
+    color: var(--checkit-ink, #15201f);
+    font-size: .8125rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 46px;
+    padding: 0 13px;
+    border: 1px solid #b6c6bc;
+    border-radius: 6px;
+    background: var(--checkit-panel, #fbfcfa);
+    color: var(--checkit-ink, #15201f);
+    font: inherit;
+    font-size: .875rem;
+}
+
+.input:disabled {
+    background: var(--checkit-surface-muted, #e3e9e4);
+    color: #53685c;
+    cursor: not-allowed;
+}
+
+.input::placeholder {
+    color: #64746a;
+    opacity: 1;
+}
+
+.input:focus {
+    border-color: var(--checkit-green, #34524d);
+    outline: none;
+    box-shadow: 0 0 0 3px #34524d14;
+}
+
+.passwordLabelRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.passwordField {
+    position: relative;
+}
+
+.passwordInput {
+    padding-right: 46px;
+}
+
+.passwordToggle {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #5c7063;
+    cursor: pointer;
+}
+
+.passwordToggle:hover {
+    background: var(--checkit-surface-muted, #e3e9e4);
+    color: var(--checkit-green, #34524d);
+}
+
+.submitButton {
+    min-height: 46px;
+    margin-top: 2px;
+    padding: 10px 16px;
+    border: 1px solid var(--checkit-green, #34524d);
+    border-radius: 6px;
+    background: var(--checkit-green, #34524d);
+    color: #fff;
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.submitButton:hover:not(:disabled) {
+    background: var(--checkit-green-dark, #28423e);
+}
+
+.submitButton:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.textLink {
+    border-radius: 3px;
+    color: var(--checkit-green, #34524d);
+    font-size: .75rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-decoration: none;
+}
+
+.backLink {
+    display: block;
+    width: fit-content;
+    margin: 24px auto 0;
+    border-radius: 3px;
+    color: #53685c;
+    font-size: .75rem;
+    line-height: 1.5;
+    text-decoration: none;
+}
+
+.textLink:hover,
+.backLink:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.successMessage {
+    margin: 0 0 20px;
+    padding: 10px 12px;
+    border: 1px solid #bbd0c2;
+    border-radius: 6px;
+    background: #e0ece3;
+    color: var(--checkit-green, #34524d);
+    font-size: .8125rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.errorMessage {
+    margin: 0 0 20px;
+    padding: 10px 12px;
+    border: 1px solid #e8c9ca;
+    border-radius: 6px;
+    background: #fdf3f3;
+    color: #9b3039;
+    font-size: .8125rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.logoLink:focus-visible,
+.backLink:focus-visible,
+.textLink:focus-visible,
+.passwordToggle:focus-visible,
+.submitButton:focus-visible {
+    outline: 2px solid #34524d;
+    outline-offset: 4px;
+}
+
+.logoLink:focus-visible {
+    outline-color: #e3ebe8;
+}
+
+@media (max-width: 480px) {
+    .page {
+        padding: 20px;
+    }
+
+    .card {
+        padding: 24px;
+    }
+
+    .brandRow {
+        margin: -24px -24px 0;
+        padding: 20px 24px;
+        gap: 12px;
+    }
+
+    .logo {
+        width: 100px;
+    }
+
+    .productName {
+        padding-left: 12px;
+    }
+
+    .nameRow {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
