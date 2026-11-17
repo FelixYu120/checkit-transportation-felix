@@ -19,6 +19,8 @@ const normalizeRole = (role) => {
   return normalized === "user" ? "viewer" : normalized;
 };
 
+
+
 const getBearerToken = (req) => {
   const header = req.headers.authorization || "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
