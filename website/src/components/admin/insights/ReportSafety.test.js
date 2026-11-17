@@ -18,7 +18,7 @@ test('title, author, date, and period edits all count as unsaved changes', () =>
 });
 
 test('chart caches and save timestamps do not manufacture unsaved edits', () => {
-  const cached = { ...layout,
+  const cached = { ...layout, thumbnail: { version: 1, src: 'data:image/png;base64,test' },
     elements: layout.elements.map(element => ({ ...element, snapshotData: { values: [1, 2] }, snapshotKey: 'cache-1' })),
     reportSettings: { ...layout.reportSettings, lastSavedBy: 'owner@example.test', lastSavedAt: '2026-11-09' },
   };

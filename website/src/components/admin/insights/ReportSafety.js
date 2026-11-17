@@ -7,8 +7,10 @@ export const getComparableReportState = (reportState, docMeta = {}) => {
   const settings = { ...(reportState.reportSettings || {}) };
   delete settings.lastSavedAt;
   delete settings.lastSavedBy;
+  const comparable = { ...reportState };
+  delete comparable.thumbnail;
   return {
-    ...reportState,
+    ...comparable,
     elements: (reportState.elements || []).map((element) => {
       const stable = { ...element };
       delete stable.snapshotData;

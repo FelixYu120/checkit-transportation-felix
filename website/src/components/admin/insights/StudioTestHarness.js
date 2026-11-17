@@ -32,15 +32,31 @@ export async function createStudioHarness() {
       let operation = 'read';
       let payload;
       const filters = {};
+      let columns = '*';
       const execute = async () => {
         if (table === 'profile') return { data: state.profileError ? null : { id: account.id, role: state.role }, error: state.profileError || null };
         if (table === 'insight_report_versions') return { data: state.versions?.get(filters.id), error: null };
         if (table !== 'saved_reports') return { data: table === 'areas' ? [{ id: 'ucsd', name: 'UC San Diego' }] : [], error: null };
         if (operation === 'read') {
           state.reads.push(filters.id);
+          (state.projections ||= []).push(columns);
+          if (filters.ids) (state.batchReads ||= []).push([...filters.ids]);
+          if ((filters.id || filters.ids) && state.previewReadGate) await state.previewReadGate;
           if (state.readError) return { data: null, error: state.readError };
-          if (!filters.id) return { data: [...state.reports.values()], error: null };
-          const data = state.reports.get(filters.id);
+          if (!filters.id) return { data: [...state.reports.values()].filter(report => !filters.ids || filters.ids.includes(report.id)).map(report => {
+            if (columns === '*' || columns.includes(',layout_data')) return report;
+            let layout = report.layout_data;
+            if (typeof layout === 'string') { try { layout = JSON.parse(layout); } catch { layout = null; } }
+            const metadata = { ...report };
+            delete metadata.layout_data;
+            return { ...metadata, report_mode: layout?.mode, report_settings: layout?.reportSettings };
+          }), error: null };
+          let data = state.reports.get(filters.id);
+          if (data && columns === 'thumbnail:layout_data->thumbnail') {
+            let layout = data.layout_data;
+            if (typeof layout === 'string') { try { layout = JSON.parse(layout); } catch { layout = null; } }
+            data = { thumbnail: layout?.thumbnail };
+          }
           return { data, error: data ? null : { message: 'Report not found' } };
         }
         state.writes.push({ operation, payload, id: filters.id });
@@ -48,14 +64,14 @@ export async function createStudioHarness() {
         if (state.writeError) return { data: null, error: state.writeError };
         if (state.noSavedRow) return { data: null, error: null };
         const id = filters.id || 'created-report';
-        state.reports.set(id, { ...(state.reports.get(id) || {}), ...payload, id, owner_id: account.id });
+        state.reports.set(id, { ...(state.reports.get(id) || {}), ...payload, id, ...(operation === 'insert' ? { owner_id: account.id } : {}) });
         return { data: { id }, error: null };
       };
       const query = {
-        select() { return query; },
+        select(value) { columns = value || '*'; return query; },
         eq(key, value) { filters[key] = value; return query; },
         order() { return query; },
-        in() { return query; },
+        in(key, values) { if (key === 'id') filters.ids = values; return query; },
         update(value) { operation = 'update'; payload = value; return query; },
         insert(value) { operation = 'insert'; payload = value[0]; return query; },
         single: execute, maybeSingle: execute,
@@ -84,7 +100,6 @@ export async function createStudioHarness() {
     loader: 'jsx', jsx: 'transform', jsxFactory: 'React.createElement', jsxFragment: 'React.Fragment',
   });
   const reactUrl = import.meta.resolve('react');
-  const stubComponent = `import React from ${JSON.stringify(reactUrl)}; export default function Widget(){return React.createElement('div',{'data-report-loading':globalThis.__checkitStudioFixture.widgetsLoading?'true':'false'},'Widget');}`;
   const workspaceSource = await readFile(new URL('./ReportWorkspace.jsx', import.meta.url), 'utf8');
   const workspaceTransform = await transformWithEsbuild(workspaceSource, 'ReportWorkspace.jsx', { loader: 'jsx', jsx: 'transform' });
   const workspaceModule = asModule(workspaceTransform.code.replace(/(from\s*)['"]([^'"]+)['"]/g, (match, prefix, specifier) => {
@@ -94,17 +109,31 @@ export async function createStudioHarness() {
   }));
   const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^"']+)\3/gm, (match, prefix, clause, quote, specifier) => {
     let target;
-    if (['react', 'react-dom', 'react-router-dom'].includes(specifier)) target = import.meta.resolve(specifier);
+    if (['react', 'react-dom', 'react-dom/client', 'react-router-dom'].includes(specifier)) target = import.meta.resolve(specifier);
     else if (specifier === './ReportWorkspace.jsx') target = workspaceModule;
-    else if (['./ReportSafety.js', './ReportHtml.js', './ReportEnterprise.js', '../visualizations/ChartTheme.js'].includes(specifier)) target = new URL(specifier, import.meta.url).href;
+    else if (['./ReportSafety.js', './ReportHtml.js', './ReportEnterprise.js', './ReportThumbnails.js', '../visualizations/ChartTheme.js'].includes(specifier)) target = new URL(specifier, import.meta.url).href;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, name) => String(name)});');
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__checkitStudioFixture.supabase;');
-    else if (specifier === 'html2canvas') target = asModule(`export default async function capture(node){globalThis.__checkitStudioFixture.captures.push(node);return {width:820,height:1200,toDataURL:()=> 'data:image/png;base64,test'};}`);
+    else if (specifier === 'html2canvas') target = asModule(`export default async function capture(node,options={}){
+      const state=globalThis.__checkitStudioFixture;
+      state.captures.push(node.cloneNode(true));
+      await state.captureGate?.(state.captures.length);
+      const clone=document.implementation.createHTMLDocument();
+      clone.body.innerHTML=document.body.innerHTML;
+      await options.onclone?.(clone);
+      (state.captureClones||=[]).push(clone);
+      (state.captureOptions||=[]).push(options);
+      return {width:820,height:1200,toDataURL:()=> 'data:image/png;base64,test'};
+    }`);
     else if (specifier === 'jspdf') target = asModule(`export class jsPDF{internal={pageSize:{getWidth:()=>210,getHeight:()=>297}};addPage(){}addImage(){}save(name){globalThis.__checkitStudioFixture.pdfs.push(name)}}`);
     else {
       const named = clause.match(/\{([\s\S]*?)\}/)?.[1].split(',').map(name => name.trim().split(/\s+as\s+/)[0]).filter(Boolean) || [];
       let stub = `import React from ${JSON.stringify(reactUrl)};\n`;
-      if (/^\s*[A-Za-z_$]/.test(clause)) stub += stubComponent.replace(/^import[^;]+;/, '') + '\n';
+      if (/^\s*[A-Za-z_$]/.test(clause)) stub += `export default function Widget(props){return React.createElement('div',{
+          'data-report-widget':${JSON.stringify(specifier)},
+          'data-widget-props':JSON.stringify(props),
+          'data-report-loading':globalThis.__checkitStudioFixture.widgetsLoading?'true':'false'
+        },'Widget');}\n`;
       for (const name of named) {
         if (specifier === 'lucide-react') stub += `export const ${name}=()=>React.createElement('span',{'aria-hidden':true});\n`;
         else if (name === 'Rnd') stub += "export const Rnd=props=>React.createElement('div',{className:props.className,onDoubleClick:props.onDoubleClick},props.children);\n";
@@ -135,6 +164,18 @@ export async function createStudioHarness() {
   };
   return {
     state, dom, until, button,
+    observeManually() {
+      const observers = [];
+      globalThis.IntersectionObserver = class {
+        constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this); }
+        observe(node) { this.nodes.add(node); }
+        disconnect() { this.nodes.clear(); }
+        unobserve(node) { this.nodes.delete(node); }
+      };
+      return async node => act(async () => {
+        for (const observer of [...observers]) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: true }]);
+      });
+    },
     isSaved: () => Boolean(document.querySelector('[aria-label="Save report"][data-save-state="saved"]')),
     report(overrides = {}) {
       return { id: 'saved-report', owner_id: account.id, title: 'Original title', author: 'Author', date: 'November 9', period: 'Last 7 Days',
@@ -181,7 +222,8 @@ export async function createStudioHarness() {
       root = null;
       router?.dispose();
       router = null;
-      Object.assign(state, { reports: new Map(), role: 'admin', reads: [], writes: [], alerts: [], captures: [], pdfs: [], rpcCalls: [], profileError: null, readError: null, writeError: null, noSavedRow: false, writeGate: null, widgetsLoading: false, workspace: null, workspaceError: null, commandError: null, versions: new Map() });
+      delete globalThis.IntersectionObserver;
+      Object.assign(state, { reports: new Map(), role: 'admin', reads: [], writes: [], alerts: [], captures: [], captureClones: [], captureOptions: [], captureGate: null, pdfs: [], rpcCalls: [], projections: [], batchReads: [], profileError: null, previewReadGate: null, readError: null, writeError: null, noSavedRow: false, writeGate: null, widgetsLoading: false, workspace: null, workspaceError: null, commandError: null, versions: new Map() });
     },
     async close() { await this.reset(); dom.window.close(); console.error = originalConsoleError; },
   };

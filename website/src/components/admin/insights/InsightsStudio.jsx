@@ -8,11 +8,18 @@ import {
   requireReportReady, saveReportRecord, removeReportDataNotes,
 } from './ReportSafety.js';
 import { sanitizeReportHtml } from './ReportHtml.js';
+import { cacheReportThumbnail, captureReportImage, getCurrentReportThumbnail, getReportThumbnailRevision, preserveReportThumbnail, readCachedReportThumbnail } from './ReportThumbnails.js';
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { useNavigate, Link, useSearchParams, useBlocker } from 'react-router-dom';
 import {
   Download,
+  Search,
+  ChevronDown,
+  MoreVertical,
+  LayoutGrid,
+  List,
   Type,
   BarChart2,
   Layers,
@@ -885,7 +892,8 @@ const ChartFrame = ({ title, children }) => {
   );
 };
 
-const normalizeReportElements = (elements = []) => elements.map((element) => {
+const normalizeReportElements = (elements = []) => elements.map((savedElement) => {
+  const element = { ...savedElement, style: savedElement.style || {} };
   if (element.type === 'chart') {
     return {
       ...element,
@@ -975,9 +983,9 @@ const parseSavedLayoutData = (layoutData) => {
 
 
 
-const getReportMode = (report) => inferReportModeFromLayout(parseSavedLayoutData(report?.layout_data));
+const getReportMode = (report) => report?.report_mode || inferReportModeFromLayout(parseSavedLayoutData(report?.layout_data));
 
-const getReportSettings = (report) => parseSavedLayoutData(report?.layout_data)?.reportSettings || {};
+const getReportSettings = (report) => report?.report_settings || parseSavedLayoutData(report?.layout_data)?.reportSettings || {};
 
 const getReportSharedEmails = (report) => {
   if (Array.isArray(report?.shared_with_emails)) return report.shared_with_emails.filter(Boolean);
@@ -1045,7 +1053,7 @@ const formatReportDate = (value) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const formatReportDateTime = (value) => {
@@ -1202,7 +1210,7 @@ const ToolbarIconButton = ({ label, tooltip = label, tooltipAlign = 'center', pr
 
 export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) => {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams(); 
+  const [searchParams, setSearchParams] = useSearchParams();
   const isComparison = type === 'comparison';
   const viewingVersionId = searchParams.get('version');
   const isViewingVersion = Boolean(viewingVersionId);
@@ -1233,9 +1241,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const exportPageCountRef = useRef(DEFAULT_PAGE_COUNT);
   const copiedElementRef = useRef(null);
   const textDraftsRef = useRef({});
+  const reportThumbnailRef = useRef(null);
   const textSelectionRef = useRef(null);
   const collaborationChannelRef = useRef(null);
-  
+
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [runSaveTask] = useState(createSingleFlightTask);
@@ -1307,7 +1316,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         return leftLabel.localeCompare(rightLabel);
       });
   }, [reportSettings.sharedWith, selectedShareRecipients, shareDialogOpen, shareEmail, shareEmailDirectory]);
-  
+
   // --- DOCUMENT METADATA ---
   const [docMeta, setDocMeta] = useState({
     title: TEMPLATE_DOC_META[templateConfig.id]?.title || (isComparison ? 'Comparison Report' : 'Activity & Operations Report'),
@@ -1405,6 +1414,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         const user = auth.data?.user;
         if (!data || !user?.id) throw new Error('Report access is unavailable.');
         const savedLayout = parseSavedLayoutData(data.layout_data);
+        reportThumbnailRef.current = decodeReportLayout(data.layout_data)?.thumbnail || null;
         if (!savedLayout) throw new Error('The saved report layout could not be read.');
         const savedMode = inferReportModeFromLayout(savedLayout);
         if (savedMode !== type) {
@@ -1556,6 +1566,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     lastCleanSnapshotRef.current = null;
     createdReportIdRef.current = null;
     pendingSavedUrlRef.current = null;
+    reportThumbnailRef.current = null;
     textDraftsRef.current = {};
     undoStackRef.current = [];
     redoStackRef.current = [];
@@ -2180,8 +2191,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     const newEl = { id: newId, type, x, y, zIndex: getNextZIndex(), style: {} };
 
     // Strict color declarations keep exports consistent with the light report theme.
-    if (type === 'text') { 
-        newEl.width = 384; newEl.height = 72; newEl.content = 'New Text Block'; 
+    if (type === 'text') {
+        newEl.width = 384; newEl.height = 72; newEl.content = 'New Text Block';
         newEl.style = { fontSize: '16px', fontFamily: FONT_FAMILY_OPTIONS[0].value, color: DEFAULT_TEXT_COLOR, background: DEFAULT_CARD_BACKGROUND, fontWeight: 'normal', textAlign: 'left' };
     }
     if (type === 'divider') {
@@ -2190,7 +2201,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       newEl.orientation = 'horizontal';
       newEl.style = { line: '2px solid #e2e8f0', borderBottom: '2px solid #e2e8f0' };
     }
-    if (type === 'chart' || type === 'summary') { 
+    if (type === 'chart' || type === 'summary') {
         newEl.width = DEFAULT_REPORT_WIDTH;
         newEl.height = type === 'summary' ? getAutoSummaryHeight(newEl, isComparison, DEFAULT_REPORT_WIDTH) : DEFAULT_CHART_HEIGHT;
         newEl.label = type === 'chart' ? `Chart ${elements.filter((element) => element.type === 'chart').length + 1}` : undefined;
@@ -2206,9 +2217,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         newEl.comparisonSelections = summaryForChart ? selectedChart.comparisonSelections : comparisonSelections;
         newEl.comparisonSelectionList = summaryForChart ? selectedChart.comparisonSelectionList : [];
         newEl.attachedChartId = summaryForChart ? selectedChart.id : undefined;
-        newEl.style = { borderRadius: '12px', background: '#ffffff' }; 
+        newEl.style = { borderRadius: '12px', background: '#ffffff' };
     }
-    
+
     pushUndoSnapshot();
     setElements([...elements, newEl]);
     setSelectedElementId(newId);
@@ -2462,9 +2473,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
     try {
       await waitForNextPaint();
-      
+
       const totalRequiredHeight = totalVisiblePageCount * PAGE_HEIGHT;
-      
+
       originalHeight = element.style.height;
       element.style.height = `${totalRequiredHeight}px`;
       await requireReportReady(element);
@@ -2572,7 +2583,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
       pdf.addImage(page.src, 'PNG', x, y, imgWidth, imgHeight);
     });
-    
+
     pdf.save(`${docMeta.title.replace(/\s+/g, '_')}_Report.pdf`);
   };
 
@@ -2666,14 +2677,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       p_report_id: reportId,
       p_shared_with_emails: normalizedSharedWith,
       p_shared_access: normalizedSharedAccess,
-      p_layout_data: getSavedReportState({
+      p_layout_data: await preserveReportThumbnail(getSavedReportState({
         mode: type,
         elements: committedElements,
         pageCount: visiblePageCount,
         selections,
         comparisonSelections,
         reportSettings: nextReportSettings,
-      }),
+      }), getCheckpointDocMeta(lastCleanSnapshotRef.current, docMeta), reportThumbnailRef.current),
     });
 
     if (error) {
@@ -2835,14 +2846,14 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       p_report_id: shareReportId,
       p_shared_with_emails: nextSharedWith,
       p_shared_access: nextSharedAccess,
-      p_layout_data: getSavedReportState({
+      p_layout_data: await preserveReportThumbnail(getSavedReportState({
         mode: type,
         elements: committedElements,
         pageCount: visiblePageCount,
         selections,
         comparisonSelections,
         reportSettings: nextReportSettings,
-      }),
+      }), getCheckpointDocMeta(lastCleanSnapshotRef.current, docMeta), reportThumbnailRef.current),
     });
 
     if (error) {
@@ -2919,8 +2930,16 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         title: docMeta.title, author: docMeta.author, period: docMeta.period,
         date: docMeta.date, layout_data: savedState,
       };
+      const thumbnailRevision = await getReportThumbnailRevision(payload);
+      try {
+        const directory = await loadReportPreviewDirectory();
+        savedState.thumbnail = await queueReportThumbnail(() => renderReportThumbnail(payload, directory, thumbnailRevision));
+      } catch (error) {
+        console.warn('Report thumbnail could not be captured:', error.message);
+      }
       const savedReportId = await saveReportRecord(supabase, { reportId, payload, user: currentUser });
       if (!mountedRef.current) return savedReportId;
+      reportThumbnailRef.current = savedState.thumbnail || null;
       lastSavedRevisionRef.current = savedRevision;
       if (!reportId) {
         // This document is already in memory. Reloading it would erase edits made while saving.
@@ -3177,285 +3196,18 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     ), document.body);
   };
 
-  const renderElementContent = (el) => {
-    if (isViewingVersion && ['chart', 'summary'].includes(el.type) && !el.snapshotData) return <p>No data was saved for this module in this version.</p>;
+  const renderElementContent = (el) => renderReportElement(el, {
+    isViewingVersion, getElementPrimarySelections, getElementComparisonSelections,
+    getTargetFromSelections, isComparison, getElementComparisonTargets,
+    getElementFilters, getElementTimeframe, type, editingTextId, isDownloading,
+    isReadOnlyReport, textDraftsRef, setSelectedElementId, markDirty, updateElement,
+    setEditingTextId, saveTextSelection, updateElementSnapshot, getAttachedChart
+  });
 
-    const elementPrimarySelections = getElementPrimarySelections(el);
-    const elementComparisonSelections = getElementComparisonSelections(el);
-    const elementPrimaryTarget = getTargetFromSelections(elementPrimarySelections, '');
-    const elementSecondaryTarget = getTargetFromSelections(elementComparisonSelections, '');
-    const elementComparisonTargets = isComparison ? getElementComparisonTargets(el) : [elementPrimaryTarget, elementSecondaryTarget];
-    const elementHasSoloTarget = Boolean(elementPrimaryTarget.id);
-    const elementHasComparisonTargets = elementComparisonTargets.filter((target) => target.id).length >= 2;
-    const elementFilters = getElementFilters(el);
-    const elementTimeframe = getElementTimeframe(el);
-    const elementSnapshotKey = getSnapshotKey({
-      mode: type,
-      target: elementPrimaryTarget,
-      secondaryTarget: elementSecondaryTarget,
-      targets: isComparison ? elementComparisonTargets : undefined,
-      filters: elementFilters,
-      timeframe: elementTimeframe,
-    });
-
-    if (el.type === 'text') {
-      const isEditing = editingTextId === el.id;
-      const savedTextHtml = getTextHtml(el);
-      const textHtml = sanitizeReportHtml(textDraftsRef.current[el.id] ?? savedTextHtml);
-
-      return (
-        <div
-          data-text-element-id={el.id}
-          contentEditable={isEditing && !isDownloading && !isReadOnlyReport}
-          suppressContentEditableWarning
-          onFocus={() => {
-            if (!isReadOnlyReport) setSelectedElementId(el.id);
-          }}
-          onPaste={(event) => {
-            if (isReadOnlyReport) return;
-            const html = event.clipboardData?.getData('text/html');
-            if (!html) return;
-            event.preventDefault();
-            document.execCommand('insertHTML', false, sanitizeReportHtml(html));
-          }}
-          onInput={(event) => {
-            if (isReadOnlyReport) return;
-            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
-            textDraftsRef.current[el.id] = nextHtml;
-            markDirty();
-          }}
-          onBlur={(event) => {
-            if (isReadOnlyReport) return;
-            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
-            textDraftsRef.current[el.id] = nextHtml;
-            if (event.relatedTarget?.closest?.('[data-insights-editor-sidebar="true"]')) {
-              markDirty();
-              return;
-            }
-            if (nextHtml !== savedTextHtml) updateElement(el.id, { html: nextHtml, content: stripHtml(nextHtml) });
-            setEditingTextId(null);
-          }}
-          onMouseUp={() => {
-            if (!isReadOnlyReport) saveTextSelection(el.id);
-          }}
-          onKeyUp={() => {
-            if (!isReadOnlyReport) saveTextSelection(el.id);
-          }}
-          onMouseDown={(event) => {
-            if (isReadOnlyReport || isEditing) event.stopPropagation();
-          }}
-          style={{ width: '100%', height: '100%', overflow: 'hidden', fontSize: getTextFontSize(el), fontFamily: el.style.fontFamily || FONT_FAMILY_OPTIONS[0].value, color: el.style.color || DEFAULT_TEXT_COLOR, fontWeight: el.style.fontWeight, textAlign: el.style.textAlign, outline: 'none', whiteSpace: 'pre-wrap', cursor: isReadOnlyReport ? 'default' : isEditing ? 'text' : 'move', lineHeight: 1.18 }}
-          dangerouslySetInnerHTML={{ __html: textHtml }}
-        />
-      );
-    }
-    if (el.type === 'divider') {
-      const lineStyle = el.style.line || el.style.borderBottom || el.style.borderLeft || '2px solid #e2e8f0';
-      const isVertical = el.orientation === 'vertical';
-      return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={isVertical ? { height: '100%', borderLeft: lineStyle } : { width: '100%', borderBottom: lineStyle }} />
-        </div>
-      );
-    }
-    if (el.type === 'image') return <img src={el.src} alt={el.label || el.fileName || 'Inserted report visual'} className={styles.insertedImage} />;
-    if (el.type === 'attachment') return (
-      <a href={el.src} download={el.fileName} className={styles.attachmentCard}>
-        <FileText size={24} />
-        <span>{el.label || el.fileName || 'Attachment'}</span>
-        <small>{el.fileType || 'File'}</small>
-      </a>
-    );
-    if (el.type === 'link') return (
-      <a href={el.href} target="_blank" rel="noreferrer" className={styles.linkCard}>
-        <Link2 size={22} />
-        <span>{el.label || 'Reference Link'}</span>
-        <small>{el.href}</small>
-      </a>
-    );
-    if (isComparison && !elementHasComparisonTargets) return (
-      <div className={styles.moduleEmptyState}>
-        <strong>Select comparison corridors</strong>
-        <span>Choose at least two corridors, zones, or sensor groups in the sidebar.</span>
-      </div>
-    );
-    if (!isComparison && !elementHasSoloTarget) return (
-      <div className={styles.moduleEmptyState}>
-        <strong>Select a corridor</strong>
-        <span>Choose a corridor, zone, or sensor group in the sidebar to populate this module.</span>
-      </div>
-    );
-
-    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} /></div>;
-    if (el.type === 'summary') {
-      const attachedChart = getAttachedChart(el);
-      const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
-        mode: type,
-        target: getTargetFromSelections(getElementPrimarySelections(attachedChart), ''),
-        secondaryTarget: getTargetFromSelections(getElementComparisonSelections(attachedChart), ''),
-        filters: getElementFilters(attachedChart),
-        timeframe: getElementTimeframe(attachedChart),
-      }) : '';
-      const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
-      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} /></div>;
-    }
-    if (el.type === 'chart' && isComparison) return (
-      <ChartFrame title={getChartDisplayName(el)}>
-        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
-      </ChartFrame>
-    );
-    if (el.type === 'chart') return (
-      <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={(data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence)} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || CHART_COLORS.accent} peopleColor={el.peopleColor || CHART_COLORS.primary} highlightColor={el.highlightColor || CHART_COLORS.rust} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
-      </ChartFrame>
-    );
-    if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
-    return null;
-  };
-
-  const renderStandardPreviewPage = (pageIndex) => {
-    const pageTop = pageIndex * PAGE_HEIGHT;
-    const pageBottom = pageTop + PAGE_HEIGHT;
-    const headerTop = reportContentOffset + 48;
-    const visibleElements = elements.filter((el) => {
-      const elementTop = el.y + reportContentOffset;
-      const elementBottom = elementTop + el.height;
-      return elementBottom > pageTop && elementTop < pageBottom;
-    });
-
-    return (
-      <div className={styles.exportPreviewLivePage} data-export-capture-page={pageIndex}>
-        <div
-          className={styles.exportPreviewLiveReport}
-          style={{ height: `${PAGE_HEIGHT}px`, top: 0 }}
-        >
-          {hasCoverPage && pageIndex === 0 && (
-            <section
-              className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
-              style={{
-                '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#34524D'),
-                '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#fbfcfb'),
-                position: 'absolute',
-                inset: 0,
-                width: `${PAGE_WIDTH}px`,
-                height: `${PAGE_HEIGHT}px`,
-                background: getCoverExportBackground(reportSettings),
-              }}
-            >
-              <p
-                className={styles.coverEyebrow}
-                style={{
-                  position: 'absolute',
-                  left: `${reportSettings.coverEyebrowX ?? 72}px`,
-                  top: `${reportSettings.coverEyebrowY ?? 88}px`,
-                  width: '704px',
-                  height: '48px',
-                  fontSize: reportSettings.coverEyebrowFontSize,
-                  fontFamily: reportSettings.coverFontFamily,
-                }}
-              >
-                {reportSettings.coverEyebrow}
-              </p>
-              <h1
-                style={{
-                  position: 'absolute',
-                  left: `${reportSettings.coverTitleX ?? 72}px`,
-                  top: `${reportSettings.coverTitleY ?? 160}px`,
-                  width: '704px',
-                  height: '136px',
-                  fontSize: reportSettings.coverTitleFontSize,
-                  fontFamily: reportSettings.coverFontFamily,
-                }}
-              >
-                {docMeta.title}
-              </h1>
-              <p
-                style={{
-                  position: 'absolute',
-                  left: `${reportSettings.coverSubtitleX ?? 72}px`,
-                  top: `${reportSettings.coverSubtitleY ?? 312}px`,
-                  width: '704px',
-                  height: '72px',
-                  fontSize: reportSettings.coverSubtitleFontSize,
-                  fontFamily: reportSettings.coverFontFamily,
-                }}
-              >
-                {reportSettings.coverSubtitle || 'Add a short report subtitle'}
-              </p>
-              <div
-                className={styles.coverMeta}
-                style={{
-                  position: 'absolute',
-                  left: '72px',
-                  bottom: '72px',
-                  width: '704px',
-                  fontSize: reportSettings.coverMetaFontSize,
-                  fontFamily: reportSettings.coverFontFamily,
-                }}
-              >
-                <span>Prepared by {docMeta.author}</span>
-                <span>{docMeta.date}</span>
-                <span>{primaryTarget.label || docMeta.title}</span>
-              </div>
-            </section>
-          )}
-
-          {hasDocumentHeader && headerTop >= pageTop && headerTop < pageBottom && (
-            <div className={styles.documentHeader} style={{ position: 'absolute', top: `${headerTop - pageTop}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
-              <h1 className={styles.documentTitle}>{docMeta.title}</h1>
-              <div className={styles.documentMetaGrid}>
-                <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
-                <div className={styles.metaItem}><span className={styles.metaLabel}>Date Created</span><span className={styles.metaValue}>{docMeta.date}</span></div>
-                <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
-              </div>
-            </div>
-          )}
-
-          {visibleElements.map((el) => {
-            const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
-            const localY = el.y + reportContentOffset - pageTop;
-
-            return (
-              <div
-                key={el.id}
-                style={{
-                  position: 'absolute',
-                  left: `${el.x}px`,
-                  top: `${localY}px`,
-                  width: `${el.width}px`,
-                  height: `${el.height}px`,
-                  zIndex: el.zIndex || 1,
-                  pointerEvents: 'none',
-                }}
-              >
-                <div
-                  className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''}`}
-                  style={{
-                    backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
-                    borderRadius: el.style.borderRadius,
-                    padding: ['divider', 'image', 'chart', 'summary'].includes(el.type) ? '0' : '16px',
-                    boxSizing: 'border-box',
-                    border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
-                    boxShadow: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
-                  }}
-                >
-                  {renderElementContent(el)}
-                </div>
-              </div>
-            );
-          })}
-
-          {reportSettings.showFooter && (
-            <footer className={styles.reportFooter} style={{ top: `${PAGE_HEIGHT - 56}px` }}>
-              <span>CheckIt</span>
-              <span>{docMeta.title}</span>
-              <span>Page {pageIndex + 1}</span>
-            </footer>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const renderStandardPreviewPage = (pageIndex) => (
+    <ReportDocumentPage pageIndex={pageIndex} elements={elements} reportSettings={reportSettings}
+      docMeta={docMeta} primaryTarget={primaryTarget} renderElementContent={renderElementContent} capture />
+  );
 
   if (reportLoadError || profileRoleError) {
     return (
@@ -3485,7 +3237,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   // Ensure app stays strictly in light mode
   return (
     <main className={styles.builderPage} data-theme="light">
-      
+
       {/* TOP NAVBAR */}
       <header className={styles.builderTopNav}>
         <div className={`${styles.navGroup} ${styles.builderIdentity}`}>
@@ -3495,7 +3247,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
             {isReadOnlyReport ? 'View only' : reportId ? `${collaborators.length + 1} editing` : 'Draft'}
           </span>
         </div>
-        
+
         {canUseBuilderTools && <div className={`${styles.navGroup} ${styles.toolbarGroup}`}>
           <ToolbarIconButton label="Add text" onClick={() => addNewElement('text')}><Type size={18} aria-hidden="true" /></ToolbarIconButton>
           <ToolbarIconButton label="Add chart" onClick={() => addNewElement('chart')}><BarChart2 size={18} aria-hidden="true" /></ToolbarIconButton>
@@ -3564,17 +3316,17 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       </header>
 
       <div className={`${styles.workspace} ${isReadOnlyReport ? styles.viewerWorkspace : ''}`}>
-        
+
         {/* LEFT SIDEBAR */}
         {canUseBuilderTools && <div className={`${styles.sidebarPanel} ${styles.left}`}>
           <h3 className={styles.sidebarTitle}>Document Metadata</h3>
-          
+
           <label className={styles.inputLabel}>Report Title</label>
           <input type="text" value={docMeta.title} onChange={(e) => updateDocMeta({ title: e.target.value })} className={styles.inputField} />
-          
+
           <label className={styles.inputLabel}>Author / Department</label>
           <input type="text" value={docMeta.author} onChange={(e) => updateDocMeta({ author: e.target.value })} className={styles.inputField} />
-          
+
           <label className={styles.inputLabel}>Date</label>
           <input type="text" value={docMeta.date} onChange={(e) => updateDocMeta({ date: e.target.value })} className={styles.inputField} />
 
@@ -3678,11 +3430,12 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           <>
             <div
             ref={reportRef}
+            data-report-thumbnail-source="true"
             className={styles.paperBoundary}
             onMouseDown={(e) => { if(!isReadOnlyReport && e.target === e.currentTarget) { commitTextDrafts(); clearSelectedElement(); } }}
             style={{ height: `${totalVisiblePageCount * PAGE_HEIGHT}px`, backgroundColor: '#ffffff' }}
           >
-            
+
             {Array.from({ length: totalVisiblePageCount }).map((_, i) => (
                 i > 0 && (
                     <div key={`page-break-${i}`} data-html2canvas-ignore="true" className={styles.pageBreakMarker} style={{ top: i * PAGE_HEIGHT }}>
@@ -3816,7 +3569,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 </div>
               </div>
             )}
-            
+
             {elements.map((el) => {
               const isSelected = !isDownloading && !isReadOnlyReport && selectedElementId === el.id;
               const lockedBy = remoteLocks[el.id];
@@ -3828,7 +3581,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   bounds="parent"
                   size={{ width: el.width, height: el.height }}
                   position={{ x: el.x, y: el.y + reportContentOffset }}
-                  dragGrid={[GRID_SIZE, GRID_SIZE]} 
+                  dragGrid={[GRID_SIZE, GRID_SIZE]}
                   resizeGrid={[GRID_SIZE, GRID_SIZE]}
                   onResize={() => window.dispatchEvent(new Event('resize'))}
                   onDrag={(event, data) => handleElementDrag(el.id, data)}
@@ -3860,9 +3613,10 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                       setTimeout(() => event.target?.focus?.(), 0);
                     }
                   }}
+                  data-report-z-index={el.zIndex || 1}
                   style={{ zIndex: isSelected ? (el.zIndex || 1) + 1000 : (el.zIndex || 1) }}
                   disableDragging={isReadOnlyReport || editingTextId === el.id || Boolean(lockedBy)}
-                  enableResizing={!isReadOnlyReport && isSelected && !lockedBy} 
+                  enableResizing={!isReadOnlyReport && isSelected && !lockedBy}
                   resizeHandleStyles={{
                     bottomRight: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', right: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
                     bottomLeft: { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', left: '-6px', bottom: '-6px', borderRadius: '50%', zIndex: 50 },
@@ -3872,8 +3626,8 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 >
                   <div className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''} ${isSelected ? styles.widgetBoxSelected : ''} ${lockedBy ? styles.widgetBoxLocked : ''}`} style={{
                       backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
-                      borderRadius: el.style.borderRadius, 
-                      pointerEvents: isReadOnlyReport ? 'none' : isSelected || ['text', 'image', 'attachment', 'link'].includes(el.type) ? 'auto' : 'none', 
+                      borderRadius: el.style.borderRadius,
+                      pointerEvents: isReadOnlyReport ? 'none' : isSelected || ['text', 'image', 'attachment', 'link'].includes(el.type) ? 'auto' : 'none',
                       padding: ['divider', 'image', 'chart', 'summary'].includes(el.type) ? '0' : '16px',
                       boxSizing: 'border-box',
                       border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
@@ -4579,9 +4333,556 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   );
 };
 
+const renderReportElement = (el, {
+    isViewingVersion, getElementPrimarySelections, getElementComparisonSelections,
+    getTargetFromSelections, isComparison, getElementComparisonTargets,
+    getElementFilters, getElementTimeframe, type, editingTextId, isDownloading,
+    isReadOnlyReport, textDraftsRef, setSelectedElementId, markDirty, updateElement,
+    setEditingTextId, saveTextSelection, updateElementSnapshot, getSnapshotCallback, getAttachedChart
+}) => {
+    if (isViewingVersion && ['chart', 'summary'].includes(el.type) && !el.snapshotData) return <p>No data was saved for this module in this version.</p>;
+
+    const elementPrimarySelections = getElementPrimarySelections(el);
+    const elementComparisonSelections = getElementComparisonSelections(el);
+    const elementPrimaryTarget = getTargetFromSelections(elementPrimarySelections, '');
+    const elementSecondaryTarget = getTargetFromSelections(elementComparisonSelections, '');
+    const elementComparisonTargets = isComparison ? getElementComparisonTargets(el) : [elementPrimaryTarget, elementSecondaryTarget];
+    const elementHasSoloTarget = Boolean(elementPrimaryTarget.id);
+    const elementHasComparisonTargets = elementComparisonTargets.filter((target) => target.id).length >= 2;
+    const elementFilters = getElementFilters(el);
+    const elementTimeframe = getElementTimeframe(el);
+    const elementSnapshotKey = getSnapshotKey({
+      mode: type,
+      target: elementPrimaryTarget,
+      secondaryTarget: elementSecondaryTarget,
+      targets: isComparison ? elementComparisonTargets : undefined,
+      filters: elementFilters,
+      timeframe: elementTimeframe,
+    });
+
+    const onSnapshotData = getSnapshotCallback
+      ? getSnapshotCallback(el.id, elementSnapshotKey)
+      : (data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence);
+
+    if (el.type === 'text') {
+      const isEditing = editingTextId === el.id;
+      const savedTextHtml = getTextHtml(el);
+      const textHtml = sanitizeReportHtml(textDraftsRef.current[el.id] ?? savedTextHtml);
+
+      return (
+        <div
+          data-text-element-id={el.id}
+          contentEditable={isEditing && !isDownloading && !isReadOnlyReport}
+          suppressContentEditableWarning
+          onFocus={() => {
+            if (!isReadOnlyReport) setSelectedElementId(el.id);
+          }}
+          onPaste={(event) => {
+            if (isReadOnlyReport) return;
+            const html = event.clipboardData?.getData('text/html');
+            if (!html) return;
+            event.preventDefault();
+            document.execCommand('insertHTML', false, sanitizeReportHtml(html));
+          }}
+          onInput={(event) => {
+            if (isReadOnlyReport) return;
+            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
+            textDraftsRef.current[el.id] = nextHtml;
+            markDirty();
+          }}
+          onBlur={(event) => {
+            if (isReadOnlyReport) return;
+            const nextHtml = sanitizeReportHtml(event.currentTarget.innerHTML);
+            textDraftsRef.current[el.id] = nextHtml;
+            if (event.relatedTarget?.closest?.('[data-insights-editor-sidebar="true"]')) {
+              markDirty();
+              return;
+            }
+            if (nextHtml !== savedTextHtml) updateElement(el.id, { html: nextHtml, content: stripHtml(nextHtml) });
+            setEditingTextId(null);
+          }}
+          onMouseUp={() => {
+            if (!isReadOnlyReport) saveTextSelection(el.id);
+          }}
+          onKeyUp={() => {
+            if (!isReadOnlyReport) saveTextSelection(el.id);
+          }}
+          onMouseDown={(event) => {
+            if (isReadOnlyReport || isEditing) event.stopPropagation();
+          }}
+          style={{ width: '100%', height: '100%', overflow: 'hidden', fontSize: getTextFontSize(el), fontFamily: el.style.fontFamily || FONT_FAMILY_OPTIONS[0].value, color: el.style.color || DEFAULT_TEXT_COLOR, fontWeight: el.style.fontWeight, textAlign: el.style.textAlign, outline: 'none', whiteSpace: 'pre-wrap', cursor: isReadOnlyReport ? 'default' : isEditing ? 'text' : 'move', lineHeight: 1.18 }}
+          dangerouslySetInnerHTML={{ __html: textHtml }}
+        />
+      );
+    }
+    if (el.type === 'divider') {
+      const lineStyle = el.style.line || el.style.borderBottom || el.style.borderLeft || '2px solid #e2e8f0';
+      const isVertical = el.orientation === 'vertical';
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={isVertical ? { height: '100%', borderLeft: lineStyle } : { width: '100%', borderBottom: lineStyle }} />
+        </div>
+      );
+    }
+    if (el.type === 'image') return <img src={el.src} alt={el.label || el.fileName || 'Inserted report visual'} className={styles.insertedImage} />;
+    if (el.type === 'attachment') return (
+      <a href={el.src} download={el.fileName} className={styles.attachmentCard}>
+        <FileText size={24} />
+        <span>{el.label || el.fileName || 'Attachment'}</span>
+        <small>{el.fileType || 'File'}</small>
+      </a>
+    );
+    if (el.type === 'link') return (
+      <a href={el.href} target="_blank" rel="noreferrer" className={styles.linkCard}>
+        <Link2 size={22} />
+        <span>{el.label || 'Reference Link'}</span>
+        <small>{el.href}</small>
+      </a>
+    );
+    if (isComparison && !elementHasComparisonTargets) return (
+      <div className={styles.moduleEmptyState}>
+        <strong>Select comparison corridors</strong>
+        <span>Choose at least two corridors, zones, or sensor groups in the sidebar.</span>
+      </div>
+    );
+    if (!isComparison && !elementHasSoloTarget) return (
+      <div className={styles.moduleEmptyState}>
+        <strong>Select a corridor</strong>
+        <span>Choose a corridor, zone, or sensor group in the sidebar to populate this module.</span>
+      </div>
+    );
+
+    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} /></div>;
+    if (el.type === 'summary') {
+      const attachedChart = getAttachedChart(el);
+      const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
+        mode: type,
+        target: getTargetFromSelections(getElementPrimarySelections(attachedChart), ''),
+        secondaryTarget: getTargetFromSelections(getElementComparisonSelections(attachedChart), ''),
+        filters: getElementFilters(attachedChart),
+        timeframe: getElementTimeframe(attachedChart),
+      }) : '';
+      const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
+      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={onSnapshotData} /></div>;
+    }
+    if (el.type === 'chart' && isComparison) return (
+      <ChartFrame title={getChartDisplayName(el)}>
+        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+      </ChartFrame>
+    );
+    if (el.type === 'chart') return (
+      <ChartFrame title={getChartDisplayName(el)}>
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || CHART_COLORS.accent} peopleColor={el.peopleColor || CHART_COLORS.primary} highlightColor={el.highlightColor || CHART_COLORS.rust} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+      </ChartFrame>
+    );
+    if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
+    return null;
+  };
+
+const ReportDocumentPage = ({ pageIndex = 0, elements, reportSettings, docMeta, primaryTarget, renderElementContent, capture = false }) => {
+    const hasCoverPage = reportSettings.showCoverPage;
+    const hasDocumentHeader = reportSettings.showDocumentHeader;
+    const reportContentOffset = hasCoverPage ? PAGE_HEIGHT : 0;
+    const pageTop = pageIndex * PAGE_HEIGHT;
+    const pageBottom = pageTop + PAGE_HEIGHT;
+    const headerTop = reportContentOffset + 48;
+    const visibleElements = elements.filter((el) => {
+      const elementTop = el.y + reportContentOffset;
+      const elementBottom = elementTop + el.height;
+      return elementBottom > pageTop && elementTop < pageBottom;
+    });
+
+    return (
+      <div className={styles.exportPreviewLivePage} data-export-capture-page={capture ? pageIndex : undefined}>
+        <div
+          className={styles.exportPreviewLiveReport}
+          style={{ height: `${PAGE_HEIGHT}px`, top: 0 }}
+        >
+          {hasCoverPage && pageIndex === 0 && (
+            <section
+              className={`${styles.coverPage} ${styles[`coverPage${String(reportSettings.coverLayout || 'classic').charAt(0).toUpperCase()}${String(reportSettings.coverLayout || 'classic').slice(1)}`] || ''}`}
+              style={{
+                '--cover-accent': getColorInputValue(reportSettings.coverAccentColor, '#34524D'),
+                '--cover-bg': getColorInputValue(reportSettings.coverBackground, '#fbfcfb'),
+                position: 'absolute',
+                inset: 0,
+                width: `${PAGE_WIDTH}px`,
+                height: `${PAGE_HEIGHT}px`,
+                background: getCoverExportBackground(reportSettings),
+              }}
+            >
+              <p
+                className={styles.coverEyebrow}
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverEyebrowX ?? 72}px`,
+                  top: `${reportSettings.coverEyebrowY ?? 88}px`,
+                  width: '704px',
+                  height: '48px',
+                  fontSize: reportSettings.coverEyebrowFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {reportSettings.coverEyebrow}
+              </p>
+              <h1
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverTitleX ?? 72}px`,
+                  top: `${reportSettings.coverTitleY ?? 160}px`,
+                  width: '704px',
+                  height: '136px',
+                  fontSize: reportSettings.coverTitleFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {docMeta.title}
+              </h1>
+              <p
+                style={{
+                  position: 'absolute',
+                  left: `${reportSettings.coverSubtitleX ?? 72}px`,
+                  top: `${reportSettings.coverSubtitleY ?? 312}px`,
+                  width: '704px',
+                  height: '72px',
+                  fontSize: reportSettings.coverSubtitleFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                {reportSettings.coverSubtitle || 'Add a short report subtitle'}
+              </p>
+              <div
+                className={styles.coverMeta}
+                style={{
+                  position: 'absolute',
+                  left: '72px',
+                  bottom: '72px',
+                  width: '704px',
+                  fontSize: reportSettings.coverMetaFontSize,
+                  fontFamily: reportSettings.coverFontFamily,
+                }}
+              >
+                <span>Prepared by {docMeta.author}</span>
+                <span>{docMeta.date}</span>
+                <span>{primaryTarget.label || docMeta.title}</span>
+              </div>
+            </section>
+          )}
+
+          {hasDocumentHeader && headerTop >= pageTop && headerTop < pageBottom && (
+            <div className={styles.documentHeader} style={{ position: 'absolute', top: `${headerTop - pageTop}px`, left: '48px', right: '48px', width: `${DEFAULT_REPORT_WIDTH}px` }}>
+              <h1 className={styles.documentTitle}>{docMeta.title}</h1>
+              <div className={styles.documentMetaGrid}>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Date Created</span><span className={styles.metaValue}>{docMeta.date}</span></div>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
+              </div>
+            </div>
+          )}
+
+          {visibleElements.map((el) => {
+            const currentBg = el.style.background || DEFAULT_CARD_BACKGROUND;
+            const localY = el.y + reportContentOffset - pageTop;
+
+            return (
+              <div
+                key={el.id}
+                style={{
+                  position: 'absolute',
+                  left: `${el.x}px`,
+                  top: `${localY}px`,
+                  width: `${el.width}px`,
+                  height: `${el.height}px`,
+                  zIndex: el.zIndex || 1,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div
+                  className={`${styles.widgetBox} ${el.type === 'chart' ? styles.chartWidgetBox : ''}`}
+                  style={{
+                    backgroundColor: ['divider', 'chart', 'summary'].includes(el.type) ? 'transparent' : currentBg,
+                    borderRadius: el.style.borderRadius,
+                    padding: ['divider', 'image', 'chart', 'summary'].includes(el.type) ? '0' : '16px',
+                    boxSizing: 'border-box',
+                    border: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
+                    boxShadow: ['text', 'divider', 'image', 'chart', 'summary'].includes(el.type) ? 'none' : undefined,
+                  }}
+                >
+                  {renderElementContent(el)}
+                </div>
+              </div>
+            );
+          })}
+
+          {reportSettings.showFooter && (
+            <footer className={styles.reportFooter} style={{ top: `${PAGE_HEIGHT - 56}px` }}>
+              <span>CheckIt</span>
+              <span>{docMeta.title}</span>
+              <span>Page {pageIndex + 1}</span>
+            </footer>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+const createSavedReportRenderContext = (saved, elements, directory) => {
+  const { selections, comparisonSelections, reportSettings } = saved;
+  const type = inferReportModeFromLayout(saved);
+  const isComparison = type === 'comparison';
+  const { areas, rooms: allRooms } = directory;
+  const getRoomsForSelections = (targetSelections) => {
+    if (!targetSelections.areaId) return [];
+
+    return allRooms.filter((sensor) => sensor.institute_id === targetSelections.areaId);
+  };
+
+  const getTargetFromSelections = (targetSelections, fallbackLabel) => {
+    const selectedArea = areas.find((area) => area.id === targetSelections.areaId);
+    const selectedAreaSensorIds = getRoomsForSelections(targetSelections)
+      .map((sensor) => sensor.sensor_id)
+      .filter(Boolean);
+
+    if (targetSelections.floorNumber) {
+      const selectedSensor = allRooms.find((sensor) => sensor.sensor_id === targetSelections.floorNumber);
+      return {
+        level: 'floor',
+        id: targetSelections.floorNumber,
+        label: selectedSensor?.corridor_name || `Corridor ${targetSelections.floorNumber}`,
+        sensorIds: [targetSelections.floorNumber],
+      };
+    }
+
+    return {
+      level: 'area',
+      id: targetSelections.areaId,
+      label: selectedArea?.name || fallbackLabel,
+      sensorIds: selectedAreaSensorIds,
+    };
+  };
+
+  const primaryTarget = getTargetFromSelections(selections, '');
+  const customTimeframe = reportSettings.timeframe === 'custom';
+  const reportFilters = {
+    startDate: customTimeframe ? reportSettings.startDate : '',
+    endDate: customTimeframe ? reportSettings.endDate : '',
+    startTime: customTimeframe ? reportSettings.startTime : '',
+    endTime: customTimeframe ? reportSettings.endTime : '',
+    dayPreset: reportSettings.dayPreset,
+  };
+  const getAttachedChart = (element) => (
+    element?.attachedChartId
+      ? elements.find((candidate) => candidate.id === element.attachedChartId && candidate.type === 'chart')
+      : null
+  );
+
+  const getElementPrimarySelections = (element) => {
+    const attachedChart = getAttachedChart(element);
+    return attachedChart?.selections || element?.selections || selections;
+  };
+
+  const getElementComparisonSelections = (element) => {
+    const attachedChart = getAttachedChart(element);
+    return attachedChart?.comparisonSelections || element?.comparisonSelections || comparisonSelections;
+  };
+
+  // A summary attached to a chart always mirrors that chart's timeframe (it's
+  // describing that chart's data); otherwise an element with useReportTimeframe
+  // === false runs on its own timeframe instead of the report's default.
+  const getElementTimeframe = (element) => {
+    const attachedChart = getAttachedChart(element);
+    if (attachedChart) return getElementTimeframe(attachedChart);
+    return element?.useReportTimeframe === false ? (element.timeType || 'weekly') : reportSettings.timeframe;
+  };
+
+  const getElementFilters = (element) => {
+    const attachedChart = getAttachedChart(element);
+    if (attachedChart) return getElementFilters(attachedChart);
+
+    if (element?.useReportTimeframe === false) {
+      return element.timeType === 'custom'
+        ? {
+          startDate: element.startDate || '',
+          endDate: element.endDate || '',
+          startTime: element.startTime || '',
+          endTime: element.endTime || '',
+          dayPreset: element.dayPreset || 'all',
+        }
+        : {
+          startDate: '',
+          endDate: '',
+          startTime: '',
+          endTime: '',
+          dayPreset: element.dayPreset || 'all',
+        };
+    }
+
+    return reportFilters;
+  };
+
+  const getElementComparisonSelectionList = (element) => {
+    const attachedChart = getAttachedChart(element);
+    const sourceElement = attachedChart || element;
+    const savedList = Array.isArray(sourceElement?.comparisonSelectionList)
+      ? sourceElement.comparisonSelectionList
+      : [];
+    return [
+      sourceElement?.selections || selections,
+      sourceElement?.comparisonSelections || comparisonSelections,
+      ...savedList,
+    ];
+  };
+
+  const getElementComparisonTargets = (element) => (
+    getElementComparisonSelectionList(element).map((targetSelections) => (
+      getTargetFromSelections(targetSelections, '')
+    ))
+  );
+
+  return { type, isComparison, primaryTarget,
+    getElementPrimarySelections, getElementComparisonSelections, getTargetFromSelections,
+    getElementComparisonTargets, getElementFilters, getElementTimeframe, getAttachedChart };
+};
+
+const REPORT_BATCH_SIZE = 12;
+const reportThumbnailCache = new Map();
+let reportThumbnailQueue = Promise.resolve();
+const reportPreviewDirectories = new Map();
+
+const queueReportThumbnail = (task) => {
+  const result = reportThumbnailQueue.then(task);
+  reportThumbnailQueue = result.catch(() => null);
+  return result;
+};
+
+const ReportThumbnailDocument = ({ report, saved, directory }) => {
+  const [elements, setElements] = useState(saved.elements);
+  const snapshotHandlers = useRef(new Map());
+  const baseContext = useMemo(() => {
+    const context = createSavedReportRenderContext(saved, saved.elements, directory);
+    const targetsByElement = new Map();
+    const resolveTargets = context.getElementComparisonTargets;
+    return { ...context, getElementComparisonTargets: element => {
+      if (!targetsByElement.has(element.id)) targetsByElement.set(element.id, resolveTargets(element));
+      return targetsByElement.get(element.id);
+    } };
+  }, [saved, directory]);
+  const getAttachedChart = element => elements.find(candidate => candidate.id === element?.attachedChartId && candidate.type === 'chart') || null;
+  const context = { ...baseContext, getAttachedChart };
+  if (baseContext.getAttachedChartSnapshot) {
+    context.getAttachedChartSnapshot = element => ({ ...baseContext.getAttachedChartSnapshot(element), data: getAttachedChart(element)?.snapshotData });
+  }
+  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence) => {
+    setElements(current => {
+      const previous = current.find(element => element.id === id);
+      if (!previous || (previous.snapshotKey === snapshotKey && previous.snapshotData === snapshotData && (!dataEvidence || previous.dataEvidence === dataEvidence))) return current;
+      return current.map(element => element.id === id
+        ? { ...element, snapshotKey, snapshotData, ...(dataEvidence ? { dataEvidence } : {}) } : element);
+    });
+  }, []);
+  const getSnapshotCallback = useCallback((id, snapshotKey) => {
+    const key = `${id}:${snapshotKey}`;
+    if (!snapshotHandlers.current.has(key)) snapshotHandlers.current.set(key, (data, evidence) => updateElementSnapshot(id, snapshotKey, data, evidence));
+    return snapshotHandlers.current.get(key);
+  }, [updateElementSnapshot]);
+  return <ReportDocumentPage elements={elements} reportSettings={saved.reportSettings}
+    docMeta={{ title: report.title || 'Untitled report', author: report.author || '', date: report.date || '', period: report.period || '' }}
+    primaryTarget={context.primaryTarget} renderElementContent={el => renderReportElement(el, {
+      ...context, isViewingVersion: Boolean(el.snapshotData), isReadOnlyReport: true, isDownloading: true,
+      editingTextId: null, textDraftsRef: { current: {} }, updateElementSnapshot, getSnapshotCallback,
+    })} />;
+};
+
+const renderReportThumbnail = async (report, directory, revision, cancelled = () => false) => {
+  const saved = parseSavedLayoutData(report.layout_data);
+  if (!saved) throw new Error('The saved report layout could not be read.');
+  const host = document.createElement('div');
+  host.className = `${styles.previewDocumentTheme} ${styles.thumbnailCaptureHost}`;
+  host.setAttribute('aria-hidden', 'true');
+  host.inert = true;
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    flushSync(() => root.render(<ReportThumbnailDocument report={report} saved={saved} directory={directory} />));
+    return await captureReportImage(host, html2canvas, { width: PAGE_WIDTH, height: PAGE_HEIGHT, revision, cancelled });
+  } finally {
+    root.unmount();
+    host.remove();
+  }
+};
+
+const getOrCreateReportThumbnail = async (report, userId, cancelled) => {
+  const revision = await getReportThumbnailRevision(report);
+  const key = `${userId}:${report.id}:${revision}`;
+  const stored = getCurrentReportThumbnail(report, revision);
+  if (stored) return stored;
+  if (reportThumbnailCache.has(key)) return reportThumbnailCache.get(key);
+  const cached = await readCachedReportThumbnail(key);
+  if (cached) return cached;
+  if (cancelled()) return '';
+  if (!reportPreviewDirectories.has(userId)) {
+    reportPreviewDirectories.set(userId, loadReportPreviewDirectory().catch(error => { reportPreviewDirectories.delete(userId); throw error; }));
+  }
+  const directory = await reportPreviewDirectories.get(userId);
+  const thumbnail = await renderReportThumbnail(report, directory, revision, cancelled);
+  if (cancelled()) return '';
+  await cacheReportThumbnail(key, thumbnail.src);
+  reportThumbnailCache.set(key, thumbnail.src);
+  if (reportThumbnailCache.size > 48) reportThumbnailCache.delete(reportThumbnailCache.keys().next().value);
+  return thumbnail.src;
+};
+
+const SavedReportPreview = ({ image }) => image
+  ? <img className={styles.reportThumbnailImage} src={image} alt="" loading="eager" decoding="sync" width={PAGE_WIDTH} height={PAGE_HEIGHT} />
+  : <div className={styles.reportPreviewUnavailable}><FileText size={36} aria-hidden="true" /></div>;
+
+const SavedReportActions = ({ report, href, owned, onDelete }) => {
+  const menuRef = useRef(null);
+  const title = report.title || 'Untitled report';
+  useEffect(() => {
+    const close = (event) => {
+      const menu = menuRef.current;
+      if (!menu?.open) return;
+      if (event.type === 'keydown') {
+        if (event.key !== 'Escape') return;
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      } else if (!menu.contains(event.target)) menu.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, []);
+  return (
+    <details className={styles.reportActionMenu} ref={menuRef}>
+      <summary className={styles.reportMenuTrigger} aria-label={`Actions for ${title}`} title="Report actions"><MoreVertical size={20} aria-hidden="true" /></summary>
+      <div className={styles.reportMenuItems}>
+        <Link to={href}><FileText size={16} aria-hidden="true" />Open report</Link>
+        {owned && <button type="button" className={styles.deleteReportButton} aria-label={`Delete ${report.title || 'report'}`} onClick={() => { menuRef.current.open = false; onDelete(report); }}><Trash2 size={16} aria-hidden="true" />Delete report</button>}
+      </div>
+    </details>
+  );
+};
+
+const loadReportPreviewDirectory = async () => {
+  const { institutes, sensors } = await fetchSensorDirectory(supabase);
+  return { areas: (institutes || []).map(institute => ({ id: institute.institute_id, name: institute.full_name || institute.institute_id })), rooms: sensors || [] };
+};
+
 const InsightsStudio = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState([]);
+  const [visibleReportCount, setVisibleReportCount] = useState(REPORT_BATCH_SIZE);
+  const reportLoadMoreRef = useRef(null);
+  const loadedPreviewsRef = useRef(new Set());
+  const [previewImages, setPreviewImages] = useState({});
+  const [completedPreviews, setCompletedPreviews] = useState(new Set());
+  const [reportSearch, setReportSearch] = useState('');
+  const [reportSort, setReportSort] = useState('modified');
+  const [reportView, setReportView] = useState('grid');
   const [currentUser, setCurrentUser] = useState(null);
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -4590,7 +4891,7 @@ const InsightsStudio = () => {
   const [templatePickerMode, setTemplatePickerMode] = useState(null);
   const [activeReportTab, setActiveReportTab] = useState(() => (searchParams.get('tab') === 'shared' ? 'shared' : 'owned'));
   const confirmResolveRef = useRef(null);
-  
+
 
   const soloBars = [
     { label: 'Mon', value: 24 }, { label: 'Tue', value: 58 }, { label: 'Wed', value: 86 }, { label: 'Thur', value: 72 }, { label: 'Fri', value: 44 }
@@ -4637,6 +4938,82 @@ const InsightsStudio = () => {
   const visibleReportTab = isViewerRole ? 'shared' : activeReportTab;
   const activeReports = visibleReportTab === 'owned' ? ownReports : sharedReports;
   const builderReturnQuery = visibleReportTab === 'shared' ? '&fromTab=shared' : '';
+  const searchQuery = reportSearch.trim().toLowerCase();
+  const matchingReports = activeReports.filter(report =>
+    [report.title || 'Untitled report', report.author].filter(Boolean).join(' ').toLowerCase().includes(searchQuery)
+  ).sort((a, b) => {
+    if (reportSort === 'title') return (a.title || 'Untitled report').localeCompare(b.title || 'Untitled report', undefined, { sensitivity: 'base' });
+    const dateFor = report => new Date((reportSort === 'created' ? report.created_at || report.date : getReportLastSavedDate(report)) || 0).getTime() || 0;
+    return dateFor(b) - dateFor(a);
+  });
+
+  const requestedReports = matchingReports.slice(0, visibleReportCount);
+  const requestedReportIds = requestedReports.map(report => report.id);
+  const previewRequestKey = JSON.stringify(requestedReportIds);
+  const readyReports = [];
+  for (let start = 0; start < requestedReports.length; start += REPORT_BATCH_SIZE) {
+    const batch = requestedReports.slice(start, start + REPORT_BATCH_SIZE);
+    if (!batch.every(report => completedPreviews.has(report.id))) break;
+    readyReports.push(...batch);
+  }
+
+  const preparingPreviews = readyReports.length < requestedReportIds.length;
+
+  useEffect(() => {
+    const ids = JSON.parse(previewRequestKey).filter(id => !loadedPreviewsRef.current.has(id));
+    if (!currentUser?.id || !ids.length) return;
+    let cancelled = false;
+    const prepare = async () => {
+      const images = {};
+      try {
+        const { data, error } = await supabase.from('saved_reports')
+          .select('id,title,author,date,period,owner_id,layout_data').in('id', ids);
+        if (error) throw error;
+        const byId = new Map((data || []).map(report => [report.id, report]));
+        for (const id of ids) {
+          if (cancelled) return;
+          images[id] = '';
+          try {
+            const report = byId.get(id);
+            if (!report) throw new Error('Report not found.');
+            images[id] = await queueReportThumbnail(() => getOrCreateReportThumbnail(report, currentUser.id, () => cancelled));
+          } catch (error) {
+            if (!cancelled) {
+              console.warn('Report preview failed', { reportId: id, title: byId.get(id)?.title, message: String(error?.message || error).slice(0, 300) });
+            }
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          ids.forEach(id => { images[id] = ''; });
+          console.warn('Report preview batch failed', { reportIds: ids, message: String(error?.message || error).slice(0, 300) });
+        }
+      }
+      if (cancelled) return;
+      // Reveal the completed batch in one update, keeping earlier cards in place.
+      ids.forEach(id => loadedPreviewsRef.current.add(id));
+      setPreviewImages(current => ({ ...current, ...images }));
+      setCompletedPreviews(current => new Set([...current, ...ids]));
+    };
+    // Start outside the effect's render phase; capture uses its own temporary React root.
+    Promise.resolve().then(() => { if (!cancelled) prepare(); });
+    return () => { cancelled = true; };
+  }, [previewRequestKey, currentUser?.id]);
+
+  useEffect(() => { setVisibleReportCount(REPORT_BATCH_SIZE); }, [reportSearch, reportSort, visibleReportTab]);
+
+  useEffect(() => {
+    const node = reportLoadMoreRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        observer.disconnect();
+        setVisibleReportCount(count => Math.min(count + REPORT_BATCH_SIZE, matchingReports.length));
+      }
+    }, { rootMargin: '200px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visibleReportCount, matchingReports.length, completedPreviews.size]);
 
   const updateActiveReportTab = (tab) => {
     if (isViewerRole && tab !== 'shared') return;
@@ -4709,17 +5086,17 @@ const InsightsStudio = () => {
         }
 
         const { data, error } = await supabase
-          .from('saved_reports') 
-          .select('*')
+          .from('saved_reports')
+          .select('id,title,author,period,date,created_at,owner_id,shared_with_emails,report_mode:layout_data->>mode,report_settings:layout_data->reportSettings')
           .order('created_at', { ascending: false });
 
         if (error) {
           console.warn('Saved reports cache warning:', error.message);
           setSavedReportsError(error.message);
-          setReports([]); 
+          setReports([]);
           return;
         }
-        
+
         let reportRows = data || [];
         if (reportRows.length) {
           const { data: workflows } = await supabase.from('insight_report_workflows')
@@ -4732,7 +5109,7 @@ const InsightsStudio = () => {
       } catch (err) {
         console.error('Failed to retrieve archived reports:', err.message);
         setSavedReportsError(err.message);
-        setReports([]); 
+        setReports([]);
       } finally {
         setIsLoading(false);
       }
@@ -4741,8 +5118,9 @@ const InsightsStudio = () => {
     fetchSavedReports();
   }, []);
 
-  const renderReportsTable = (reportList, emptyTitle, emptyCopy) => {
+  const renderReportsGallery = (reportList, emptyTitle, emptyCopy) => {
     if (reportList.length === 0) {
+      if (matchingReports.length > 0) return null;
       return (
         <div className={styles.emptyReportGroup}>
           <FileText size={28} />
@@ -4753,55 +5131,33 @@ const InsightsStudio = () => {
     }
 
     return (
-      <div className={styles.savedReportsTable}>
-        <div className={`${styles.savedReportsGrid} ${styles.savedReportsHeader}`}>
-          <div>Document Name</div>
-          <div>Last Saved</div>
-          <div>Generated Date</div>
-          <div>Action</div>
-        </div>
-        
+      <div className={`${styles.savedReportGallery} ${reportView === 'list' ? styles.savedReportList : ''}`} aria-label="Saved reports">
         {reportList.map((report) => {
           const owned = isOwnedReport(report);
           const sharedEmails = getReportSharedEmails(report);
-
+          const title = report.title || 'Untitled report';
+          const href = `/insights-studio/${getReportMode(report)}?id=${encodeURIComponent(report.id)}${builderReturnQuery}`;
+          const lastSaved = getReportLastSavedDate(report);
           return (
-            <div key={report.id} className={`${styles.savedReportsGrid} ${styles.savedReportsRow}`}>
-              <div className={styles.savedReportNameCell}>
-                <div
-                  className={styles.savedReportIcon}
-                  title={sharedEmails.length ? `Shared with ${sharedEmails.join(', ')}` : 'Only you'}
-                  aria-label={sharedEmails.length ? 'Shared report' : 'Private report'}
-                >
-                  {sharedEmails.length ? <Users size={18} /> : <User size={18} />}
-                </div>
-                <div className={styles.savedReportTitleBlock}>
-                  <div className={styles.savedReportTitle}>{report.title || 'Untitled report'}</div>
-                  {report.workflow && <small className={styles.reportStatus}>{({ draft: 'Draft', in_review: 'In review', reviewed: 'Reviewed', published: 'Published' })[report.workflow.status] || 'Draft'}{report.workflow.published_version_id && report.workflow.status !== 'published' ? ' · Published version available' : ''}</small>}
-                  <div className={styles.reportAuthor}>{report.author ? `By ${report.author}` : 'Author not specified'}</div>
-                </div>
-              </div>
-              
-              <div className={styles.savedReportPeriodCell}>{formatReportDateTime(getReportLastSavedDate(report))}</div>
-              
-              <div className={styles.savedReportDateCell}>
-                <Calendar size={14} />
-                {formatReportDate(report.created_at || report.date)}
-              </div>
-              
-              <div className={styles.savedReportActions}>
-                <Link to={`/insights-studio/${getReportMode(report)}?id=${report.id}${builderReturnQuery}`} className={styles.openReportButton}>
-                  Open report <ArrowRight size={14} aria-hidden="true" />
-                </Link>
+            <article key={report.id} className={styles.savedReportCard}>
+              <div className={styles.savedReportPreview} aria-hidden="true">
+                  <SavedReportPreview image={previewImages[report.id]} />
 
-                {owned && (
-                  <button type="button" className={styles.deleteReportButton}
-                    onClick={() => handleDeleteReport(report)} aria-label={`Delete ${report.title || 'report'}`} title="Delete report">
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                )}
               </div>
-            </div>
+              <Link to={href} className={styles.openReportButton} aria-label={`Open ${title}`}>
+                <div className={styles.savedReportInfo}>
+                  <h3 className={styles.savedReportTitle} title={title}>{title}</h3>
+                  <p className={styles.reportAuthor}>{report.author ? `By ${report.author}` : 'Author not specified'}</p>
+                  {report.workflow && <span className={styles.reportStatus}>{({ draft: 'Draft', in_review: 'In review', reviewed: 'Reviewed', published: 'Published' })[report.workflow.status] || 'Draft'}{report.workflow.published_version_id && report.workflow.status !== 'published' ? ' · Published version available' : ''}</span>}
+                  <div className={styles.savedReportMetadata}>
+                    <FileText className={styles.savedReportFileIcon} size={18} aria-hidden="true" />
+                    {sharedEmails.length > 0 && <Users size={15} aria-label="Shared report" />}
+                    <span title={`Last saved: ${formatReportDateTime(lastSaved)}`}>{lastSaved ? `Edited ${formatReportDate(lastSaved)}` : 'Date unavailable'}</span>
+                  </div>
+                </div>
+              </Link>
+              <SavedReportActions report={report} href={href} owned={owned} onDelete={handleDeleteReport} />
+            </article>
           );
         })}
       </div>
@@ -4811,7 +5167,7 @@ const InsightsStudio = () => {
   return (
     <main className={styles.page}>
       <section className={styles.content}>
-        
+
         {/* HERO SECTION */}
         <header className={styles.hero}>
           <h1>Insights Studio</h1>
@@ -4908,7 +5264,7 @@ const InsightsStudio = () => {
         {/* Saved reports */}
         <section className={styles.templates}>
           <h2>Saved reports</h2>
-          
+
           {isLoading ? (
             <div className={styles.reportsLoading} role="status">Loading reports…</div>
           ) : savedReportsError ? (
@@ -4948,11 +5304,36 @@ const InsightsStudio = () => {
                 </button>
               </div>
 
-              {renderReportsTable(
-                activeReports,
-                visibleReportTab === 'owned' ? 'No reports you own yet.' : 'No shared reports yet.',
-                visibleReportTab === 'owned' ? 'Reports you create will appear here.' : 'Reports shared by collaborators will appear here.',
+              <div className={styles.reportLibraryToolbar}>
+                <label className={styles.reportSearchField}>
+                  <Search size={17} aria-hidden="true" />
+                  <input type="search" value={reportSearch} onChange={event => setReportSearch(event.target.value)} placeholder="Search saved reports" aria-label="Search saved reports" />
+                </label>
+                <div className={styles.reportLibraryControls}>
+                  <div className={styles.reportSortField}>
+                  <select value={reportSort} onChange={event => setReportSort(event.target.value)} aria-label="Sort saved reports" className={styles.reportSortSelect}>
+                    <option value="modified">Last edited</option>
+                    <option value="title">Title A–Z</option>
+                    <option value="created">Date created</option>
+                  </select>
+                  <ChevronDown size={16} className={styles.reportSortArrow} aria-hidden="true" />
+                  </div>
+                  <div className={styles.reportViewToggle} role="group" aria-label="Report view">
+                    <button type="button" aria-label="Grid view" aria-pressed={reportView === 'grid'} onClick={() => setReportView('grid')}><LayoutGrid size={18} aria-hidden="true" /></button>
+                    <button type="button" aria-label="List view" aria-pressed={reportView === 'list'} onClick={() => setReportView('list')}><List size={18} aria-hidden="true" /></button>
+                  </div>
+                </div>
+              </div>
+
+              {renderReportsGallery(
+                readyReports,
+                searchQuery ? 'No matching reports.' : visibleReportTab === 'owned' ? 'No reports you own yet.' : 'No shared reports yet.',
+                searchQuery ? 'Try a different title or author.' : visibleReportTab === 'owned' ? 'Reports you create will appear here.' : 'Reports shared by collaborators will appear here.',
               )}
+              {preparingPreviews && <div className={styles.previewBatchStatus} role="status">Preparing report images…</div>}
+              {readyReports.length === Math.min(visibleReportCount, matchingReports.length) && visibleReportCount < matchingReports.length && <div ref={reportLoadMoreRef} className={styles.reportLoadMore}>
+                <button type="button" className={styles.reportLoadMoreButton} onClick={() => setVisibleReportCount(count => count + REPORT_BATCH_SIZE)}>Show more reports</button>
+              </div>}
             </div>
           )}
         </section>
