@@ -92,11 +92,25 @@ export const updateTeamMemberRole = async (supabase, memberId, role) => {
 };
 
 export const removeTeamMember = async (supabase, memberId) => {
+  if (!supabase || !memberId) throw new Error("Choose a member to remove.");
+
   const { data, error } = await supabase.rpc("remove_team_member", {
     target_profile_id: memberId
   });
-
   if (error) throw error;
+
+  // The RPC can return no body. Confirm the persisted membership before showing success.
+  const { data: remainingMember, error: verificationError } = await supabase
+    .from("profile")
+    .select("id, assigned_institute")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (verificationError) {
+    throw new Error("The removal could not be confirmed. Refresh the team before trying again.", { cause: verificationError });
+  }
+  if (remainingMember?.assigned_institute) {
+    throw new Error("This member is still assigned to the team. Please try again.");
+  }
   return data;
 };
 

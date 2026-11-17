@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Mail, Plus, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Check, ChevronRight, Copy, Mail, Plus, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember } from "./TeamData";
 import styles from "./TeamPage.module.css";
@@ -9,8 +9,7 @@ const matchesSearch = (member, query) => {
 
   const haystack = [
     member.full_name,
-    member.email,
-    member.department
+    member.email
   ].filter(Boolean).join(" ").toLowerCase();
 
   return haystack.includes(query);
@@ -32,10 +31,6 @@ const getMemberInitials = (member) => {
   return [words[0], ...(words.length > 1 ? [words[words.length - 1]] : [])]
     .map((word) => Array.from(word)[0]).join("").toUpperCase();
 };
-
-const getAvatarTone = (member) =>
-  Array.from(String(member.id || member.email || member.full_name || ""))
-    .reduce((sum, character) => sum + character.codePointAt(0), 0) % 5;
 
 const normalizeRole = (role) => {
   const normalized = String(role || "viewer").trim().toLowerCase();
@@ -66,7 +61,6 @@ const TeamSkeleton = () => (
         <div className={styles.skeletonAvatar} />
         <div className={styles.skeletonLineLarge} />
         <div className={styles.skeletonLineSmall} />
-        <div className={styles.skeletonEmail} />
       </div>
     ))}
   </div>
@@ -79,10 +73,13 @@ const TeamPage = () => {
   const [currentUserRole, setCurrentUserRole] = useState("viewer");
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedEmail, setCopiedEmail] = useState("");
+  const [activeMember, setActiveMember] = useState(null);
+  const memberDialogRef = useRef(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const removalDialogRef = useRef(null);
   const [confirmationName, setConfirmationName] = useState("");
   const [actionError, setActionError] = useState("");
+  const [removalMessage, setRemovalMessage] = useState("");
   const [savingAction, setSavingAction] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -128,6 +125,16 @@ const TeamPage = () => {
     }
   }, [selectedMember]);
 
+  useEffect(() => {
+    const dialog = memberDialogRef.current;
+    if (activeMember && dialog && !dialog.open) dialog.showModal();
+  }, [activeMember]);
+
+  const closeMemberDetails = () => {
+    memberDialogRef.current?.close();
+    setActiveMember(null);
+  };
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredMembers = useMemo(
     () => sortMembersAlphabetically(members.filter((member) => matchesSearch(member, normalizedSearch))),
@@ -137,6 +144,7 @@ const TeamPage = () => {
   const memberCountLabel = `${filteredMembers.length} ${filteredMembers.length === 1 ? "member" : "members"}`;
   const selectedMemberName = String(selectedMember?.full_name || selectedMember?.email || "this member").trim();
   const canEditSelectedMember = canManageMember(currentUserRole, currentUserId, selectedMember);
+  const removalNameMatches = confirmationName.trim() === selectedMemberName;
   const canInviteMembers = ["checkit_admin", "admin"].includes(normalizeRole(currentUserRole));
 
   const copyEmail = async (email) => {
@@ -152,6 +160,8 @@ const TeamPage = () => {
 
   const openRemoveConfirmation = (member) => {
     if (!canManageMember(currentUserRole, currentUserId, member)) return;
+    closeMemberDetails();
+    setRemovalMessage("");
     setSelectedMember(member);
     setConfirmationName("");
     setActionError("");
@@ -190,7 +200,7 @@ const TeamPage = () => {
   const removeMember = async (event) => {
     event.preventDefault();
     if (savingAction || !selectedMember?.id || !canEditSelectedMember) return;
-    if (confirmationName !== selectedMemberName) {
+    if (!removalNameMatches) {
       setActionError("Type the member name exactly before removing them.");
       return;
     }
@@ -200,7 +210,8 @@ const TeamPage = () => {
 
     try {
       await removeTeamMember(supabase, selectedMember.id);
-      await refreshMembers();
+      setMembers((current) => current.filter((member) => member.id !== selectedMember.id));
+      setRemovalMessage(`${selectedMemberName} was removed from the team.`);
       removalDialogRef.current?.close();
       setSelectedMember(null);
       setConfirmationName("");
@@ -237,7 +248,7 @@ const TeamPage = () => {
       <section className={styles.teamHeader}>
         <div>
           <h1>Teams</h1>
-          <p>Your team directory.</p>
+          <p>Manage your organization’s members.</p>
         </div>
         <div className={styles.headerActions}>
           {canInviteMembers ? (
@@ -261,11 +272,13 @@ const TeamPage = () => {
             type="search"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search members"
-            aria-label="Search members by name, email, or department"
+            placeholder="Search by name or email"
+            aria-label="Search members by name or email"
           />
         </div>
       </section>
+
+      {removalMessage ? <p className={styles.removalSuccess} role="status">{removalMessage}</p> : null}
 
       {loading && <TeamSkeleton />}
 
@@ -294,49 +307,97 @@ const TeamPage = () => {
         <section className={styles.memberGrid} aria-label="Team members">
           {filteredMembers.map((member) => (
             <article className={styles.memberCard} key={member.id || member.email}>
-              <div className={styles.cardTopRow}>
-                <div className={styles.avatar} data-tone={getAvatarTone(member)} aria-hidden="true">
+              <button
+                className={styles.memberDetailsButton}
+                type="button"
+                onClick={() => setActiveMember(member)}
+                aria-label={`View details for ${member.full_name || member.email || "member"}`}
+                aria-haspopup="dialog"
+              >
+                <span className={styles.avatar} aria-hidden="true">
                   {getMemberInitials(member)}
-                </div>
-                {canManageMember(currentUserRole, currentUserId, member) ? (
-                  <button
-                    className={styles.removeMemberButton}
-                    type="button"
-                    onClick={() => openRemoveConfirmation(member)}
-                    aria-label={`Remove ${member.full_name || member.email || "member"} from team`}
-                    title="Remove from team"
-                  >
-                    <X size={18} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-              <div className={styles.memberText}>
-                <div className={styles.memberNameRow}>
-                  <h3>{member.full_name || "Unnamed member"}</h3>
-                  {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
-                </div>
-                {member.department ? <p className={styles.memberDepartment}>{member.department}</p> : null}
-              </div>
-              <div className={styles.cardFooter}>
-                {member.email ? (
-                  <button
-                    className={styles.emailButton}
-                    type="button"
-                    onClick={() => copyEmail(member.email)}
-                    aria-label={copiedEmail === member.email ? `Copied ${member.email}` : `Copy ${member.email}`}
-                    title={member.email}
-                    data-copied={copiedEmail === member.email}
-                  >
-                    <Mail size={18} aria-hidden="true" />
-                    <span>{member.email}</span>
-                    {copiedEmail === member.email ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}
-                  </button>
-                ) : <p className={styles.noEmail}>No email available</p>}
-              </div>
+                </span>
+                <span className={styles.memberText}>
+                  <span className={styles.memberNameRow}>
+                    <span className={styles.memberName}>{member.full_name || "Unnamed member"}</span>
+                    {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
+                  </span>
+                  <span className={styles.memberEmail}>{member.email || "No email available"}</span>
+                </span>
+                <ChevronRight className={styles.memberDetailsArrow} size={16} aria-hidden="true" />
+              </button>
+              {canManageMember(currentUserRole, currentUserId, member) ? (
+                <button
+                  className={styles.removeMemberButton}
+                  type="button"
+                  onClick={() => openRemoveConfirmation(member)}
+                  aria-label={`Remove ${member.full_name || member.email || "member"} from team`}
+                  title="Remove from team"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              ) : null}
             </article>
           ))}
         </section>
       )}
+
+      {activeMember ? (
+        <dialog
+          ref={memberDialogRef}
+          className={`${styles.memberModal} ${styles.memberDetailsDialog}`}
+          aria-labelledby="team-member-details-title"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeMemberDetails();
+          }}
+        >
+          <div className={styles.memberDetailsHeader}>
+            <h2 id="team-member-details-title">Member details</h2>
+            <button className={styles.iconButton} type="button" onClick={closeMemberDetails} aria-label="Close member details">
+              <X size={20} aria-hidden="true" />
+            </button>
+          </div>
+          <div className={styles.memberDetailsProfile}>
+            <div className={styles.avatar} aria-hidden="true">
+              {getMemberInitials(activeMember)}
+            </div>
+            <div>
+              <p className={styles.memberDetailsEyebrow}>Team member</p>
+              <h3>{activeMember.full_name || "Unnamed member"}</h3>
+            </div>
+          </div>
+          <dl className={styles.memberDetailsFields}>
+            <div>
+              <dt>Email</dt>
+              <dd>
+                {activeMember.email ? (
+                  <button
+                    className={styles.emailButton}
+                    type="button"
+                    onClick={() => copyEmail(activeMember.email)}
+                    aria-label={copiedEmail === activeMember.email ? `Copied ${activeMember.email}` : `Copy ${activeMember.email}`}
+                    data-copied={copiedEmail === activeMember.email}
+                  >
+                    <Mail size={18} aria-hidden="true" />
+                    <span>{activeMember.email}</span>
+                    {copiedEmail === activeMember.email ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}
+                  </button>
+                ) : "No email available"}
+              </dd>
+            </div>
+          </dl>
+          <div className={styles.memberDetailsFooter}>
+            {canManageMember(currentUserRole, currentUserId, activeMember) ? (
+              <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)}>
+                <X size={16} aria-hidden="true" />
+                Remove from team
+              </button>
+            ) : null}
+            <button className={styles.doneButton} type="button" onClick={closeMemberDetails}>Done</button>
+          </div>
+        </dialog>
+      ) : null}
 
       {selectedMember ? (
         <dialog
@@ -364,7 +425,7 @@ const TeamPage = () => {
             </div>
 
             <div className={styles.removalProfile}>
-              <div className={styles.avatar} data-tone={getAvatarTone(selectedMember)} aria-hidden="true">
+              <div className={styles.avatar} aria-hidden="true">
                 {getMemberInitials(selectedMember)}
               </div>
               <div>
@@ -405,7 +466,7 @@ const TeamPage = () => {
               <button
                 className={styles.dangerButton}
                 type="submit"
-                disabled={Boolean(savingAction) || !canEditSelectedMember || confirmationName !== selectedMemberName}
+                disabled={Boolean(savingAction) || !canEditSelectedMember || !removalNameMatches}
               >
                 <Trash2 size={16} aria-hidden="true" />
                 {savingAction === "remove" ? "Removing..." : "Remove member"}
