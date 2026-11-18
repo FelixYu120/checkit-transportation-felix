@@ -9,7 +9,6 @@ uint8_t pendingCount = 0, liveCount = 0;
 bool radarConnected = false, haveFrame = false;
 uint32_t lastFrameMs = 0, frameCount = 0, detectionFrames = 0;
 
-
 const char dashboardHtml[] PROGMEM = R"HTML(<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CheckIt · Radar live</title><style>
