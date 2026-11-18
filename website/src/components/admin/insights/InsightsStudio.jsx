@@ -1,3 +1,4 @@
+import { captureReportSnapshot, getReportSnapshotContext, hasReportSnapshot, refreshReportSnapshots } from './ReportSnapshots.js';
 import { CHART_COLORS, CHART_SERIES_COLORS, CHART_PEOPLE_COLORS } from '../visualizations/ChartTheme.js';
 import ReportWorkspace from './ReportWorkspace.jsx';
 import { REPORT_METRICS, getDecisionQuestion, loadReportVersion, runReportCommand } from './ReportEnterprise.js';
@@ -1818,12 +1819,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
     restoreSnapshot(nextSnapshot);
   }, [getReportSnapshot, restoreSnapshot]);
 
-  const clearDataSnapshots = (layout) => layout.map((element) => (
-    element.snapshotData || element.snapshotKey
-      ? { ...element, snapshotData: undefined, snapshotKey: undefined }
-      : element
-  ));
-
   const updateDocMeta = (updates) => {
     if (isReadOnlyReport) return;
     pushUndoSnapshot();
@@ -1834,10 +1829,6 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const updateReportSettings = (updates) => {
     if (isReadOnlyReport) return;
     pushUndoSnapshot();
-    const shouldRefreshSnapshots = ['timeframe', 'startDate', 'endDate', 'startTime', 'endTime', 'dayPreset'].some((key) => key in updates);
-    if (shouldRefreshSnapshots) {
-      setElements((current) => clearDataSnapshots(current));
-    }
     setReportSettings((current) => ({ ...current, ...updates }));
     markDirty();
   };
@@ -1879,11 +1870,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
   const updateElement = (id, updates) => {
     if (isReadOnlyReport) return;
     pushUndoSnapshot();
-    const shouldRefreshSnapshot = ['chartType', 'summaryMetric', 'summaryMetrics', 'customMetrics', 'selections', 'comparisonSelections', 'comparisonSelectionList', 'attachedChartId', 'useReportTimeframe', 'timeType', 'startDate', 'endDate', 'startTime', 'endTime', 'dayPreset'].some((key) => key in updates);
-    setElements(elements.map((el) => {
-      if (el.id !== id) return el;
-      return { ...el, ...(shouldRefreshSnapshot ? { snapshotData: undefined, snapshotKey: undefined } : {}), ...updates };
-    }));
+    setElements(elements.map(el => el.id === id ? { ...el, ...updates } : el));
     markDirty();
   };
   const updateElementStyle = (id, property, value) => {
@@ -1957,20 +1944,17 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
 
   const getNextZIndex = useCallback(() => Math.max(0, ...elements.map((element) => element.zIndex || 1)) + 1, [elements]);
 
-  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence) => {
+  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence, snapshotContext, revision) => {
     if (isReadOnlyReport) return;
-    setElements((currentElements) => currentElements.map((element) => {
-      if (element.id !== id || element.snapshotKey === snapshotKey) return element;
-      return { ...element, snapshotKey, snapshotData, ...(dataEvidence ? { dataEvidence } : {}) };
-    }));
+    setElements(current => current.map(element => element.id === id
+      ? captureReportSnapshot(element, { key: snapshotKey, data: snapshotData, evidence: dataEvidence, context: snapshotContext, revision })
+      : element));
   }, [isReadOnlyReport]);
 
   const refreshElementSnapshot = (id) => {
     if (isReadOnlyReport) return;
     pushUndoSnapshot();
-    setElements(elements.map((element) => (
-      element.id === id ? { ...element, snapshotData: undefined, snapshotKey: undefined } : element
-    )));
+    setElements(current => refreshReportSnapshots(current, id));
     markDirty();
   };
 
@@ -2921,7 +2905,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
       const savedState = getSavedReportState({
         mode: type, elements: committedElements.map(element => {
           const latest = latestElementsRef.current.find(candidate => candidate.id === element.id);
-          return latest ? { ...element, snapshotData: latest.snapshotData, snapshotKey: latest.snapshotKey,
+          return latest ? { ...element, snapshotData: latest.snapshotData, snapshotKey: latest.snapshotKey, snapshotContext: latest.snapshotContext,
             ...(latest.dataEvidence ? { dataEvidence: latest.dataEvidence } : {}) } : element;
         }), pageCount: visiblePageCount,
         selections, comparisonSelections, reportSettings: nextReportSettings,
@@ -4063,8 +4047,9 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                   <button type="button" className={styles.secondaryBtnFull} onClick={addAutoInsightForChart}>
                     <FileText size={14} /> Add auto insight
                   </button>
+                  <p className={styles.snapshotHint}>Saved chart data stays fixed. Refresh to apply the selected source and reporting period.</p>
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
-                    <RefreshCw size={14} /> Refresh snapshot
+                    <RefreshCw size={14} /> Refresh chart data
                   </button>
                 </>
               )}
@@ -4141,7 +4126,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     </>
                   )}
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
-                    <RefreshCw size={14} /> Refresh snapshot
+                    <RefreshCw size={14} /> Refresh chart data
                   </button>
                 </div>
               )}
@@ -4221,7 +4206,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                     </>
                   )}
                   <button type="button" className={styles.secondaryBtnFull} onClick={() => refreshElementSnapshot(activeElement.id)}>
-                    <RefreshCw size={14} /> Refresh snapshot
+                    <RefreshCw size={14} /> Refresh chart data
                   </button>
                 </div>
               )}
@@ -4252,7 +4237,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
         }}
         onRefreshData={() => {
           pushUndoSnapshot();
-          setElements(current => current.map(element => ({ ...element, snapshotData: undefined, snapshotKey: undefined, dataEvidence: undefined })));
+          setElements(current => refreshReportSnapshots(current));
           setReportSettings(current => ({ ...current, metricDefinitions: REPORT_METRICS[STUDIO_PRODUCT], metricDefinitionVersion: 1 }));
           markDirty(); setIsWorkspaceOpen(false);
         }}
@@ -4342,27 +4327,27 @@ const renderReportElement = (el, {
 }) => {
     if (isViewingVersion && ['chart', 'summary'].includes(el.type) && !el.snapshotData) return <p>No data was saved for this module in this version.</p>;
 
-    const elementPrimarySelections = getElementPrimarySelections(el);
-    const elementComparisonSelections = getElementComparisonSelections(el);
-    const elementPrimaryTarget = getTargetFromSelections(elementPrimarySelections, '');
-    const elementSecondaryTarget = getTargetFromSelections(elementComparisonSelections, '');
-    const elementComparisonTargets = isComparison ? getElementComparisonTargets(el) : [elementPrimaryTarget, elementSecondaryTarget];
-    const elementHasSoloTarget = Boolean(elementPrimaryTarget.id);
-    const elementHasComparisonTargets = elementComparisonTargets.filter((target) => target.id).length >= 2;
-    const elementFilters = getElementFilters(el);
-    const elementTimeframe = getElementTimeframe(el);
-    const elementSnapshotKey = getSnapshotKey({
-      mode: type,
-      target: elementPrimaryTarget,
-      secondaryTarget: elementSecondaryTarget,
-      targets: isComparison ? elementComparisonTargets : undefined,
-      filters: elementFilters,
-      timeframe: elementTimeframe,
-    });
-
+    const currentPrimaryTarget = getTargetFromSelections(getElementPrimarySelections(el), '');
+    const currentSecondaryTarget = getTargetFromSelections(getElementComparisonSelections(el), '');
+    const currentContext = {
+      mode: type, target: currentPrimaryTarget, secondaryTarget: currentSecondaryTarget,
+      targets: isComparison ? getElementComparisonTargets(el) : undefined,
+      filters: getElementFilters(el), timeframe: getElementTimeframe(el),
+    };
+    const attachedSource = el.type === 'summary' && !isComparison ? getAttachedChart(el) : null;
+    const snapshotContext = getReportSnapshotContext(hasReportSnapshot(el) ? el : attachedSource, currentContext);
+    const elementPrimaryTarget = snapshotContext.target;
+    const elementSecondaryTarget = snapshotContext.secondaryTarget;
+    const elementComparisonTargets = isComparison ? snapshotContext.targets : [elementPrimaryTarget, elementSecondaryTarget];
+    const elementHasSoloTarget = Boolean(elementPrimaryTarget.id) || hasReportSnapshot(el);
+    const elementHasComparisonTargets = elementComparisonTargets.filter(target => target.id).length >= 2 || hasReportSnapshot(el);
+    const elementFilters = snapshotContext.filters;
+    const elementTimeframe = snapshotContext.timeframe;
+    const elementSnapshotKey = getSnapshotKey(snapshotContext);
+    const snapshotRevision = el.snapshotRefreshRevision || 0;
     const onSnapshotData = getSnapshotCallback
-      ? getSnapshotCallback(el.id, elementSnapshotKey)
-      : (data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence);
+      ? getSnapshotCallback(el.id, elementSnapshotKey, snapshotContext, snapshotRevision)
+      : (data, evidence) => updateElementSnapshot(el.id, elementSnapshotKey, data, evidence, snapshotContext, snapshotRevision);
 
     if (el.type === 'text') {
       const isEditing = editingTextId === el.id;
@@ -4452,27 +4437,20 @@ const renderReportElement = (el, {
       </div>
     );
 
-    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} /></div>;
+    if (el.type === 'summary' && isComparison) return <div style={{ width: '100%', height: '100%' }}><ComparisonSummaryMetrics targets={elementComparisonTargets} filters={elementFilters} timeframe={elementTimeframe} metricMode={el.summaryMetric || 'totalVolume'} metricModes={el.summaryMetrics || DEFAULT_COMPARISON_SUMMARY_METRICS} snapshotData={el.snapshotData} onSnapshotData={onSnapshotData} /></div>;
     if (el.type === 'summary') {
       const attachedChart = getAttachedChart(el);
-      const attachedChartSnapshotKey = attachedChart ? getSnapshotKey({
-        mode: type,
-        target: getTargetFromSelections(getElementPrimarySelections(attachedChart), ''),
-        secondaryTarget: getTargetFromSelections(getElementComparisonSelections(attachedChart), ''),
-        filters: getElementFilters(attachedChart),
-        timeframe: getElementTimeframe(attachedChart),
-      }) : '';
-      const attachedChartData = attachedChart?.snapshotKey === attachedChartSnapshotKey ? attachedChart.snapshotData : undefined;
-      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={onSnapshotData} /></div>;
+      const attachedChartData = attachedChart?.snapshotData;
+      return <div style={{ width: '100%', height: '100%' }}><SummaryMetrics level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} filters={elementFilters} timeframe={elementTimeframe} metrics={getSummaryMetricsForTimeframe(el.summaryMetrics, elementTimeframe)} snapshotData={el.snapshotData} sourceChartData={attachedChartData} preferSourceChartData={Boolean(attachedChart)} onSnapshotData={onSnapshotData} /></div>;
     }
     if (el.type === 'chart' && isComparison) return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <ComparisonAggregateChart targets={elementComparisonTargets} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'line'} snapshotData={el.snapshotData} onSnapshotData={onSnapshotData} seriesColors={el.seriesColors || []} peopleSeriesColors={el.peopleSeriesColors || []} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? true} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'chart') return (
       <ChartFrame title={getChartDisplayName(el)}>
-        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={isViewingVersion || el.snapshotKey === elementSnapshotKey ? el.snapshotData : undefined} onSnapshotData={onSnapshotData} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || CHART_COLORS.accent} peopleColor={el.peopleColor || CHART_COLORS.primary} highlightColor={el.highlightColor || CHART_COLORS.rust} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
+        <AggregateChart level={elementPrimaryTarget.level} id={elementPrimaryTarget.id} sensorIds={elementPrimaryTarget.sensorIds || []} filters={elementFilters} type={elementTimeframe} plotType={el.chartType || 'combo'} snapshotData={el.snapshotData} onSnapshotData={onSnapshotData} highlightMode={el.highlightPeak ? 'peak' : 'none'} highlightLabel={el.highlightLabel || 'Peak'} occupancyColor={el.occupancyColor || CHART_COLORS.accent} peopleColor={el.peopleColor || CHART_COLORS.primary} highlightColor={el.highlightColor || CHART_COLORS.rust} thresholdEnabled={Boolean(el.thresholdEnabled)} thresholdValue={el.thresholdValue} thresholdLabel={el.thresholdLabel || 'Threshold'} thresholdColor={el.thresholdColor || '#ef4444'} showLegend={el.showLegend ?? ['combo', 'custom'].includes(el.chartType || 'combo')} legendItems={el.legendItems} customMetrics={el.customMetrics} frameless />
       </ChartFrame>
     );
     if (el.type === 'table') return <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>[ Customizable Data Table ]</div>;
@@ -4772,17 +4750,17 @@ const ReportThumbnailDocument = ({ report, saved, directory }) => {
   if (baseContext.getAttachedChartSnapshot) {
     context.getAttachedChartSnapshot = element => ({ ...baseContext.getAttachedChartSnapshot(element), data: getAttachedChart(element)?.snapshotData });
   }
-  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence) => {
+  const updateElementSnapshot = useCallback((id, snapshotKey, snapshotData, dataEvidence, snapshotContext) => {
     setElements(current => {
       const previous = current.find(element => element.id === id);
       if (!previous || (previous.snapshotKey === snapshotKey && previous.snapshotData === snapshotData && (!dataEvidence || previous.dataEvidence === dataEvidence))) return current;
       return current.map(element => element.id === id
-        ? { ...element, snapshotKey, snapshotData, ...(dataEvidence ? { dataEvidence } : {}) } : element);
+        ? { ...element, snapshotKey, snapshotData, snapshotContext, ...(dataEvidence ? { dataEvidence } : {}) } : element);
     });
   }, []);
-  const getSnapshotCallback = useCallback((id, snapshotKey) => {
-    const key = `${id}:${snapshotKey}`;
-    if (!snapshotHandlers.current.has(key)) snapshotHandlers.current.set(key, (data, evidence) => updateElementSnapshot(id, snapshotKey, data, evidence));
+  const getSnapshotCallback = useCallback((id, snapshotKey, snapshotContext, revision) => {
+    const key = `${id}:${snapshotKey}:${revision || 0}`;
+    if (!snapshotHandlers.current.has(key)) snapshotHandlers.current.set(key, (data, evidence) => updateElementSnapshot(id, snapshotKey, data, evidence, snapshotContext, revision));
     return snapshotHandlers.current.get(key);
   }, [updateElementSnapshot]);
   return <ReportDocumentPage elements={elements} reportSettings={saved.reportSettings}

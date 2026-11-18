@@ -508,7 +508,7 @@ const ComparisonAggregateChart = ({
     frameless = false,
 }) => {
     const [liveChartData, setLiveChartData] = useState([]);
-    const [isLoading, setIsLoading] = useState(!snapshotData?.length);
+    const [isLoading, setIsLoading] = useState(!Array.isArray(snapshotData));
     const gradientId = `comparisonOccupancy-${useId().replace(/:/g, '')}`;
 
     const targetsInputSignature = JSON.stringify((Array.isArray(targets) ? targets : []).map((target) => ({
@@ -538,12 +538,12 @@ const ComparisonAggregateChart = ({
         dayPreset,
     }), [startDate, endDate, startTime, endTime, dayPreset]);
     const chartData = useMemo(() => (
-        (snapshotData?.length ? snapshotData : liveChartData).map((point, index) => ({
+        (Array.isArray(snapshotData) ? snapshotData : liveChartData).map((point, index) => ({
             ...point,
             sortKey: point.sortKey || `${point.dateLabel || point.time || 'point'}-${index}`,
         }))
     ), [liveChartData, snapshotData]);
-    const isChartLoading = !snapshotData?.length && isLoading;
+    const isChartLoading = !Array.isArray(snapshotData) && isLoading;
     const targetSeries = useMemo(() => activeTargets.map((target, index) => ({
         ...target,
         label: target.label || `Data source ${index + 1}`,
@@ -562,7 +562,7 @@ const ComparisonAggregateChart = ({
     const effectiveCustomMetrics = { ...DEFAULT_CUSTOM_METRICS, ...(customMetrics || {}) };
 
     useEffect(() => {
-        if (snapshotData?.length) {
+        if (Array.isArray(snapshotData)) {
             return undefined;
         }
 

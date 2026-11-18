@@ -515,7 +515,7 @@ const AggregateChart = ({
     frameless = false,
 }) => {
     const [liveChartData, setLiveChartData] = useState([]);
-    const [isLoading, setIsLoading] = useState(!snapshotData?.length);
+    const [isLoading, setIsLoading] = useState(!Array.isArray(snapshotData));
     const gradientId = `colorOccupancy-${useId().replace(/:/g, '')}`;
     const startDate = filters?.startDate || '';
     const endDate = filters?.endDate || '';
@@ -533,12 +533,12 @@ const AggregateChart = ({
         dayPreset,
     }), [startDate, endDate, startTime, endTime, dayPreset]);
     const chartData = useMemo(() => (
-        (snapshotData?.length ? snapshotData : liveChartData).map((point, index) => ({
+        (Array.isArray(snapshotData) ? snapshotData : liveChartData).map((point, index) => ({
             ...point,
             sortKey: point.sortKey || `${point.dateLabel || point.time || 'point'}-${index}`,
         }))
     ), [liveChartData, snapshotData]);
-    const isChartLoading = !snapshotData?.length && isLoading;
+    const isChartLoading = !Array.isArray(snapshotData) && isLoading;
     const highlightIndex = getHighlightIndex(chartData, plotType, highlightMode);
     const highlightedPoint = highlightIndex >= 0 ? chartData[highlightIndex] : null;
     const peopleAxisMax = useMemo(() => getPeopleAxisMax(chartData), [chartData]);
@@ -552,7 +552,7 @@ const AggregateChart = ({
     const shouldShowLegend = showLegend ?? ['combo', 'custom'].includes(plotType);
 
     useEffect(() => {
-        if (snapshotData?.length) {
+        if (Array.isArray(snapshotData)) {
             return undefined;
         }
 

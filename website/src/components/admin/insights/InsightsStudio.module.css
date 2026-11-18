@@ -2176,3 +2176,10 @@
 @media (prefers-reduced-motion: reduce) { .savedReportCard { animation: none; } }
 
 .previewBatchStatus { padding: 24px 0; color: #63756b; font-size: 13px; text-align: center; }
+
+.snapshotHint {
+  margin: 12px 0 8px;
+  color: var(--checkit-muted, #63756b);
+  font-size: 12px;
+  line-height: 1.5;
+}

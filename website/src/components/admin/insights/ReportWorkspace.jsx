@@ -183,7 +183,8 @@ export default function ReportWorkspace({ client, reportId, product, elements, d
         {tab === 'overview' && <>
           <label>Decision question<textarea value={decisionQuestion || ''} disabled={readOnly || documentReadOnly} onChange={event => onDecisionChange(event.target.value)} maxLength={500} placeholder="What decision should this report help your team make?" /></label>
           <ReportDataNotes elements={elements} product={product} decisionQuestion={decisionQuestion} metricDefinitions={metricDefinitions} />
-          {!readOnly && !documentReadOnly && <div className={styles.buttons}><button type="button" onClick={onRefreshData}>Refresh chart data</button></div>}
+          <p>Charts keep their saved data until you choose to refresh. Save the report to keep refreshed data.</p>
+          {!readOnly && !documentReadOnly && <div className={styles.buttons}><button type="button" onClick={onRefreshData}>Refresh all chart data</button></div>}
         </>}
         {tab === 'review' && workspace && <>
           <p>Submit a saved version to a different editor for review. Only the owner can publish an approved version. Editing the report returns its working copy to Draft.</p>

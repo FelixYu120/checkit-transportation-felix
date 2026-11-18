@@ -16,6 +16,7 @@ export const getComparableReportState = (reportState, docMeta = {}) => {
       delete stable.snapshotData;
       delete stable.snapshotKey;
       delete stable.dataEvidence;
+      delete stable.snapshotContext;
       return stable;
     }),
     reportSettings: settings,
