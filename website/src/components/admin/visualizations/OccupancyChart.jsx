@@ -325,8 +325,8 @@ const OccupancyChart = ({ roomId, type = 'daily', filters }) => {
     return (
         <div style={{ width: '100%', minHeight: 'clamp(340px, 38vw, 480px)', backgroundColor: '#ffffff', padding: 'clamp(16px, 1.8vw, 24px)', borderRadius: '12px', boxSizing: 'border-box', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                <h4 style={{ margin: 0, color: '#374151', fontSize: 'clamp(14px, 1.1vw, 18px)', fontWeight: '600' }}>
-                    {type === 'monthly' ? 'Monthly Average Corridor Speed' : type === 'weekly' ? 'Weekly Average Corridor Speed' : '24h Corridor Speed Trend'}
+                <h4 style={{ margin: 0, color: '#374151', fontSize: 'var(--checkit-chart-heading-size)', fontWeight: 'var(--checkit-heading-weight)', lineHeight: 'var(--checkit-heading-line-height)' }}>
+                    {type === 'monthly' ? 'Monthly Average Corridor Speed' : type === 'weekly' ? 'Weekly Average Corridor Speed' : '24 hr Corridor Speed Trend'}
                 </h4>
             </div>
             

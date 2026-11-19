@@ -2,10 +2,10 @@
 .page {
   width: 100%; height: 100%; overflow-y: auto;
   background: var(--checkit-bg-soft, #e9eeeb); color: #1f322a;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--checkit-font);
 }
 .content { min-height: 100%; max-width: 1140px; margin: 0 auto; padding: 36px 24px 56px; box-sizing: border-box; }
-.hero h1 { margin: 0; color: #20352c; font-size: 30px; letter-spacing: -.035em; font-weight: 650; line-height: 1.25; }
+.hero h1 { margin: 0; color: #20352c; font-size: var(--checkit-heading-size); letter-spacing: -.035em; font-weight: var(--checkit-heading-weight); line-height: var(--checkit-heading-line-height); }
 .hero p { margin: 8px 0 0; color: #63756b; font-size: 14px; line-height: 1.6; }
 .cardGrid {
   display: grid;
@@ -268,7 +268,7 @@
 @media (max-width: 860px) { .cardGrid { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 560px) {
   .content { padding: 28px 16px 40px; }
-  .hero h1 { font-size: 27px; }
+  .hero h1 { font-size: var(--checkit-heading-size); }
   .templates { margin-top: 28px; padding-top: 22px; }
   .reportSearchField { width: 100%; }
   .reportLibraryControls { width: 100%; justify-content: space-between; }
@@ -289,7 +289,7 @@
   z-index: 9999; 
   display: flex;
   flex-direction: column;
-  font-family: system-ui, sans-serif;
+  font-family: var(--checkit-font);
   background-color: var(--bg-color);
   color: var(--text-main);
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -2143,7 +2143,7 @@
 .builderPage .toolbarIconButton { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; max-width: 36px; height: 36px; min-height: 36px; padding: 0; flex: 0 0 36px; border-radius: 8px; }
 .toolbarIconButton svg { flex-shrink: 0; }
 .toolbarIconButton:focus-visible { outline: 2px solid #527c69; outline-offset: 3px; }
-.iconAction::after { content: attr(data-tooltip); position: absolute; z-index: 10020; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); padding: 7px 10px; border-radius: 6px; background: #28423e; color: #fff; font: 500 12px/1.4 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 4px 12px rgba(21,32,31,.15); pointer-events: none; opacity: 0; visibility: hidden; }
+.iconAction::after { content: attr(data-tooltip); position: absolute; z-index: 10020; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); padding: 7px 10px; border-radius: 6px; background: #28423e; color: #fff; font: 500 12px/1.4 var(--checkit-font); white-space: nowrap; box-shadow: 0 4px 12px rgba(21,32,31,.15); pointer-events: none; opacity: 0; visibility: hidden; }
 .iconAction:hover::after, .iconAction:focus-within::after { opacity: 1; visibility: visible; }
 .iconAction[data-tooltip-align="start"]::after { left: 0; transform: none; }
 .iconAction[data-tooltip-align="end"]::after { left: auto; right: 0; transform: none; }
@@ -2160,7 +2160,7 @@
   height: 1200px;
   overflow: hidden;
   color: var(--text-main);
-  font-family: system-ui, sans-serif;
+  font-family: var(--checkit-font);
   font-size: 16px;
 }
 

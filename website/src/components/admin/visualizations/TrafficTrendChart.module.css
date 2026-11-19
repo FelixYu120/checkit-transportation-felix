@@ -67,10 +67,10 @@
 .titleBlock h3 {
   margin: 0;
   color: #172033;
-  font-size: clamp(1rem, 1.12vw, 1.2rem);
-  font-weight: 850;
+  font-size: var(--checkit-chart-heading-size);
+  font-weight: var(--checkit-heading-weight);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: var(--checkit-heading-line-height);
 }
 
 .titleBlock p {
@@ -132,7 +132,7 @@
 
 .canvas {
   width: 100%;
-  height: clamp(230px, 24vw, 320px);
+  height: var(--checkit-chart-height);
   min-width: 0;
 }
 

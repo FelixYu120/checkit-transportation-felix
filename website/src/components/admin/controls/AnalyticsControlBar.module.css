@@ -1,29 +1,154 @@
 .controlBar {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  max-width: 100%;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--checkit-border);
-}
-
-.controlsRow {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: var(--checkit-control-gap);
   width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  box-sizing: border-box;
+  font-family: var(--checkit-font);
+  font-size: var(--checkit-control-font-size);
+  font-weight: var(--checkit-control-font-weight);
+  line-height: 1.25;
 }
 
-@media (max-width: 768px) {
-  .controlBar {
-    width: 100%;
-    align-items: stretch;
-  }
+.filterAnchor {
+  display: inline-flex;
+}
 
-  .controlsRow {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.filterTrigger,
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--checkit-muted);
+  cursor: pointer;
+}
+
+.filterTrigger {
+  position: relative;
+}
+
+.filterTrigger:hover,
+.filterTrigger[aria-expanded="true"],
+.closeButton:hover {
+  border-color: var(--checkit-border);
+  background: var(--checkit-surface-muted);
+  color: var(--checkit-green);
+}
+
+.hasActiveFilters {
+  color: var(--checkit-green);
+}
+
+.filterTrigger:focus-visible,
+.closeButton:focus-visible,
+.resetButton:focus-visible {
+  outline: 2px solid var(--checkit-green);
+  outline-offset: 2px;
+}
+
+.activeBadge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--checkit-green);
+  color: #fff;
+  font-size: .625rem;
+  font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.filterPanel {
+  --checkit-control-height: 2rem;
+  --checkit-control-gap: 4px;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: min(22rem, 100%);
+  max-height: min(26rem, calc(100dvh - 160px));
+  padding: 8px;
+  border: 1px solid var(--checkit-border);
+  border-radius: var(--checkit-dialog-radius);
+  background: var(--checkit-bg);
+  color: var(--checkit-ink);
+  box-shadow: var(--checkit-shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.filterPanel .closeButton {
+  width: 28px;
+  height: 28px;
+}
+
+.panelHeader h2 {
+  margin: 0 auto 0 0;
+  font: inherit;
+  font-weight: 650;
+}
+
+.resetButton {
+  min-height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--checkit-green);
+  font: inherit;
+  cursor: pointer;
+}
+
+.resetButton:disabled {
+  color: var(--checkit-muted);
+  opacity: .6;
+  cursor: default;
+}
+
+.exportControl {
+  flex: 0 0 auto;
+}
+
+.exportControl > button {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--checkit-muted);
+  box-shadow: none;
+}
+
+.exportControl > button:hover {
+  border-color: var(--checkit-border);
+  background: var(--checkit-panel);
+  color: var(--checkit-green);
+  box-shadow: none;
+  transform: none;
 }

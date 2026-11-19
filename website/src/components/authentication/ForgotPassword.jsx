@@ -40,7 +40,7 @@ function ForgotPassword() {
 
                 <div className={styles.fadein}>
                     <div className={styles.headerBlock}>
-                        <h1 className={styles.logintitle}>RESET PASSWORD</h1>
+                        <h1 className={styles.logintitle}>Reset password</h1>
                         <p className={styles.helperText}>
                             Enter your email and we will send a secure link to set your password.
                         </p>
@@ -58,7 +58,7 @@ function ForgotPassword() {
                                 className={styles.loginemail}
                                 type="email"
                                 value={email}
-                                placeholder="you@organization.edu"
+                                placeholder="name@organization.com"
                                 autoComplete="section-checkit-transportation username"
                                 required
                                 onChange={(event) => setEmail(event.target.value)}
@@ -66,9 +66,9 @@ function ForgotPassword() {
                         </div>
 
                         <div className={styles.navrow} style={{ marginTop: '24px' }}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>BACK</button>
+                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>Back</button>
                             <button type="submit" className={styles.continuebutton} disabled={loading}>
-                                {loading ? 'SENDING...' : 'SEND LINK'}
+                                {loading ? 'Sending…' : 'Send link'}
                             </button>
                         </div>
                     </form>

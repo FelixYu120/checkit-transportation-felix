@@ -48,18 +48,18 @@ const ProfileDropdown = () => {
         {isOpen && (
           <div id="account-profile-menu" className={styles.dropdownMenu}>
             <div className={styles.menuHeader}>
-              <span className={styles.userName}>Profile Options</span>
+              <span className={styles.userName}>Profile options</span>
             </div>
             <hr className={styles.divider} />
             <button onClick={() => handleAction('Profile')} className={styles.menuItem}>
               <User size={16} /> Profile
             </button>
             <button onClick={() => handleAction('Change Password')} className={styles.menuItem}>
-              <KeyRound size={16} /> Change Password
+              <KeyRound size={16} /> Change password
             </button>
             <hr className={styles.divider} />
             <button onClick={() => handleAction('Log Out')} className={`${styles.menuItem} ${styles.dangerItem}`}>
-              <LogOut size={16} /> Log Out
+              <LogOut size={16} /> Sign out
             </button>
           </div>
         )}

@@ -1,86 +1,74 @@
 .filterBar {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-  flex: 0 1 auto;
-  width: auto;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--checkit-control-gap);
+  width: 100%;
+  min-width: 0;
 }
 
 .filterControl {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid #d7e1e8;
+  gap: var(--checkit-control-gap);
+  min-width: 0;
+  min-height: var(--checkit-control-height);
+  padding: 0 8px;
+  border: 1px solid var(--checkit-border);
   border-radius: 8px;
-  background: var(--checkit-panel, #f1f3f0);
-  color: #1f2937;
-  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
-  flex: 0 1 auto;
+  background: transparent;
+  color: var(--checkit-ink);
+  box-shadow: none;
+  font: inherit;
   white-space: nowrap;
   box-sizing: border-box;
 }
 
-.dateControl {
-  flex-basis: 258px;
-}
-
+.dateControl,
 .timeControl {
-  flex-basis: 260px;
-  align-items: center;
-  padding: 0 12px;
+  justify-content: flex-start;
+  gap: 3px;
 }
 
-.dayControl {
-  flex-basis: 148px;
-}
-
-.filterControl svg {
-  color: #1f2937;
-  flex: 0 0 auto;
+.filterControl > svg {
   width: 16px;
   height: 16px;
+  flex: 0 0 auto;
+  color: currentColor;
 }
 
-.filterControl input,
-.filterControl select {
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #1f2937;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+.filterControl:focus-within {
+  outline: 2px solid rgba(52, 82, 77, 0.3);
+  outline-offset: 2px;
 }
 
 .pickerWrapper {
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .pickerButton {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #1f2937;
+  color: inherit;
   font: inherit;
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
+  text-align: left;
   white-space: nowrap;
-  min-width: max-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
 .pickerButton:hover {
-  color: #34524D;
+  color: var(--checkit-green);
 }
 
 .hiddenPicker {
@@ -102,14 +90,14 @@
   justify-content: center;
   width: 22px;
   height: 22px;
+  flex: 0 0 22px;
+  margin-left: auto;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: #eef3f6;
-  color: #52606d;
+  background: var(--checkit-surface-muted);
+  color: var(--checkit-muted);
   cursor: pointer;
-  flex: 0 0 auto;
-  margin-left: auto;
 }
 
 .clearButton svg {
@@ -119,7 +107,7 @@
 
 .clearButton:hover {
   background: #dcebe8;
-  color: #34524D;
+  color: var(--checkit-green);
 }
 
 .clearButton:focus-visible {
@@ -127,89 +115,58 @@
   outline-offset: 2px;
 }
 
-.filterControl select {
+.dayControl {
+  position: relative;
+}
+
+.dayControl select {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 20px 0 0;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
-  min-height: 30px;
-  font-size: 13px;
-  font-weight: 650;
-  width: auto;
+}
+
+.dayControl .selectChevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
 }
 
 .timeFields {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1 1 auto;
+  gap: 8px;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .timeField {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
-  min-height: 30px;
+}
+
+.dateControl .pickerWrapper,
+.timeField .pickerWrapper {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.dateControl .pickerButton,
+.timeField .pickerButton {
+  width: auto;
 }
 
 .timeDivider {
   color: var(--checkit-muted);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.1;
   flex: 0 0 auto;
-}
-
-.filterControl .timeInput {
-  width: 100%;
-  min-height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background-color: transparent;
-  color: #1f2937;
-  outline: none;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.filterControl .timeInput:focus-visible {
-  box-shadow: 0 0 0 2px rgba(52, 82, 77, 0.22);
-}
-
-@media (max-width: 1320px) {
-  .filterBar {
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 1100px) {
-  .dateControl,
-  .timeControl,
-  .dayControl {
-    flex: 1 1 auto;
-  }
-}
-
-@media (max-width: 768px) {
-  .filterBar {
-    flex-wrap: wrap;
-    align-items: stretch;
-  }
-
-  .filterControl {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .timeControl {
-    justify-content: flex-start;
-  }
-
-  .timeFields {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }

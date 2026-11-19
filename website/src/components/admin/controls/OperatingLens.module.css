@@ -1,13 +1,20 @@
 .operatingProfiles {
+  --checkit-control-height: 32px;
+  --checkit-control-font-size: .8125rem;
+  --checkit-control-font-weight: 600;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 12px;
+  padding: 8px 10px;
   border: 1px solid var(--checkit-border);
-  border-radius: var(--checkit-radius);
-  background: var(--checkit-panel, #f1f3f0);
-  box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
-  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--checkit-surface-muted);
+  box-shadow: none;
+  font-family: var(--checkit-font);
+  font-size: var(--checkit-control-font-size);
+  line-height: 1.25;
 }
 
 .profileHeading,
@@ -37,11 +44,11 @@
 }
 
 .profileButton {
-  min-height: 34px;
+  min-height: var(--checkit-control-height);
   border-radius: 999px;
   padding: 0 12px;
-  font-weight: 650;
-  font-size: 12px;
+  font-weight: var(--checkit-control-font-weight);
+  font-size: var(--checkit-control-font-size);
 }
 
 .activeProfile {
@@ -81,14 +88,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: var(--checkit-control-height);
   border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: var(--checkit-control-font-size);
+  font-weight: var(--checkit-control-font-weight);
 }
 
 .savedLensPill button:first-child {
@@ -295,12 +302,74 @@
 }
 
 @media (max-width: 720px) {
-  .operatingProfiles {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .lensModalTimeGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.profileHeading {
+  font-size: var(--checkit-control-font-size);
+  font-weight: var(--checkit-control-font-weight);
+  white-space: nowrap;
+}
+
+/* Keep the operating lens compact, with a clearly visible label and selection. */
+.operatingProfiles .profileHeading {
+  gap: 8px;
+  color: var(--checkit-ink);
+  font-size: .875rem;
+  font-weight: 600;
+}
+
+.operatingProfiles .profileHeading svg {
+  width: 16px;
+  height: 16px;
+}
+
+.operatingProfiles .profileButtons {
+  gap: 6px;
+}
+
+.operatingProfiles .profileButton,
+.operatingProfiles .savedLensPill {
+  background: transparent;
+  color: var(--checkit-ink);
+}
+
+.operatingProfiles .profileButton {
+  padding: 0 9px;
+}
+
+.operatingProfiles .savedLensPill button {
+  min-height: calc(var(--checkit-control-height) - 2px);
+}
+
+.operatingProfiles .addLensButton {
+  width: 32px;
+  height: 32px;
+  border-color: var(--checkit-border);
+  background: transparent;
+  color: var(--checkit-green);
+}
+
+.operatingProfiles .profileButton:hover,
+.operatingProfiles .savedLensPill:hover,
+.operatingProfiles .addLensButton:hover {
+  border-color: var(--checkit-border);
+  background: var(--checkit-surface-muted);
+  color: var(--checkit-green);
+}
+
+.operatingProfiles .activeProfile,
+.operatingProfiles .activeProfile:hover,
+.operatingProfiles .activeSavedLens,
+.operatingProfiles .activeSavedLens:hover {
+  border-color: #9fb3a9;
+  background: #eef3f1;
+  color: var(--checkit-green);
+  font-weight: 600;
+}
+
+.operatingProfiles .activeSavedLens button {
+  font-weight: 600;
 }

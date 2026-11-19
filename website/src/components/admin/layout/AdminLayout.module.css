@@ -99,11 +99,27 @@
 /* The main content area on the right */
 .admin-content {
   padding: clamp(24px, 2.6vw, 48px);
+  box-sizing: border-box;
+  padding-bottom: clamp(96px, 11vh, 150px);
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-bottom: 120px;
+  -webkit-overflow-scrolling: touch;
   min-width: 0;
   height: 100%;
   background: var(--checkit-bg, #e5eae7);
+}
+
+.admin-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.admin-content::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.24);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }
 
 .analytics-panel {

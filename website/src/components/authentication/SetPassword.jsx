@@ -55,7 +55,7 @@ function SetPassword({ setIsLoggedIn }) {
         if (error) {
             setErrorMessage(error.message);
         } else {
-            setMessage('Password updated. Redirecting to your dashboard...');
+            setMessage('Password updated. Redirecting to your dashboard…');
             setIsLoggedIn(true);
             setTimeout(() => navigate('/map'), 900);
         }
@@ -77,7 +77,7 @@ function SetPassword({ setIsLoggedIn }) {
 
                 <div className={styles.fadein}>
                     <div className={styles.headerBlock}>
-                        <h1 className={styles.logintitle}>SET PASSWORD</h1>
+                        <h1 className={styles.logintitle}>Set password</h1>
                         <p className={styles.supportText}>
                             Choose a password for your CheckIt administrator account.
                         </p>
@@ -85,7 +85,7 @@ function SetPassword({ setIsLoggedIn }) {
 
                     {!hasSession && (
                         <div className={styles.noticeMessage}>
-                            Open this page from the secure email link. If the link expired, request a new one from the login page.
+                            Open this page from the secure email link. If the link expired, request a new one from the sign-in page.
                         </div>
                     )}
 
@@ -141,9 +141,9 @@ function SetPassword({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.navrow} style={{ marginTop: '24px' }}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>BACK</button>
+                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>Back</button>
                             <button type="submit" className={styles.continuebutton} disabled={loading || !hasSession}>
-                                {loading ? 'SAVING...' : 'SAVE PASSWORD'}
+                                {loading ? 'Saving…' : 'Save password'}
                             </button>
                         </div>
                     </form>

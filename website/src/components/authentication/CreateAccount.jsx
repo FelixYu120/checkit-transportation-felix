@@ -123,7 +123,7 @@ function CreateAccount({ setIsLoggedIn }) {
                 }
             }
 
-            setSuccessMessage('Account created. Redirecting to your dashboard...');
+            setSuccessMessage('Account created. Redirecting to your dashboard…');
             setIsLoggedIn?.(true);
             setTimeout(() => navigate('/map'), 900);
         } else {
@@ -137,7 +137,7 @@ function CreateAccount({ setIsLoggedIn }) {
                     });
             }
 
-            setSuccessMessage('Account request created. Check your email to confirm your account, then log in.');
+            setSuccessMessage('Account request created. Check your email to confirm your account, then sign in.');
             setFirstName('');
             setLastName('');
             setEmail('');

@@ -31,7 +31,7 @@ function Login({ setIsLoggedIn }) {
         setErrorMessage('');
 
         if (!supabase) {
-            setErrorMessage('Login is not configured. Please contact an administrator.');
+            setErrorMessage('Sign-in is not configured. Please contact an administrator.');
             return;
         }
 

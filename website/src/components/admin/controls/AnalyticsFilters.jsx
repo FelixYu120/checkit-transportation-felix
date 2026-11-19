@@ -1,11 +1,11 @@
 import React, { useRef } from 'react';
-import { Calendar, Clock, CalendarDays, X } from 'lucide-react';
+import { Calendar, Clock, CalendarDays, ChevronDown, X } from 'lucide-react';
 import styles from './AnalyticsFilters.module.css';
 
 const formatDateLabel = (value, fallback) => {
     if (!value) return fallback;
     return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
-        month: 'long',
+        month: 'short',
         day: 'numeric',
         year: 'numeric',
     });
@@ -41,7 +41,7 @@ const PickerButton = ({ type, value, label, ariaLabel, onChange }) => {
 
     return (
         <span className={styles.pickerWrapper}>
-            <button className={styles.pickerButton} type="button" onClick={openPicker}>
+            <button className={styles.pickerButton} type="button" onClick={openPicker} aria-label={`${ariaLabel}: ${label}`} title={label}>
                 {label}
             </button>
             <input
@@ -70,16 +70,16 @@ const AnalyticsFilters = ({ filters, onChange }) => {
                 <PickerButton
                     type="date"
                     value={filters.startDate}
-                    label={formatDateLabel(filters.startDate, 'Start Date')}
-                    aria-label="Start date"
+                    label={formatDateLabel(filters.startDate, 'Start date')}
+                    ariaLabel="Start date"
                     onChange={(value) => updateFilter('startDate', value)}
                 />
                 <span aria-hidden="true">-</span>
                 <PickerButton
                     type="date"
                     value={filters.endDate}
-                    label={formatDateLabel(filters.endDate, 'End Date')}
-                    aria-label="End date"
+                    label={formatDateLabel(filters.endDate, 'End date')}
+                    ariaLabel="End date"
                     onChange={(value) => updateFilter('endDate', value)}
                 />
                 <button
@@ -132,10 +132,11 @@ const AnalyticsFilters = ({ filters, onChange }) => {
                     onChange={(event) => updateFilter('dayPreset', event.target.value)}
                     aria-label="Day filter"
                 >
-                    <option value="all">All Days</option>
+                    <option value="all">All days</option>
                     <option value="weekdays">Weekdays</option>
                     <option value="weekends">Weekends</option>
                 </select>
+                <ChevronDown className={styles.selectChevron} size={16} aria-hidden="true" />
             </label>
         </section>
     );

@@ -64,13 +64,12 @@
 /* --- 4. TEXT & TITLES --- */
 .title, .logintitle {
     color: #FFFFFF;
-    font-size: 31px;
-    font-weight: 650;
+    font-size: 1.5rem;
+    font-weight: 600;
     margin: 0;
-    text-transform: uppercase;
     text-align: center;
-    letter-spacing: 1.2px;
-    line-height: 1.05;
+    letter-spacing: -.02em;
+    line-height: 1.35;
 }
 
 .headerBlock {
@@ -167,8 +166,8 @@
     color: rgba(255,255,255,0.9);
     font-size: 13px;
     font-weight: 650;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 @media (max-width: 560px) {
@@ -254,7 +253,7 @@
     border-radius: 10px;
     min-width: 118px;
     cursor: pointer;
-    text-transform: uppercase;
+    text-transform: none;
     box-shadow: 0 6px 14px rgba(0,0,0,0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
@@ -269,7 +268,7 @@
     border-radius: 10px;
     min-width: 118px;
     cursor: pointer;
-    text-transform: uppercase;
+    text-transform: none;
     box-shadow: 0 10px 20px rgba(64,80,76,0.22);
     transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
@@ -419,7 +418,7 @@
     }
 
     .title, .logintitle {
-        font-size: 28px;
+        font-size: 1.5rem;
     }
 
     .navrow {

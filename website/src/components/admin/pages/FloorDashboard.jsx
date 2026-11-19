@@ -57,7 +57,7 @@ const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorNam
         title: 'Installation',
         rows: [
             ...(getSensorCategoryLabel(sensor) ? [['Transportation Type', getSensorCategoryLabel(sensor)]] : []),
-            ['WiFi', sensor?.health_wifi_ssid || sensor?.wifi_ssid || 'Not set'],
+            ['Wi-Fi', sensor?.health_wifi_ssid || sensor?.wifi_ssid || 'Not set'],
         ],
     },
 ]);
@@ -104,7 +104,7 @@ const TRAFFIC_SUMMARY_GROUPS = [
         metrics: ['peak', 'busiestDay', 'busiestTime', 'total', 'averageSpeed'],
     },
     {
-        label: 'Speed And Reliability',
+        label: 'Speed and Reliability',
         metrics: ['overThresholdCount', 'lowNoMovementPeriods', 'maxSpeed', 'v85Speed'],
     },
 ];
@@ -396,11 +396,30 @@ const FloorDashboard = () => {
                         label: areaName,
                         to: areaPath,
                     },
-                    { label: <span className={styles.sensorName}>{corridorName}{sensor && <SensorHeartbeatBadge
-                                        dotOnly
-                                        sensorId={sensor.sensor_id}
-                                        state={{ heartbeats: new Map([[String(sensor.sensor_id), sensor.last_seen_at || null]]), now: Date.now() }}
-                                    />}</span> },
+                    { label: (
+                        <span className={styles.sensorHeading}>
+                            <span className={styles.sensorName}>
+                                {corridorName}
+                                {sensor && <SensorHeartbeatBadge
+                                    dotOnly
+                                    sensorId={sensor.sensor_id}
+                                    state={{ heartbeats: new Map([[String(sensor.sensor_id), sensor.last_seen_at || null]]), now: Date.now() }}
+                                />}
+                            </span>
+                            {sensor && (
+                                <button
+                                    type="button"
+                                    className={styles.metadataInfoButton}
+                                    onClick={() => setIsMetadataModalOpen(true)}
+                                    aria-label={`View information for ${corridorName}`}
+                                    aria-haspopup="dialog"
+                                    title="View sensor information"
+                                >
+                                    <Info size={16} strokeWidth={2} aria-hidden="true" />
+                                </button>
+                            )}
+                        </span>
+                    ) },
                 ]}
             />
 
@@ -408,25 +427,6 @@ const FloorDashboard = () => {
                 <div className={styles.noData}>Corridor not found.</div>
             ) : (
                 <>
-                    <section className={styles.corridorHeader}>
-                        <div className={styles.sensorStatusRow}>
-                            <div className={styles.sensorStatusStack}>
-                                <div className={styles.sensorStatusControls}>
-
-                                    <button
-                                        type="button"
-                                        className={styles.metadataInfoButton}
-                                        onClick={() => setIsMetadataModalOpen(true)}
-                                        aria-label={`View information for ${corridorName}`}
-                                        title="View sensor information"
-                                    >
-                                        <Info size={15} strokeWidth={2.4} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
                     {metadataModal ? createPortal(metadataModal, document.body) : null}
 
                     <AnalyticsControlBar
@@ -457,25 +457,23 @@ const FloorDashboard = () => {
                 <div className={styles.analyticsStack}>
                     <section className={styles.chartSection}>
                         <div className={styles.trendToolbar}>
-                            <div className={styles.trendCopy}>
-                                <strong>{activePreset.label}</strong>
-                            </div>
+                            <button
+                                type="button"
+                                className={styles.chartRefreshButton}
+                                onClick={handleRefreshAnalytics}
+                                aria-label="Refresh chart and summary cards"
+                                title="Refresh chart and summary cards"
+                            >
+                                <RefreshCw size={15} strokeWidth={2.4} />
+                            </button>
                             <div className={styles.chartControls}>
-                                <button
-                                    type="button"
-                                    className={styles.chartRefreshButton}
-                                    onClick={handleRefreshAnalytics}
-                                    aria-label="Refresh chart and summary cards"
-                                    title="Refresh chart and summary cards"
-                                >
-                                    <RefreshCw size={15} strokeWidth={2.4} />
-                                </button>
                                 <div className={styles.timeframeSegment} aria-label="Traffic chart timeframe">
                                     {TRAFFIC_TIMEFRAMES.map((timeframe) => (
                                         <button
                                             key={timeframe.value}
                                             type="button"
                                             className={`${styles.timeframeButton} ${activeTrafficTimeframe === timeframe.value ? styles.activeTimeframe : ''}`}
+                                            aria-pressed={activeTrafficTimeframe === timeframe.value}
                                             onClick={() => handleChartTimeframeChange(timeframe.value)}
                                         >
                                             {timeframe.label}
@@ -488,6 +486,7 @@ const FloorDashboard = () => {
                                             key={preset.value}
                                             type="button"
                                             className={`${styles.timeframeButton} ${activeView === preset.value ? styles.activeTimeframe : ''}`}
+                                            aria-pressed={activeView === preset.value}
                                             onClick={() => updateTrendView(activeTrafficTimeframe, preset.value)}
                                         >
                                             {preset.label}

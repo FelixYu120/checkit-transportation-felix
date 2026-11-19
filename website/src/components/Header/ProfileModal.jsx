@@ -139,12 +139,12 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         
         <div className={styles.modalHeader}>
-          <h2>{mode === 'password' ? 'Change Password' : 'Profile'}</h2>
+          <h2>{mode === 'password' ? 'Change password' : 'Profile'}</h2>
           <button className={styles.closeBtn} onClick={onClose}><X size={20} /></button>
         </div>
 
         {loading ? (
-          <div className={styles.loading}>Loading profile data...</div>
+          <div className={styles.loading}>Loading profile…</div>
         ) : (
           <div className={styles.modalBody}>
             {mode === 'password' ? (
@@ -152,7 +152,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 {passwordState.error && <div className={styles.errorMessage}>{passwordState.error}</div>}
                 {passwordState.message && <div className={styles.successMessage}>{passwordState.message}</div>}
 
-                <label className={styles.label}>New Password</label>
+                <label className={styles.label}>New password</label>
                 <div className={styles.passwordField}>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -171,7 +171,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                   </button>
                 </div>
 
-                <label className={styles.label}>Confirm Password</label>
+                <label className={styles.label}>Confirm password</label>
                 <div className={styles.passwordField}>
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
@@ -191,7 +191,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 </div>
 
                 <button className={styles.saveBtn} onClick={handlePasswordSave} disabled={saving}>
-                  <KeyRound size={16} /> {saving ? 'Saving...' : 'Update Password'}
+                  <KeyRound size={16} /> {saving ? 'Saving…' : 'Update password'}
                 </button>
               </>
             ) : (
@@ -213,7 +213,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 </div>
             </div>}
 
-            <label className={styles.label}>Full Name</label>
+            <label className={styles.label}>Full name</label>
             <input 
               type="text" 
               className={styles.input} 
@@ -223,7 +223,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
               placeholder="Enter your full name"
             />
 
-            <label className={styles.label} htmlFor="profile-email">Email Address</label>
+            <label className={styles.label} htmlFor="profile-email">Email address</label>
             <input id="profile-email" type="email" className={styles.input} value={profile.email}
               readOnly placeholder="Email unavailable" title={profile.email} />
 
@@ -232,7 +232,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
 
             {mode === 'edit' && (
               <button className={styles.saveBtn} onClick={handleSave} disabled={saving || Boolean(profileError) || !profile.id}>
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
+                <Save size={16} /> {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}
               </>

@@ -3,20 +3,25 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 38px;
-  height: 38px;
+  min-height: var(--checkit-control-height);
+  height: var(--checkit-control-height);
   background: var(--checkit-panel, #f1f3f0);
   border: 1px solid #cfdde5;
   border-radius: 8px;
   padding: 0 13px;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: var(--checkit-control-font-size);
+  font-weight: var(--checkit-control-font-weight);
   color: #34524D;
   cursor: pointer;
   box-shadow: var(--checkit-shadow, 0 6px 18px rgba(35, 55, 45, 0.06));
   transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   white-space: nowrap;
   flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--checkit-font);
+  line-height: 1.25;
 }
 
 .exportButton svg {

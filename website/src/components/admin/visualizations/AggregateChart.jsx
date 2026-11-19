@@ -996,7 +996,7 @@ const AggregateChart = ({
             minWidth: 0
         }}>
             {title && (
-                <h3 style={{ fontSize: 'clamp(1rem, 1.25vw, 1.25rem)', fontWeight: '500', color: '#333', margin: '0 0 20px 0' }}>
+                <h3 style={{ fontSize: 'var(--checkit-chart-heading-size)', fontWeight: 'var(--checkit-heading-weight)', lineHeight: 'var(--checkit-heading-line-height)', color: '#333', margin: '0 0 20px 0' }}>
                     {title}
                 </h3>
             )}
