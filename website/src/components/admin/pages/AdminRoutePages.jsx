@@ -216,7 +216,6 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
     const [selectedMetric, setSelectedMetric] = useState('totalVolume');
     const [sortDirection, setSortDirection] = useState('desc');
     const [page, setPage] = useState(1);
-    const metric = TRAFFIC_COMPARISON_METRICS.find((item) => item.key === selectedMetric) || TRAFFIC_COMPARISON_METRICS[0];
     const labelsBySensorId = useMemo(() => getDuplicateAwareSensorLabels(summaries), [summaries]);
     const comparisonRows = useMemo(() => (
         [...summaries].sort((left, right) => {
@@ -230,7 +229,6 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
         const start = (activePage - 1) * COMPARISON_PAGE_SIZE;
         return comparisonRows.slice(start, start + COMPARISON_PAGE_SIZE);
     }, [activePage, comparisonRows]);
-    const maxValue = Math.max(1, ...visibleComparisonRows.map((sensor) => Number(sensor[selectedMetric]) || 0));
 
     return (
         <section className={styles.comparisonPanel}>
@@ -282,66 +280,76 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                 </div>
             )}
 
-            <div className={styles.comparisonRows}>
-                {visibleComparisonRows.map((sensor) => {
-                    const areaName = String(sensor.area_name || '').trim();
-                    const areaLabel = areaName || getInstituteDisplayName({ institute_id: sensor.institute_id || collegeId });
-                    const areaPath = areaName
-                        ? getAdminAreaPath(collegeId, slugifyAdminPathSegment(areaName))
-                        : getAdminCollegePath(collegeId);
-                    const categoryLabel = getSensorCategoryLabel(sensor);
-                    const label = labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane';
-                    const hasLocation = Boolean(getSensorCoordinates(sensor));
-                    const metricValue = Number(sensor[selectedMetric]) || 0;
-                    const width = `${Math.max(4, Math.round((metricValue / maxValue) * 100))}%`;
+            <div className={styles.comparisonTableWrap}>
+                <table className={styles.comparisonTable} aria-label="Corridor comparison">
+                    <thead>
+                        <tr>
+                            <th scope="col">Corridor</th>
+                            <th scope="col">Location</th>
+                            {TRAFFIC_COMPARISON_METRICS.map((item) => (
+                                <th key={item.key} scope="col">{item.label}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {visibleComparisonRows.map((sensor) => {
+                            const areaName = String(sensor.area_name || '').trim();
+                            const areaLabel = areaName || getInstituteDisplayName({ institute_id: sensor.institute_id || collegeId });
+                            const areaPath = areaName
+                                ? getAdminAreaPath(collegeId, slugifyAdminPathSegment(areaName))
+                                : getAdminCollegePath(collegeId);
+                            const categoryLabel = getSensorCategoryLabel(sensor);
+                            const label = labelsBySensorId.get(sensor.sensor_id) || sensor.corridor_name || 'Unnamed Lane';
+                            const hasLocation = Boolean(getSensorCoordinates(sensor));
 
-                    return (
-                        <div key={sensor.sensor_id} className={styles.comparisonRow}>
-                            <div className={styles.comparisonLabel}>
-                                <Link
-                                    className={styles.comparisonLink}
-                                    to={getAdminFloorPath(collegeId, sensor.sensor_id)}
-                                >
-                                    <span className={styles.sensorName}>{label}<SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} dotOnly /></span>
-                                </Link>
-                                <div className={styles.comparisonMeta}>
-                                    <Link
-                                        className={styles.comparisonAreaLink}
-                                        to={areaPath}
-                                        title={areaName ? `View ${areaLabel} area` : 'View institute overview'}
-                                    >
-                                        {areaLabel}
-                                    </Link>
-                                    {categoryLabel ? <><span aria-hidden="true">·</span><span>{categoryLabel}</span></> : null}
-                                </div>
+                            return (
+                                <tr key={sensor.sensor_id}>
+                                    <td>
+                                        <div className={styles.comparisonLabel}>
+                                            <Link
+                                                className={styles.comparisonLink}
+                                                to={getAdminFloorPath(collegeId, sensor.sensor_id)}
+                                            >
+                                                <span className={styles.sensorName}>{label}<SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} dotOnly /></span>
+                                            </Link>
+                                            {categoryLabel ? <span>{categoryLabel}</span> : null}
+                                        </div>
+                                    </td>
+                                    <td className={styles.comparisonLocationCell}>
+                                        <div className={styles.comparisonLabel}>
+                                            <Link
+                                                className={styles.comparisonAreaLink}
+                                                to={areaPath}
+                                                title={areaName ? `View ${areaLabel} area` : 'View institute overview'}
+                                            >
+                                                {areaLabel}
+                                            </Link>
+                                            <button
+                                                type="button"
+                                                className={styles.viewOnMap}
+                                                onClick={() => focusSensorOnMap(sensor.sensor_id)}
+                                                disabled={!hasLocation}
+                                                aria-pressed={focusedSensorId === sensor.sensor_id}
+                                                aria-label={hasLocation ? `View ${label} on map` : `${label}: location not set`}
+                                                title={hasLocation ? `Focus ${label} on the map` : 'Location not set'}
+                                            >
+                                                <MapPin size={13} aria-hidden="true" />
+                                                {hasLocation ? 'View on map' : 'Location not set'}
+                                            </button>
+                                        </div>
+                                    </td>
+                                    {TRAFFIC_COMPARISON_METRICS.map((item) => (
+                                        <td key={item.key} className={styles.comparisonMetricCell}>
+                                            {item.format(sensor)}
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
 
-                                <button
-                                    type="button"
-                                    className={styles.viewOnMap}
-                                    onClick={() => focusSensorOnMap(sensor.sensor_id)}
-                                    disabled={!hasLocation}
-                                    aria-pressed={focusedSensorId === sensor.sensor_id}
-                                    aria-label={hasLocation ? `View ${label} on map` : `${label}: location not set`}
-                                    title={hasLocation ? `Focus ${label} on the map` : 'Location not set'}
-                                >
-                                    <MapPin size={13} aria-hidden="true" />
-                                    {hasLocation ? 'View on map' : 'Location not set'}
-                                </button>
-                            </div>
-
-                            <div className={styles.comparisonTrack} aria-hidden="true">
-                                <span style={{ width }} />
-                            </div>
-
-                            <div className={styles.comparisonMetrics}>
-                                <strong>{metric.format(sensor)}</strong>
-                                <span>{sensor.avgSpeed || 0} mph avg · peak {sensor.maxSpeed || 0} mph</span>
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {comparisonRows.length === 0 && (
+                {!loading && comparisonRows.length === 0 && (
                     <p className={styles.noData}>No corridor data found for this filter range.</p>
                 )}
             </div>
