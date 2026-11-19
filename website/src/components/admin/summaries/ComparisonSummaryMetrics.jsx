@@ -108,7 +108,7 @@ const METRIC_COPY = {
 };
 
 const getWindowLabel = (timeframe) => {
-    if (timeframe === 'daily') return '24h';
+    if (timeframe === 'daily') return '24 hr';
     if (timeframe === 'monthly') return 'Monthly';
     return '7-day';
 };

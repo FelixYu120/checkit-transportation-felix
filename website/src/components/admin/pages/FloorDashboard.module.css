@@ -78,7 +78,8 @@
   padding: 4px;
   border: 1px solid var(--checkit-border);
   border-radius: 8px;
-  background: var(--checkit-surface-muted, #e3e9e4);
+  background: var(--checkit-surface-muted);
+  box-sizing: border-box;
 }
 
 .timeframeButton {
@@ -87,25 +88,31 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #475569;
-  font: inherit;
+  color: var(--checkit-muted);
+  font-family: var(--checkit-font);
   font-size: 0.78rem;
   font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.timeframeButton:hover,
+.timeframeButton:hover {
+  background: var(--checkit-bg);
+  color: var(--checkit-ink);
+}
+
 .timeframeButton:focus-visible {
-  background: #eef5f8;
-  color: #1f2937;
-  outline: none;
+  outline: 2px solid var(--checkit-green);
+  outline-offset: 2px;
 }
 
 .activeTimeframe,
 .activeTimeframe:hover,
 .activeTimeframe:focus-visible {
-  background: #34524D;
+  background: var(--checkit-green);
   color: #ffffff;
   box-shadow: 0 6px 14px rgba(52, 82, 77, 0.22);
 }
@@ -1588,6 +1595,8 @@
 
   .timeframeSegment {
     width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sensorStatusControls {

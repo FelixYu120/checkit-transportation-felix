@@ -806,7 +806,7 @@ const getChartDisplayName = (chartElement, index = 0) => (
 );
 
 const getTimeframeDisplayLabel = (timeframe) => (
-  timeframe === 'daily' ? '24hr'
+  timeframe === 'daily' ? '24 hr'
     : timeframe === 'weekly' ? 'Weekly'
     : timeframe === 'monthly' ? 'Monthly'
     : 'Custom'
@@ -824,7 +824,7 @@ const TimeframeOverrideControls = ({ element, reportTimeframe, onToggle, onTimef
       <>
         <label className={styles.inputLabel}>This Widget's Timeframe</label>
         <select className={styles.inputField} value={element.timeType || 'weekly'} onChange={(e) => onTimeframeChange(e.target.value)}>
-          <option value="daily">24hr</option>
+          <option value="daily">24 hr</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="custom">Custom</option>
@@ -3331,7 +3331,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
           <h3 className={styles.sidebarTitle}>Report Timeframe</h3>
           <label className={styles.inputLabel}>Default Timeframe</label>
           <select className={styles.inputField} value={reportSettings.timeframe} onChange={(e) => updateReportTimeframe(e.target.value)}>
-            <option value="daily">24hr</option>
+            <option value="daily">24 hr</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
             <option value="custom">Custom</option>
@@ -3549,7 +3549,7 @@ export const InsightBuilderPage = ({ type = 'solo', title = 'Solo Insight' }) =>
                 <div className={styles.documentMetaGrid}>
                     <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
                     <div className={styles.metaItem}><span className={styles.metaLabel}>Date Created</span><span className={styles.metaValue}>{docMeta.date}</span></div>
-                    <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
+                    <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24 hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
                 </div>
               </div>
             )}
@@ -4553,7 +4553,7 @@ const ReportDocumentPage = ({ pageIndex = 0, elements, reportSettings, docMeta, 
               <div className={styles.documentMetaGrid}>
                 <div className={styles.metaItem}><span className={styles.metaLabel}>Author</span><span className={styles.metaValue}>{docMeta.author}</span></div>
                 <div className={styles.metaItem}><span className={styles.metaLabel}>Date Created</span><span className={styles.metaValue}>{docMeta.date}</span></div>
-                <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
+                <div className={styles.metaItem}><span className={styles.metaLabel}>Timeframe</span><span className={styles.metaValue}>{reportSettings.timeframe === 'daily' ? '24 hr' : reportSettings.timeframe === 'weekly' ? 'Weekly' : reportSettings.timeframe === 'monthly' ? 'Monthly' : 'Custom'}</span></div>
               </div>
             </div>
           )}
