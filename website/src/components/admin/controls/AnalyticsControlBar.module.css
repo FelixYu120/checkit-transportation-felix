@@ -76,16 +76,16 @@
 }
 
 .filterPanel {
-  --checkit-control-height: 2rem;
-  --checkit-control-gap: 4px;
+  --checkit-control-height: 2.25rem;
+  --checkit-control-gap: 6px;
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
   z-index: 40;
-  width: max-content;
-  max-width: min(22rem, 100%);
+  width: min(19rem, 100%);
+  max-width: 100%;
   max-height: min(26rem, calc(100dvh - 160px));
-  padding: 8px;
+  padding: 10px;
   border: 1px solid var(--checkit-border);
   border-radius: var(--checkit-dialog-radius);
   background: var(--checkit-bg);
@@ -99,8 +99,8 @@
 .panelHeader {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .filterPanel .closeButton {

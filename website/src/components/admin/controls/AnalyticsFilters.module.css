@@ -13,7 +13,7 @@
   gap: var(--checkit-control-gap);
   min-width: 0;
   min-height: var(--checkit-control-height);
-  padding: 0 8px;
+  padding: 0 10px;
   border: 1px solid var(--checkit-border);
   border-radius: 8px;
   background: transparent;
@@ -27,7 +27,7 @@
 .dateControl,
 .timeControl {
   justify-content: flex-start;
-  gap: 3px;
+  gap: 6px;
 }
 
 .filterControl > svg {
@@ -38,8 +38,7 @@
 }
 
 .filterControl:focus-within {
-  outline: 2px solid rgba(52, 82, 77, 0.3);
-  outline-offset: 2px;
+  border-color: #9fb3a9;
 }
 
 .pickerWrapper {
@@ -54,8 +53,8 @@
   display: block;
   width: 100%;
   min-width: 0;
-  min-height: 28px;
-  padding: 0;
+  min-height: 32px;
+  padding: 0 3px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -69,6 +68,13 @@
 
 .pickerButton:hover {
   color: var(--checkit-green);
+}
+
+.pickerButton:focus-visible,
+.dayControl select:focus-visible {
+  outline: 2px solid var(--checkit-green);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 .hiddenPicker {
@@ -122,8 +128,8 @@
 .dayControl select {
   width: 100%;
   min-width: 0;
-  min-height: 28px;
-  padding: 0 20px 0 0;
+  min-height: 32px;
+  padding: 0 20px 0 3px;
   border: 0;
   outline: 0;
   appearance: none;
@@ -135,7 +141,7 @@
 
 .dayControl .selectChevron {
   position: absolute;
-  right: 8px;
+  right: 10px;
   pointer-events: none;
 }
 
