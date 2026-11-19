@@ -82,8 +82,8 @@
   top: calc(100% + 4px);
   right: 0;
   z-index: 40;
-  width: min(19rem, 100%);
-  max-width: 100%;
+  width: max-content;
+  max-width: min(19rem, 100%);
   max-height: min(26rem, calc(100dvh - 160px));
   padding: 10px;
   border: 1px solid var(--checkit-border);
