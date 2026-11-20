@@ -2223,17 +2223,17 @@
 
 .comparisonSensorName {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 17px;
+  grid-template-columns: minmax(min-content, 1fr) 17px;
   align-items: start;
   gap: 10px;
 }
 
 .comparisonSensorName > a {
-  min-width: 0;
+  min-width: min-content;
 }
 
 .comparisonSensorName .sensorName {
-  max-width: 100%;
+  display: inline;
 }
 
 .comparisonSensorName > [data-status] {
