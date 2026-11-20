@@ -235,17 +235,13 @@ const TeamPage = () => {
     setInviteMessage("");
 
     try {
-      const result = await inviteTeamMember(supabase, { email, role: "viewer" });
-      setInviteMessage(
-        result?.reactivated || result?.restored
-          ? `Team access restored for ${email}. They can sign in with their existing account; no new invitation email was sent.`
-          : `Invite sent to ${email}.`
-      );
+      await inviteTeamMember(supabase, { email, role: "viewer" });
+      setInviteMessage("Invited");
       setInviteEmail("");
       try {
         await refreshMembers();
-      } catch {
-        setInviteError("The invitation was successful, but the team list could not be refreshed. Reload this page to see the latest members.");
+      } catch (refreshError) {
+        console.warn("Team list refresh failed after invitation:", refreshError);
       }
     } catch (err) {
       setInviteError(err.message || "Invite could not be sent.");

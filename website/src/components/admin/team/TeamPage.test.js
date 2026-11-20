@@ -162,22 +162,21 @@ test('a confirmed invitation shows success and leaves a usable dialog', async ()
   await enterInviteEmail('New@Example.test');
   await submitInvite();
   assert.deepEqual(fixture.inviteCalls, [{ email: 'new@example.test', role: 'viewer' }]);
-  assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent to new@example.test/);
+  assert.equal(document.querySelector('.inviteModal [role="status"]').textContent, 'Invited');
   assert.equal(document.querySelector('.inviteModal input[type="email"]').value, '');
   assert.equal(document.querySelector('.inviteModal [role="alert"]'), null);
   await click('.inviteModal [aria-label="Close"]');
   assert.equal(document.querySelector('.inviteModal'), null);
 });
 
-for (const flag of ['restored', 'reactivated']) test(`restoring an existing account is clearly distinguished from sending email (${flag})`, async () => {
+for (const flag of ['restored', 'reactivated']) test(`existing-account restoration uses the same concise confirmation (${flag})`, async () => {
   fixture.inviteResult = { ok: true, [flag]: true };
   await mount();
   await click('[aria-label="Invite member"]');
   await enterInviteEmail('returning@example.test');
   await submitInvite();
   const message = document.querySelector('.inviteModal [role="status"]').textContent;
-  assert.match(message, /Team access restored/);
-  assert.match(message, /no new invitation email was sent/);
+  assert.equal(message, 'Invited');
 });
 
 test('a directory refresh failure does not turn a delivered invitation into a sending failure', async () => {
@@ -186,8 +185,8 @@ test('a directory refresh failure does not turn a delivered invitation into a se
   await click('[aria-label="Invite member"]');
   await enterInviteEmail('new@example.test');
   await submitInvite();
-  assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent/);
-  assert.match(document.querySelector('.inviteModal [role="alert"]').textContent, /invitation was successful.*team list could not be refreshed/i);
+  assert.equal(document.querySelector('.inviteModal [role="status"]').textContent, 'Invited');
+  assert.equal(document.querySelector('.inviteModal [role="alert"]'), null);
   assert.equal(fixture.inviteCalls.length, 1);
 });
 
@@ -217,6 +216,6 @@ test('pending invitations cannot be submitted twice or closed mid-request', asyn
     await click('.inviteModal [aria-label="Close"]');
     assert.ok(document.querySelector('.inviteModal'));
     await act(async () => release());
-    assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent/);
+    assert.equal(document.querySelector('.inviteModal [role="status"]').textContent, 'Invited');
   } finally { release(); }
 });
