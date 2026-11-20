@@ -18,3 +18,5 @@
 .indicator.compact[data-state="active"] .dot { background: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
 .indicator.compact[data-state="down"] .dot { background: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
 .indicator.compact[data-state="offline"] .dot { background: #6b7280; box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2); }
+
+.indicator.compact[data-state="unknown"] .dot { box-sizing: border-box; background: transparent; border: 1.5px solid #9ca3af; box-shadow: none; }

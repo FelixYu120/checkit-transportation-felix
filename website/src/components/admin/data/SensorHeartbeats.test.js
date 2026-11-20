@@ -282,3 +282,44 @@ test('status dates open visibly on hover, keyboard focus, and tap outside clippi
   await act(async () => document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true })));
   assert.equal(document.querySelector('[role="tooltip"]'), null, 'clicking outside dismisses the date');
 });
+
+
+test('comparison dots distinguish missing or unavailable health from a real offline heartbeat', async () => {
+  root = createRoot(document.getElementById('root'));
+  const cases = [
+    { heartbeats: new Map(), unavailable: new Set(), label: /waiting for health data/ },
+    { heartbeats: new Map([['sensor', null]]), unavailable: new Set(), label: /no valid heartbeat recorded/ },
+    { heartbeats: new Map([['sensor', 'invalid']]), unavailable: new Set(), label: /no valid heartbeat recorded/ },
+    { heartbeats: new Map(), unavailable: new Set(['sensor']), label: /unable to refresh health/ },
+  ];
+  for (const { label, ...state } of cases) {
+    await act(async () => root.render(React.createElement(Badge, {
+      sensorId: 'sensor', dotOnly: true, showUnknown: true, state: { ...state, now: NOW },
+    })));
+    const dot = document.querySelector('[data-status="unknown"]');
+    assert.ok(dot);
+    assert.match(dot.getAttribute('aria-label'), label);
+    assert.equal(dot.getAttribute('data-status-since'), null);
+    assert.equal(document.querySelector('[data-status="offline"]'), null);
+  }
+  await act(async () => document.querySelector('[data-status="unknown"]').focus());
+  assert.match(document.querySelector('[role="tooltip"]').textContent, /unable to refresh health/);
+});
+
+test('comparison status dots recover from unknown to active and offline as real check-ins arrive', async () => {
+  root = createRoot(document.getElementById('root'));
+  const render = timestamp => act(async () => root.render(React.createElement(Badge, {
+    sensorId: 'sensor', dotOnly: true, showUnknown: true,
+    state: { heartbeats: new Map([['sensor', timestamp]]), now: NOW },
+  })));
+  await render(null);
+  assert.ok(document.querySelector('[data-status="unknown"]'));
+  await render(atAge(1));
+  assert.ok(document.querySelector('[data-status="active"]'));
+  assert.equal(document.querySelector('[data-status="unknown"]'), null);
+  await render(atAge(1441));
+  const offline = document.querySelector('[data-status="offline"]');
+  assert.ok(offline);
+  assert.match(offline.getAttribute('aria-label'), /Offline since/);
+  assert.equal(document.querySelectorAll('[data-status]').length, 1);
+});

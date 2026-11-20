@@ -2220,3 +2220,22 @@
 .sensorStatusControls > div { margin-top: 0; }
 
 .sensorName, .comparisonLink .sensorName { display: inline-flex; align-items: center; gap: 7px; color: var(--checkit-ink, #15201f); font-size: 1.125rem; font-weight: 700; line-height: 1.35; }
+
+.comparisonSensorName {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17px;
+  align-items: start;
+  gap: 10px;
+}
+
+.comparisonSensorName > a {
+  min-width: 0;
+}
+
+.comparisonSensorName .sensorName {
+  max-width: 100%;
+}
+
+.comparisonSensorName > [data-status] {
+  margin: 3px 0 0;
+}

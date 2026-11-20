@@ -306,12 +306,15 @@ const TrafficComparisonPanel = ({ summaries, loading, collegeId }) => {
                                 <tr key={sensor.sensor_id}>
                                     <td>
                                         <div className={styles.comparisonLabel}>
-                                            <Link
-                                                className={styles.comparisonLink}
-                                                to={getAdminFloorPath(collegeId, sensor.sensor_id)}
-                                            >
-                                                <span className={styles.sensorName}>{label}<SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} dotOnly /></span>
-                                            </Link>
+                                            <div className={styles.comparisonSensorName}>
+                                                <Link
+                                                    className={styles.comparisonLink}
+                                                    to={getAdminFloorPath(collegeId, sensor.sensor_id)}
+                                                >
+                                                    <span className={styles.sensorName}>{label}</span>
+                                                </Link>
+                                                <SensorHeartbeatBadge sensorId={sensor.sensor_id} state={heartbeatState} dotOnly showUnknown />
+                                            </div>
                                             {categoryLabel ? <span>{categoryLabel}</span> : null}
                                         </div>
                                     </td>

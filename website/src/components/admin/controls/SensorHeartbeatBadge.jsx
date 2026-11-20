@@ -70,11 +70,21 @@ function StatusDateIndicator({ dateLabel, since, children, className, ...statusP
   </>;
 }
 
-export default function SensorHeartbeatBadge({ sensorId, state, showLabel = false, dotOnly = false }) {
+export default function SensorHeartbeatBadge({ sensorId, state, showLabel = false, dotOnly = false, showUnknown = false }) {
   const id = sensorId == null ? '' : String(sensorId).trim();
-  if (!id || !state.heartbeats.has(id)) return null;
+  if (!id) return null;
   const heartbeat = getSensorHeartbeatPresentation({ health_last_seen_at: state.heartbeats.get(id) }, state.now);
-  if (!heartbeat.timestamp) return null;
+  if (!heartbeat.timestamp) {
+    if (!dotOnly || !showUnknown) return null;
+    const label = state.unavailable?.has(id)
+      ? 'Sensor status unavailable; unable to refresh health'
+      : state.heartbeats.has(id)
+        ? 'Sensor status unknown; no valid heartbeat recorded'
+        : 'Sensor status unavailable; waiting for health data';
+    return <StatusDateIndicator className={`${styles.indicator} ${styles.compact}`} data-status="unknown" data-state="unknown" aria-current="true" dateLabel={label}>
+      <span className={styles.dot} aria-hidden="true" />
+    </StatusDateIndicator>;
+  }
   const currentLabel = STATUS_OPTIONS.find(option => option.key === heartbeat.status)?.label;
   const statusSince = getHeartbeatStatusSince(heartbeat.timestamp, state.now);
   const statusDateLabel = statusSince ? `${currentLabel} since ${new Date(statusSince).toLocaleString(undefined, {
