@@ -1,6 +1,6 @@
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { fetchInstitutionTeamMembers, removeTeamMember } from "./TeamData.js";
+import { fetchInstitutionTeamMembers, removeTeamMember, inviteTeamMember } from "./TeamData.js";
 
 const createTeam = ({ removal = "detach", role = "checkit_admin" } = {}) => {
   const profiles = new Map([
@@ -68,4 +68,37 @@ test("a successful RPC response that leaves membership unchanged is not reported
 test("backend permission failures remain visible", async () => {
   const { supabase } = createTeam({ removal: "denied" });
   await assert.rejects(removeTeamMember(supabase, "member"), /Only admins/);
+});
+
+const inviteClient = { auth: { getSession: async () => ({ data: { session: { access_token: 'session-token' } } }) } };
+const originalFetch = globalThis.fetch;
+afterEach(() => { globalThis.fetch = originalFetch; });
+
+test('invitations send the signed-in token and normalized email, and require confirmation', async () => {
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url, options };
+    return new Response(JSON.stringify({ ok: true, email: 'new@example.test' }));
+  };
+  assert.equal((await inviteTeamMember(inviteClient, { email: ' NEW@Example.Test ', role: 'viewer' })).ok, true);
+  assert.equal(request.url, 'https://checkit-transportation-felix.vercel.app/api/team/invite');
+  assert.equal(request.options.headers.Authorization, 'Bearer session-token');
+  assert.deepEqual(JSON.parse(request.options.body), { email: 'new@example.test', role: 'viewer' });
+});
+
+for (const body of ['<!doctype html><html>App fallback</html>', '{}', '{"ok":false}', '']) {
+  test(`an HTTP 200 response without invitation confirmation is rejected (${body.slice(0, 20) || 'empty'})`, async () => {
+    globalThis.fetch = async () => new Response(body);
+    await assert.rejects(inviteTeamMember(inviteClient, { email: 'new@example.test', role: 'viewer' }), /could not be confirmed/i);
+  });
+}
+
+test('invitation errors from the server remain visible', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: 'Email delivery is not configured' }), { status: 503 });
+  await assert.rejects(inviteTeamMember(inviteClient, { email: 'new@example.test', role: 'viewer' }), /Email delivery is not configured/);
+});
+
+test('signed-out invitations never call the backend', async () => {
+  globalThis.fetch = () => { throw new Error('Must not call backend'); };
+  await assert.rejects(inviteTeamMember({ auth: { getSession: async () => ({ data: { session: null } }) } }, { email: 'new@example.test', role: 'viewer' }), /Sign in/);
 });

@@ -1,4 +1,4 @@
-const getEnv = (...keys) => keys.map((key) => process.env[key]).find(Boolean) || "";
+const getEnv = (...keys) => keys.map((key) => String(process.env[key] || "").trim()).find(Boolean) || "";
 
 const SUPABASE_URL = getEnv("SUPABASE_URL", "VITE_SUPABASE_URL", "VITE_TRANSPORTATION_SUPABASE_URL").replace(/\/$/, "");
 const SUPABASE_SERVICE_KEY = getEnv(
@@ -11,7 +11,7 @@ const SUPABASE_SERVICE_KEY = getEnv(
 
 const APP_PUBLIC_URL = (
   getEnv("APP_PUBLIC_URL", "TRANSPORTATION_APP_PUBLIC_URL") ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://checkit-website.vercel.app")
+  (getEnv("VERCEL_PROJECT_PRODUCTION_URL") ? `https://${getEnv("VERCEL_PROJECT_PRODUCTION_URL")}` : "https://checkit-transportation-felix.vercel.app")
 ).replace(/\/$/, "");
 
 const normalizeRole = (role) => {
@@ -192,11 +192,17 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: "A user with that email already exists in the platform." });
       }
 
-      await restoreProfile({
+      if (!isCheckItAdmin && ["checkit_admin", "checkit_field_operator"].includes(normalizeRole(existingProfile.role))) {
+        return res.status(403).json({ error: "You cannot change this account's team access." });
+      }
+      const restored = await restoreProfile({
         userId: existingProfile.id,
         role: requestedRole,
         assignedInstitute,
       });
+      if (!restored?.some(profile => profile.id === existingProfile.id && profile.assigned_institute === assignedInstitute)) {
+        return res.status(409).json({ error: "Team access could not be restored. Refresh the team and try again." });
+      }
 
       return res.status(200).json({
         ok: true,
@@ -221,14 +227,15 @@ export default async function handler(req, res) {
     });
 
     const invitedUserId = invitedUser?.id || invitedUser?.user?.id;
-    if (invitedUserId) {
-      await upsertInviteProfile({
-        userId: invitedUserId,
-        email,
-        role: requestedRole,
-        assignedInstitute,
-      });
+    if (!invitedUserId) {
+      return res.status(502).json({ error: "The invitation service did not confirm an account. Please try again." });
     }
+    await upsertInviteProfile({
+      userId: invitedUserId,
+      email,
+      role: requestedRole,
+      assignedInstitute,
+    });
 
     return res.status(200).json({
       ok: true,

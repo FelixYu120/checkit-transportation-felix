@@ -1,3 +1,5 @@
+import { resolveTeamInviteUrl } from "./TeamInviteUrl.js";
+
 const PROFILE_SELECT_WITH_DEPARTMENT = "id, full_name, email, role, department, assigned_institute";
 const PROFILE_SELECT = "id, full_name, email, role, assigned_institute";
 
@@ -127,10 +129,7 @@ export const inviteTeamMember = async (supabase, { email, role }) => {
     throw new Error("Sign in before inviting team members.");
   }
 
-  const configuredBaseUrl = String(import.meta.env.VITE_TEAM_API_URL || "").trim().replace(/\/$/, "");
-  const inviteUrl = configuredBaseUrl
-    ? `${configuredBaseUrl}/api/team/invite`
-    : "/api/team/invite";
+  const inviteUrl = resolveTeamInviteUrl(import.meta.env?.VITE_TEAM_API_URL);
 
   let response;
   try {
@@ -140,7 +139,7 @@ export const inviteTeamMember = async (supabase, { email, role }) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`
       },
-      body: JSON.stringify({ email, role })
+      body: JSON.stringify({ email: email.trim().toLowerCase(), role })
     });
   } catch {
     throw new Error("The invite service could not be reached. Make sure the transportation website was redeployed.");
@@ -158,10 +157,14 @@ export const inviteTeamMember = async (supabase, { email, role }) => {
       ? responseText.slice(0, 180)
       : "";
     throw new Error(
-      payload.error ||
+      payload?.error ||
       responseDetail ||
       `Invite service returned HTTP ${response.status}. Check VITE_TEAM_API_URL in Vercel.`
     );
+  }
+
+  if (payload?.ok !== true) {
+    throw new Error("The invitation could not be confirmed. Please try again or contact your administrator.");
   }
 
   return payload;

@@ -141,7 +141,7 @@ test("re-inviting a removed member restores their profile instead of sending an 
     if (parsed.searchParams.has("email")) {
       return jsonResponse([{ id: "removed-user", email: "removed@example.com", role: "viewer", assigned_institute: null }]);
     }
-    if (options.method === "PATCH") return jsonResponse([{ id: "removed-user" }]);
+    if (options.method === "PATCH") return jsonResponse([{ id: "removed-user", assigned_institute: "institute-1" }]);
     return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
   };
 
@@ -192,3 +192,91 @@ test("inviting a member who is still on a team is rejected", async () => {
   assert.match(response.payload.error, /already exists/i);
 });
 
+
+
+test("a concurrent team assignment cannot be reported as restored membership", async () => {
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "removed-user", role: "viewer", assigned_institute: null }]);
+    if (options.method === "PATCH") return jsonResponse([]);
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "removed@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 409);
+  assert.match(response.payload.error, /could not be restored/);
+});
+
+test("institution admins cannot claim a detached CheckIt admin account", async () => {
+  global.fetch = async (url, options = {}) => {
+    if (options.method && options.method !== "GET") throw new Error("Protected account must not change");
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "protected-user", role: "checkit_admin", assigned_institute: null }]);
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "protected@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 403);
+});
+
+test("an unconfirmed invitation response never reports success", async () => {
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/invite") return jsonResponse({});
+    if (parsed.searchParams.has("email")) return jsonResponse([]);
+    if (options.method === "POST") throw new Error("No profile may be created without an invited account");
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "new@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 502);
+});
+
+test("email service configuration failures are returned to the inviter", async () => {
+  global.fetch = async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/invite") return jsonResponse({ message: "Error sending invite email" }, 500);
+    if (parsed.searchParams.has("email")) return jsonResponse([]);
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "new@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 500);
+  assert.match(response.payload.error, /Error sending invite email/);
+});
+
+for (const [name, appUrl, productionHost, expected] of [
+  ['configured public URL', ' https://custom.example/ ', '', 'https://custom.example/create-account'],
+  ['stable production alias', '', 'transportation-production.example', 'https://transportation-production.example/create-account'],
+  ['default Transportation host', '', '', 'https://checkit-transportation-felix.vercel.app/create-account'],
+]) test(`invitation links use the ${name}, rather than a preview or the other app`, async () => {
+  const keys = ['APP_PUBLIC_URL', 'TRANSPORTATION_APP_PUBLIC_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_URL'];
+  const previous = new Map(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.APP_PUBLIC_URL = appUrl;
+    process.env.TRANSPORTATION_APP_PUBLIC_URL = '';
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = productionHost;
+    process.env.VERCEL_URL = 'protected-preview.example';
+    const { default: configuredHandler } = await import(`../api/team/invite.js?redirect=${encodeURIComponent(name)}`);
+    global.fetch = async (url, options = {}) => {
+      const parsed = new URL(url);
+      if (parsed.pathname === '/auth/v1/user') return jsonResponse({ id: 'admin-user' });
+      if (parsed.searchParams.has('email')) return jsonResponse([]);
+      if (parsed.pathname === '/auth/v1/invite') return jsonResponse({ id: 'new-user' });
+      if (options.method === 'POST') return jsonResponse([{ id: 'new-user' }]);
+      return jsonResponse([{ id: 'admin-user', role: 'admin', assigned_institute: 'institute-1' }]);
+    };
+    const response = createResponse();
+    await configuredHandler(createRequest({ token: 'admin-access-token', body: { email: 'new@example.com', role: 'viewer' } }), response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.redirectTo, expected);
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});

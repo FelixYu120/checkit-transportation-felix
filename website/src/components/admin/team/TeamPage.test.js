@@ -14,6 +14,7 @@ dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribut
 const fixture = globalThis.__checkitTeamTest = {};
 const reset = () => Object.assign(fixture, {
   currentUserId: "owner", currentUserRole: "admin", loads: 0, removeCalls: [], removalGate: null, removeError: null, failRefresh: false,
+  inviteCalls: [], inviteResult: {ok:true}, inviteError: null, inviteGate: null,
   members: [
     { id: "owner", full_name: "Team Owner", email: "owner@example.test", role: "admin", assigned_institute: "institute-a" },
     { id: "member", full_name: "Emily Thompson", email: "emily@example.test", role: "viewer", assigned_institute: "institute-a" },
@@ -46,7 +47,12 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
       if(fixture.removeError) throw fixture.removeError;
       fixture.members=fixture.members.map(member=>member.id===id?{...member,assigned_institute:null}:member);
     };
-    export const inviteTeamMember=async()=>({});
+    export const inviteTeamMember=async(_client, invitation)=>{
+      fixture.inviteCalls.push(invitation);
+      if(fixture.inviteGate) await fixture.inviteGate;
+      if(fixture.inviteError) throw fixture.inviteError;
+      return fixture.inviteResult;
+    };
   `);
   else throw new Error(`Unexpected import: ${specifier}`);
   return prefix + JSON.stringify(target);
@@ -141,4 +147,76 @@ for (const targetRole of ["admin", "checkit_admin", "checkit_field_operator"]) t
   await until(() => document.querySelector(".removalDialog") === null);
   assert.deepEqual(fixture.removeCalls, ["protected"]);
   assert.equal(document.querySelectorAll(".memberCard").length, 2);
+});
+
+const enterInviteEmail = async value => act(async () => {
+  const input = document.querySelector('.inviteModal input[type="email"]');
+  Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(input, value);
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+});
+const submitInvite = async () => act(async () => document.querySelector('.inviteModal').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })));
+
+test('a confirmed invitation shows success and leaves a usable dialog', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('New@Example.test');
+  await submitInvite();
+  assert.deepEqual(fixture.inviteCalls, [{ email: 'new@example.test', role: 'viewer' }]);
+  assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent to new@example.test/);
+  assert.equal(document.querySelector('.inviteModal input[type="email"]').value, '');
+  assert.equal(document.querySelector('.inviteModal [role="alert"]'), null);
+  await click('.inviteModal [aria-label="Close"]');
+  assert.equal(document.querySelector('.inviteModal'), null);
+});
+
+for (const flag of ['restored', 'reactivated']) test(`restoring an existing account is clearly distinguished from sending email (${flag})`, async () => {
+  fixture.inviteResult = { ok: true, [flag]: true };
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('returning@example.test');
+  await submitInvite();
+  const message = document.querySelector('.inviteModal [role="status"]').textContent;
+  assert.match(message, /Team access restored/);
+  assert.match(message, /no new invitation email was sent/);
+});
+
+test('a directory refresh failure does not turn a delivered invitation into a sending failure', async () => {
+  await mount();
+  fixture.failRefresh = true;
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('new@example.test');
+  await submitInvite();
+  assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent/);
+  assert.match(document.querySelector('.inviteModal [role="alert"]').textContent, /invitation was successful.*team list could not be refreshed/i);
+  assert.equal(fixture.inviteCalls.length, 1);
+});
+
+test('delivery errors keep the email available for retry and never show success', async () => {
+  fixture.inviteError = new Error('Supabase admin configuration is missing.');
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('new@example.test');
+  await submitInvite();
+  assert.equal(document.querySelector('.inviteModal input[type="email"]').value, 'new@example.test');
+  assert.match(document.querySelector('.inviteModal [role="alert"]').textContent, /configuration is missing/);
+  assert.equal(document.querySelector('.inviteModal [role="status"]'), null);
+  assert.equal(fixture.loads, 1);
+});
+
+test('pending invitations cannot be submitted twice or closed mid-request', async () => {
+  let release;
+  fixture.inviteGate = new Promise(resolve => { release = resolve; });
+  try {
+    await mount();
+    await click('[aria-label="Invite member"]');
+    await enterInviteEmail('new@example.test');
+    await submitInvite();
+    await submitInvite();
+    assert.equal(fixture.inviteCalls.length, 1);
+    assert.ok(document.querySelector('.inviteModal input').disabled);
+    await click('.inviteModal [aria-label="Close"]');
+    assert.ok(document.querySelector('.inviteModal'));
+    await act(async () => release());
+    assert.match(document.querySelector('.inviteModal [role="status"]').textContent, /Invite sent/);
+  } finally { release(); }
 });

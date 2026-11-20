@@ -85,6 +85,7 @@ const TeamPage = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -180,6 +181,7 @@ const TeamPage = () => {
     setInviteEmail("");
     setInviteError("");
     setInviteOpen(true);
+    setInviteMessage("");
   };
 
   const closeInviteModal = () => {
@@ -187,6 +189,7 @@ const TeamPage = () => {
     setInviteOpen(false);
     setInviteEmail("");
     setInviteError("");
+    setInviteMessage("");
   };
 
   const refreshMembers = async () => {
@@ -224,18 +227,26 @@ const TeamPage = () => {
 
   const sendInvite = async (event) => {
     event.preventDefault();
-    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!canInviteMembers || inviteLoading || !email) return;
 
     setInviteLoading(true);
     setInviteError("");
+    setInviteMessage("");
 
     try {
-      await inviteTeamMember(supabase, {
-        email: inviteEmail,
-        role: "viewer"
-      });
-      await refreshMembers();
-      closeInviteModal();
+      const result = await inviteTeamMember(supabase, { email, role: "viewer" });
+      setInviteMessage(
+        result?.reactivated || result?.restored
+          ? `Team access restored for ${email}. They can sign in with their existing account; no new invitation email was sent.`
+          : `Invite sent to ${email}.`
+      );
+      setInviteEmail("");
+      try {
+        await refreshMembers();
+      } catch {
+        setInviteError("The invitation was successful, but the team list could not be refreshed. Reload this page to see the latest members.");
+      }
     } catch (err) {
       setInviteError(err.message || "Invite could not be sent.");
     } finally {
@@ -504,6 +515,7 @@ const TeamPage = () => {
                   className={styles.input}
                   type="email"
                   value={inviteEmail}
+                  disabled={inviteLoading}
                   onChange={(event) => setInviteEmail(event.target.value)}
                   placeholder="name@example.com"
                   required
@@ -516,7 +528,8 @@ const TeamPage = () => {
               {inviteLoading ? "Sending..." : "Send invite"}
             </button>
 
-            {inviteError ? <div className={styles.inviteError}>{inviteError}</div> : null}
+            {inviteMessage ? <div className={styles.inviteSuccess} role="status">{inviteMessage}</div> : null}
+            {inviteError ? <div className={styles.inviteError} role="alert">{inviteError}</div> : null}
           </form>
         </div>
       ) : null}
