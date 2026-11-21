@@ -10,7 +10,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [] });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
   auth: {
@@ -21,6 +21,7 @@ fixture.client = {
     },
     getUser: async () => ({ data: { user: account }, error: null }),
     onAuthStateChange: callback => { fixture.sessionCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
+    async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
     async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
     async resetPasswordForEmail(email) { fixture.calls.push({ action: 'reset', email }); if (fixture.failure) throw fixture.failure; return { error: null }; },
     async signUp() { throw new Error('An invited account must not register again'); },
@@ -44,6 +45,7 @@ async function loadComponent(name) {
   });
   return (await import(asModule(code))).default;
 }
+const Login = await loadComponent('Login');
 const ForgotPassword = await loadComponent('ForgotPassword');
 const SetPassword = await loadComponent('SetPassword');
 const CreateAccount = await loadComponent('CreateAccount');
@@ -184,4 +186,57 @@ for (const Component of [SetPassword, CreateAccount]) test(`${Component.name} ca
     root = null;
     assert.equal(cancelled, true);
   } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; }
+});
+
+
+test('each platform exposes one visible username/password pair with its own autofill section', async () => {
+  await mount(Login);
+  const product = document.querySelector('.productName').textContent.toLowerCase();
+  const username = document.querySelector('input[autocomplete$=" username"]');
+  const password = document.querySelector('input[autocomplete$=" current-password"]');
+  assert.equal(document.querySelectorAll('input').length, 2);
+  assert.equal(username.type, 'email');
+  assert.equal(username.name, `checkit-${product}-username`);
+  assert.equal(username.autocomplete, `section-checkit-${product} username`);
+  assert.equal(password.autocomplete, `section-checkit-${product} current-password`);
+  assert.equal(username.closest('form').id, `checkit-${product}-login-form`);
+  assert.equal(username.closest('form').getAttribute('action'), `/${product}-login`);
+  assert.equal(username.hasAttribute('aria-hidden'), false);
+});
+
+test('password-manager autofill without input events submits the actual visible credentials', async () => {
+  await mount(Login);
+  const username = document.querySelector('input[type="email"]');
+  const password = document.querySelector('input[type="password"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  setValue.call(username, 'saved@example.test');
+  setValue.call(password, 'saved-password-fixture');
+  await submit();
+  assert.deepEqual(fixture.calls.find(call => call.action === 'login').input, {
+    email: 'saved@example.test', password: 'saved-password-fixture',
+  });
+  assert.deepEqual(fixture.logins, [true]);
+  assert.deepEqual(fixture.navigations, ['/map']);
+});
+
+test('old platform-prefixed saved usernames are converted back to a real email', async () => {
+  await mount(Login);
+  const product = document.querySelector('.productName').textContent.toLowerCase();
+  await enter('input[type="email"]', `checkit-${product}:saved@example.test`);
+  await enter('input[type="password"]', 'saved-password-fixture');
+  assert.equal(document.querySelector('input[type="email"]').value, 'saved@example.test');
+  await submit();
+  assert.equal(fixture.calls.find(call => call.action === 'login').input.email, 'saved@example.test');
+});
+
+test('an unconfirmed sign-in cannot claim success or navigate into the platform', async () => {
+  await mount(Login);
+  fixture.loginSession = null;
+  await enter('input[type="email"]', 'saved@example.test');
+  await enter('input[type="password"]', 'saved-password-fixture');
+  await submit();
+  assert.match(document.querySelector('[role="alert"]').textContent, /could not be confirmed/);
+  assert.deepEqual(fixture.logins, []);
+  assert.deepEqual(fixture.navigations, []);
+  assert.equal(document.querySelector('button[type="submit"]').disabled, false);
 });

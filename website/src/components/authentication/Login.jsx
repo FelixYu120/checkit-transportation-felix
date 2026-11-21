@@ -6,11 +6,6 @@ import supabase from '../helper/SupabaseClients';
 
 const AUTOFILL_PREFIX = 'checkit-transportation';
 
-const buildAutofillUsername = (value) => {
-    const normalizedEmail = String(value || '').trim().toLowerCase();
-    return normalizedEmail ? `${AUTOFILL_PREFIX}:${normalizedEmail}` : '';
-};
-
 const parseAutofillUsername = (value) => {
     const text = String(value || '').trim();
     const prefix = `${AUTOFILL_PREFIX}:`;
@@ -28,6 +23,7 @@ function Login({ setIsLoggedIn }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (loading) return;
         setErrorMessage('');
 
         if (!supabase) {
@@ -35,20 +31,33 @@ function Login({ setIsLoggedIn }) {
             return;
         }
 
+        // Some password managers fill the DOM without dispatching React input events.
+        const form = e.currentTarget;
+        const loginEmail = parseAutofillUsername(form.elements.namedItem('checkit-transportation-username')?.value ?? email);
+        const loginPassword = form.elements.namedItem('checkit-transportation-password')?.value ?? password;
+        if (!loginEmail || !loginPassword) {
+            setErrorMessage('Enter your email address and password.');
+            return;
+        }
+        setEmail(loginEmail);
+        setPassword(loginPassword);
+
         setLoading(true);
 
         try {
             // Standard Email & Password Login
-            const { error } = await supabase.auth.signInWithPassword({
-                email: email,
-                password: password
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: loginEmail,
+                password: loginPassword
             });
 
             if (error) {
                 setErrorMessage(error.message);
+            } else if (!data?.session?.access_token || !data?.session?.user?.id) {
+                setErrorMessage('Sign-in could not be confirmed. Please try again.');
             } else {
                 // Success! Log the user in and route them to the app
-                setIsLoggedIn(true);
+                setIsLoggedIn?.(true);
                 navigate('/map');
                 return;
             }
@@ -78,34 +87,25 @@ function Login({ setIsLoggedIn }) {
                     action="/transportation-login"
                     className={styles.form}
                     autoComplete="on"
+                    aria-label="Sign in to Transportation"
                     aria-busy={loading}
                     aria-describedby={errorMessage ? 'login-error' : undefined}
                     onSubmit={handleSubmit}
                 >
-                    <input
-                        className={styles.autofillUsernameInput}
-                        type="text"
-                        name="username"
-                        value={buildAutofillUsername(email)}
-                        autoComplete="section-checkit-transportation username"
-                        tabIndex={-1}
-                        aria-hidden="true"
-                        onChange={(event) => setEmail(parseAutofillUsername(event.target.value))}
-                    />
                     <div className={styles.fieldGroup}>
                         <label htmlFor="transportation-login-email">Email address</label>
                         <input
                             id="transportation-login-email"
-                            name="checkit-transportation-display-email"
+                            name="checkit-transportation-username"
                             className={styles.input}
                             type="email"
                             value={email}
                             placeholder="name@organization.com"
-                            autoComplete="off"
+                            autoComplete="section-checkit-transportation username"
                             autoCapitalize="none"
                             spellCheck={false}
                             required
-                            onChange={(event) => setEmail(event.target.value)}
+                            onChange={(event) => setEmail(parseAutofillUsername(event.target.value))}
                         />
                     </div>
                     <div className={styles.fieldGroup}>

@@ -177,7 +177,7 @@ function CreateAccount({ setIsLoggedIn }) {
                             type="email"
                             value={email}
                             placeholder="name@organization.com"
-                            autoComplete="section-checkit-transportation email"
+                            autoComplete="section-checkit-transportation username"
                             disabled={hasInviteSession}
                             required
                             onChange={(event) => setEmail(event.target.value)}
