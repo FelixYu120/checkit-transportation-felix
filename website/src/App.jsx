@@ -205,17 +205,27 @@ function AppSession() {
             return undefined;
         }
 
-        supabase.auth.getSession().then(({ data }) => {
-            setIsLoggedIn(Boolean(data.session));
+        let active = true;
+        let authEventReceived = false;
+        supabase.auth.getSession().then(({ data, error }) => {
+            if (!active || authEventReceived) return;
+            setIsLoggedIn(!error && Boolean(data?.session));
+            setAuthReady(true);
+        }).catch(() => {
+            if (!active || authEventReceived) return;
+            setIsLoggedIn(false);
             setAuthReady(true);
         });
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!active) return;
+            authEventReceived = true;
             setIsLoggedIn(Boolean(session));
             setAuthReady(true);
         });
 
         return () => {
+            active = false;
             authListener.subscription.unsubscribe();
         };
     }, []);

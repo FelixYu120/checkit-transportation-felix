@@ -1,3 +1,5 @@
+import { withProfilePhotos } from './ProfilePhoto.js';
+
 export const createProfileView = (user = {}, record = {}) => {
   // The authenticated account owns the identity; profile metadata cannot replace it.
   const data = record?.id && record.id !== user?.id ? {} : (record || {});
@@ -7,6 +9,8 @@ export const createProfileView = (user = {}, record = {}) => {
     full_name: data.full_name ?? user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? '',
     email: user?.id ? (String(user.email || '').trim() || String(data.email || '').trim()) : '',
     role: role === 'user' ? 'viewer' : role,
+    avatar_path: data.avatar_path || null,
+    avatar_url: '',
     assigned_area: data.assigned_area || null,
     assigned_building: data.assigned_building || null,
     assigned_floor: data.assigned_floor ?? null,
@@ -39,7 +43,8 @@ export const fetchCurrentProfile = async (client, { includeRoom = false } = {}) 
       result = await client.from('profile').select('*').eq('id', user.id).maybeSingle();
     }
     if (result.error) throw result.error;
-    return { profile: createProfileView(user, result.data), error: null };
+    const [profile] = await withProfilePhotos(client, [createProfileView(user, result.data)]);
+    return { profile, error: null };
   } catch (error) {
     return { profile: identity, error };
   }

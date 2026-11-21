@@ -196,3 +196,16 @@
   color: #34524D;
   flex-shrink: 0;
 }
+
+.photoSection { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.photoPreview { display: grid; place-items: center; flex-shrink: 0; overflow: hidden; width: 64px; height: 64px; border: 1px solid var(--checkit-border, #d0dad2); border-radius: 12px; background: #deebe2; color: #466451; font-size: 1.125rem; font-weight: 600; }
+.photoContent { min-width: 0; }
+.photoLabel { display: block; margin-bottom: 7px; color: var(--checkit-ink, #15201f); font-size: .8125rem; font-weight: 600; }
+.photoActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.photoButton, .photoRemove { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 5px 9px; border: 1px solid var(--checkit-border, #d0dad2); border-radius: 6px; background: transparent; color: var(--checkit-green, #34524d); font: inherit; font-size: .75rem; cursor: pointer; }
+.photoRemove { border-color: transparent; color: var(--checkit-muted, #63756b); }
+.photoButton:hover, .photoRemove:hover { background: #e3e9e4; }
+.photoButton:focus-visible, .photoRemove:focus-visible { outline: 2px solid var(--checkit-green, #34524d); outline-offset: 2px; }
+.photoButton:disabled, .photoRemove:disabled, .closeBtn:disabled { opacity: .6; cursor: not-allowed; }
+.photoHint { margin: 7px 0 0; color: var(--checkit-muted, #63756b); font-size: .6875rem; line-height: 1.5; }
+.photoStatus { margin: 0 0 6px; color: var(--checkit-green, #34524d); font-size: .8125rem; }

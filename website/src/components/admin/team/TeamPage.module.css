@@ -193,6 +193,7 @@
 }
 
 .memberDetailsButton > .avatar {
+  overflow: hidden;
   box-sizing: border-box;
 }
 

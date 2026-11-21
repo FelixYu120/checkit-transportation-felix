@@ -4,6 +4,8 @@
 }
 
 .profileTrigger {
+  padding: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,3 +84,5 @@
 .dangerItem:hover {
   background-color: #fef2f2;
 }
+
+.profileAvatar { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; }

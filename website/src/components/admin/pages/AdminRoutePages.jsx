@@ -1,3 +1,4 @@
+import { sensorLabelsById } from '../data/SensorNames.js';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
@@ -174,6 +175,7 @@ const getDuplicateAwareSensorLabels = (sensors = []) => {
     }, new Map());
 
     const labelsBySensorId = new Map();
+    const savedLabels = sensorLabelsById(sensors);
     groups.forEach((groupSensors) => {
         const sortedSensors = groupSensors
             .slice()
@@ -183,7 +185,7 @@ const getDuplicateAwareSensorLabels = (sensors = []) => {
             const corridorName = sensor.corridor_name || 'Unnamed Lane';
             labelsBySensorId.set(
                 sensor.sensor_id,
-                sortedSensors.length > 1 ? `${corridorName} ${index + 1}` : corridorName
+                sensor.sensor_name?.trim() ? savedLabels.get(sensor.sensor_id) : sortedSensors.length > 1 ? `${corridorName} ${index + 1}` : corridorName
             );
         });
     });

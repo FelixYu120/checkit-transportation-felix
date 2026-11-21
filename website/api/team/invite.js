@@ -93,7 +93,7 @@ async function getProfileById(userId) {
 async function getProfileByEmail(email) {
   const rows = await callSupabase("/rest/v1/profile", {
     query: {
-      email: `ilike.${email}`,
+      email: `ilike.${email.replace(/[\\%_]/g, "\\$&")}`,
       select: "id,email,role,assigned_institute",
       limit: "1",
     },
@@ -102,12 +102,12 @@ async function getProfileByEmail(email) {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
-async function upsertInviteProfile({ userId, email, role, assignedInstitute }) {
+async function upsertInviteProfile({ userId, email, role, assignedInstitute, onlyIfMissing = false }) {
   return callSupabase("/rest/v1/profile", {
     method: "POST",
     query: { on_conflict: "id" },
     headers: {
-      Prefer: "resolution=merge-duplicates,return=representation",
+      Prefer: `resolution=${onlyIfMissing ? "ignore" : "merge"}-duplicates,return=representation`,
     },
     body: [{
       id: userId,
@@ -158,6 +158,21 @@ async function sendExistingMemberEmail(user, email) {
     error.status = 502;
     throw error;
   }
+}
+
+async function findAuthUserByEmail(email) {
+  const normalizedEmail = email.toLowerCase();
+  const perPage = 200;
+  for (let page = 1; page <= 10; page += 1) {
+    const result = await callSupabase("/auth/v1/admin/users", {
+      query: { page: String(page), per_page: String(perPage) },
+    });
+    const users = result?.users || [];
+    const match = users.find((user) => String(user.email || "").toLowerCase() === normalizedEmail);
+    if (match) return match;
+    if (users.length < perPage) return null;
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -239,36 +254,49 @@ export default async function handler(req, res) {
     }
 
     const redirectTo = `${APP_PUBLIC_URL}/create-account`;
-    const invitedUser = await callSupabase("/auth/v1/invite", {
-      method: "POST",
-      query: { redirect_to: redirectTo },
-      body: {
-        email,
-        data: {
-          role: requestedRole,
-          assigned_institute: assignedInstitute,
-          invited_by: currentUser.id,
+    let invitedUser;
+    let reactivated = false;
+    try {
+      invitedUser = await callSupabase("/auth/v1/invite", {
+        method: "POST",
+        query: { redirect_to: redirectTo },
+        body: {
+          email,
+          data: {
+            role: requestedRole,
+            assigned_institute: assignedInstitute,
+            invited_by: currentUser.id,
+          },
         },
-      },
-    });
+      });
+    } catch (inviteError) {
+      if (!/already.*(?:registered|exists)/i.test(inviteError.message || "")) throw inviteError;
+      const existingUser = await findAuthUserByEmail(email);
+      if (!existingUser) throw inviteError;
+      if (await getProfileById(existingUser.id)) {
+        return res.status(409).json({ error: "This account already has a profile. Refresh the team and try again." });
+      }
+      invitedUser = existingUser;
+      reactivated = true;
+    }
 
     const invitedUserId = invitedUser?.id || invitedUser?.user?.id;
     if (!invitedUserId) {
       return res.status(502).json({ error: "The invitation service did not confirm an account. Please try again." });
     }
-    await upsertInviteProfile({
+    const savedProfiles = await upsertInviteProfile({
       userId: invitedUserId,
       email,
       role: requestedRole,
       assignedInstitute,
+      onlyIfMissing: reactivated,
     });
+    if (reactivated && !savedProfiles?.some(profile => profile.id === invitedUserId && profile.assigned_institute === assignedInstitute)) {
+      return res.status(409).json({ error: "The account's team access changed. Refresh the team and try again." });
+    }
 
-    return res.status(200).json({
-      ok: true,
-      email,
-      role: requestedRole,
-      redirectTo,
-    });
+    if (reactivated) await sendExistingMemberEmail(invitedUser, email);
+    return res.status(200).json({ ok: true, email, role: requestedRole, redirectTo, ...(reactivated ? { restored: true } : {}) });
   } catch (err) {
     console.error("Transportation Invite Error:", err);
     return res.status(err.status || 500).json({

@@ -32,3 +32,7 @@ test("ignores ordinary navigation", () => {
   assert.equal(getSupabaseAuthRedirectPath({ pathname: "/login" }), null);
 });
 
+
+for (const type of ['magiclink', 'signup', 'email_change', 'reauthentication']) test(`${type} emails sign in an existing account without restarting account setup`, () => {
+  assert.equal(getSupabaseAuthRedirectPath({ pathname: '/login', hash: `#type=${type}&access_token=fixture` }), '/login');
+});

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, ShieldAlert, MapPin, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { X, Save, ShieldAlert, MapPin, KeyRound, Eye, EyeOff, Camera } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
 import { createProfileView, fetchCurrentProfile } from './ProfileData.js';
+import ProfileAvatar from './ProfileAvatar';
+import { PROFILE_PHOTO_ACCEPT, uploadProfilePhoto, removeProfilePhoto, notifyProfileUpdated } from './ProfilePhoto.js';
 
 const normalizeRole = (role) => {
   const normalized = String(role || 'viewer').trim().toLowerCase();
@@ -25,6 +27,11 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const photoInputRef = useRef(null);
+  const [photoAction, setPhotoAction] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  const [photoMessage, setPhotoMessage] = useState('');
+  const photoSaving = Boolean(photoAction);
   const [passwordState, setPasswordState] = useState({
     password: '',
     confirmPassword: '',
@@ -39,6 +46,8 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
+    setPhotoError('');
+    setPhotoMessage('');
 
     const fetchUserProfile = async () => {
       setLoading(true);
@@ -61,8 +70,30 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     return () => { active = false; };
   }, [isOpen]);
 
+  const handleClose = () => {
+    if (!saving && !photoSaving) onClose();
+  };
+
+  const changePhoto = async (file) => {
+    if (saving || photoSaving || !profile.id || profileError) return;
+    setPhotoAction(file ? 'upload' : 'remove');
+    setPhotoError('');
+    setPhotoMessage('');
+    try {
+      const photo = file ? await uploadProfilePhoto(supabase, file) : await removeProfilePhoto(supabase);
+      setProfile(current => ({ ...current, ...photo }));
+      notifyProfileUpdated(photo);
+      setPhotoMessage(file ? (photo.avatar_url ? 'Photo updated.' : 'Photo saved. Reopen your profile to retry the preview.') : 'Photo removed.');
+    } catch (error) {
+      const unavailable = /bucket|set_my_profile_photo|schema cache/i.test(error.message || '');
+      setPhotoError(unavailable ? 'Photo uploads are not available yet. Please try again later.' : error.message || 'Your photo could not be saved. Please try again.');
+    } finally {
+      setPhotoAction('');
+    }
+  };
+
   const handleSave = async () => {
-    if (profileError) return;
+    if (profileError || photoSaving || saving) return;
     // STRICT GUARD: Prevent the empty UUID crash
     if (!profile.id) {
       alert("Authentication error: User ID is missing. Please refresh and log in again.");
@@ -81,6 +112,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
         });
 
       if (error) throw error;
+      notifyProfileUpdated(profile);
       onClose(); 
     } catch (err) {
       alert("Failed to update profile: " + err.message);
@@ -102,21 +134,17 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
       return;
     }
 
+    if (saving || photoSaving || !supabase) return;
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: passwordState.password });
-
-    if (error) {
-      setPasswordState((current) => ({ ...current, error: error.message }));
-    } else {
-      setPasswordState({
-        password: '',
-        confirmPassword: '',
-        message: 'Password updated successfully.',
-        error: ''
-      });
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordState.password });
+      if (error) throw error;
+      setPasswordState({ password: '', confirmPassword: '', message: 'Password updated successfully.', error: '' });
+    } catch (error) {
+      setPasswordState(current => ({ ...current, error: error.message || 'Your password could not be updated. Please try again.' }));
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   };
 
   // Helper function to determine the user's primary access level
@@ -135,12 +163,12 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const access = renderAccessLevel();
 
   return createPortal(
-    <div className={styles.modalOverlay} onClick={onClose}>
+    <div className={styles.modalOverlay} onClick={handleClose}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         
         <div className={styles.modalHeader}>
           <h2>{mode === 'password' ? 'Change password' : 'Profile'}</h2>
-          <button className={styles.closeBtn} onClick={onClose}><X size={20} /></button>
+          <button className={styles.closeBtn} onClick={handleClose} disabled={saving || photoSaving} aria-label="Close profile"><X size={20} /></button>
         </div>
 
         {loading ? (
@@ -204,6 +232,36 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                </div>
             )}
 
+            <section className={styles.photoSection} aria-label="Profile photo">
+              <ProfileAvatar profile={profile} className={styles.photoPreview} />
+              <div className={styles.photoContent}>
+                <span className={styles.photoLabel}>Profile photo</span>
+                {mode === 'edit' && <>
+                  <input ref={photoInputRef} type="file" accept={PROFILE_PHOTO_ACCEPT} hidden
+                    aria-label="Choose profile photo" disabled={saving || photoSaving || Boolean(profileError) || !profile.id}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) changePhoto(file);
+                    }} />
+                  <div className={styles.photoActions}>
+                    <button className={styles.photoButton} type="button" onClick={() => photoInputRef.current?.click()}
+                      disabled={saving || photoSaving || Boolean(profileError) || !profile.id}>
+                      <Camera size={15} aria-hidden="true" />
+                      {photoAction === 'upload' ? 'Uploading…' : profile.avatar_path ? 'Change photo' : 'Upload photo'}
+                    </button>
+                    {profile.avatar_path && <button className={styles.photoRemove} type="button" onClick={() => changePhoto(null)}
+                      disabled={saving || photoSaving || Boolean(profileError)}>
+                      {photoAction === 'remove' ? 'Removing…' : 'Remove'}
+                    </button>}
+                  </div>
+                  <p className={styles.photoHint}>JPG, PNG, or WebP · Up to 5 MB. Photos save immediately.</p>
+                </>}
+              </div>
+            </section>
+            {photoError && <div className={styles.errorMessage} role="alert">{photoError}</div>}
+            {photoMessage && <p className={styles.photoStatus} role="status">{photoMessage}</p>}
+
             {/* Access Level Display Area */}
             {!profileError && <div className={styles.accessBadge}>
                 <MapPin size={16} />
@@ -219,7 +277,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
               className={styles.input} 
               value={profile.full_name}
               onChange={(e) => setProfile({...profile, full_name: e.target.value})}
-              disabled={mode === 'view' || Boolean(profileError)}
+              disabled={mode === 'view' || saving || photoSaving || Boolean(profileError)}
               placeholder="Enter your full name"
             />
 
@@ -231,7 +289,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             <input type="text" className={styles.input} value={profileError ? 'Unavailable' : formatRoleLabel(profile.role)} disabled />
 
             {mode === 'edit' && (
-              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || Boolean(profileError) || !profile.id}>
+              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || photoSaving || Boolean(profileError) || !profile.id}>
                 <Save size={16} /> {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}

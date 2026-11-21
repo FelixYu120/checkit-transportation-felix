@@ -14,19 +14,20 @@ function ForgotPassword() {
         event.preventDefault();
         setErrorMessage('');
         setSuccessMessage('');
+        if (loading) return;
         setLoading(true);
-
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/set-password`
-        });
-
-        if (error) {
-            setErrorMessage(error.message);
-        } else {
+        try {
+            if (!supabase) throw new Error('Password reset is not available. Please try again later.');
+            const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: `${window.location.origin}/set-password`
+            });
+            if (error) throw error;
             setSuccessMessage('Check your email for a secure password setup link.');
+        } catch (error) {
+            setErrorMessage(error.message || 'The reset link could not be sent. Please try again.');
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
@@ -46,7 +47,7 @@ function ForgotPassword() {
                         </p>
                     </div>
 
-                    {errorMessage && <div className={styles.errorMessage}>{errorMessage}</div>}
+                    {errorMessage && <div className={styles.errorMessage} role="alert">{errorMessage}</div>}
                     {successMessage && <div className={styles.successMessage}>{successMessage}</div>}
 
                     <form className={styles.formlayout} onSubmit={handleSubmit}>

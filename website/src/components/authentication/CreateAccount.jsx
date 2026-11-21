@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
@@ -18,47 +18,41 @@ function CreateAccount({ setIsLoggedIn }) {
     ));
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const redirectTimerRef = useRef(null);
     const [hasInviteSession, setHasInviteSession] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
 
     useEffect(() => {
         let mounted = true;
-
-        if (!supabase) {
-            return undefined;
-        }
-
+        if (!supabase) return undefined;
         supabase.auth.getSession().then(({ data, error }) => {
-            if (mounted) {
-                if (error) setErrorMessage(error.message);
-                setHasInviteSession(Boolean(data.session));
-                setEmail(data.session?.user?.email || '');
-                setAuthReady(true);
-            }
+            if (!mounted) return;
+            if (error) throw error;
+            setHasInviteSession(Boolean(data?.session));
+            setEmail(data?.session?.user?.email || '');
+            setAuthReady(true);
+        }).catch(error => {
+            if (mounted) setErrorMessage(error.message || 'Your account could not be verified. Reopen the invitation to retry.');
         });
-
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!mounted) return;
             setHasInviteSession(Boolean(session));
             if (session?.user?.email) setEmail(session.user.email);
             setAuthReady(true);
         });
-
-        return () => {
-            mounted = false;
-            authListener.subscription.unsubscribe();
-        };
+        return () => { mounted = false; clearTimeout(redirectTimerRef.current); authListener.subscription.unsubscribe(); };
     }, []);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        if (loading || (hasInviteSession && successMessage)) return;
         setErrorMessage('');
         setSuccessMessage('');
-
         if (!supabase || !authReady) {
             setErrorMessage('Account verification is still loading. Please try again.');
             return;
         }
+
 
         const trimmedFirstName = firstName.trim();
         const trimmedLastName = lastName.trim();
@@ -81,71 +75,47 @@ function CreateAccount({ setIsLoggedIn }) {
         }
 
         setLoading(true);
-        const { data, error } = hasInviteSession
-            ? await supabase.auth.updateUser({
-                password,
-                data: {
-                    first_name: trimmedFirstName,
-                    last_name: trimmedLastName,
-                    full_name: fullName
-                }
-            })
-            : await supabase.auth.signUp({
-                email: normalizedEmail,
-                password,
-                options: {
-                    data: {
-                        first_name: trimmedFirstName,
-                        last_name: trimmedLastName,
-                        full_name: fullName
-                    },
-                    emailRedirectTo: `${window.location.origin}/login`
-                }
-            });
-
-        if (error) {
-            setErrorMessage(error.message);
-        } else if (hasInviteSession) {
-            const userId = data?.user?.id;
-            if (userId) {
-                const { error: profileError } = await supabase
-                    .from('profile')
-                    .upsert({
-                        id: userId,
-                        email: normalizedEmail,
-                        full_name: fullName
+        try {
+            const metadata = { first_name: trimmedFirstName, last_name: trimmedLastName, full_name: fullName };
+            if (hasInviteSession) {
+                const identity = await supabase.auth.getUser();
+                if (identity.error) throw identity.error;
+                const user = identity.data?.user;
+                if (!user?.id) throw new Error('Your invitation session has expired. Reopen the invitation to retry.');
+                // Save the profile first: a profile error must not strand the
+                // user after their password has already changed.
+                const { error: profileError } = await supabase.from('profile').upsert({
+                    id: user.id, email: user.email || normalizedEmail, full_name: fullName
+                });
+                if (profileError) throw new Error('Your profile could not be completed. Please try again.');
+                const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
+                if (error) throw error;
+                if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
+                setSuccessMessage('Account created. Redirecting to your dashboard…');
+                setIsLoggedIn?.(true);
+                redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
+            } else {
+                const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: {
+                    data: metadata, emailRedirectTo: `${window.location.origin}/login`
+                } });
+                if (error) throw error;
+                if (data?.session?.user?.id) {
+                    const { error: profileError } = await supabase.from('profile').upsert({
+                        id: data.session.user.id, email: data.session.user.email || normalizedEmail, full_name: fullName
                     });
-
-                if (profileError) {
-                    setErrorMessage(`Your password was saved, but your profile could not be completed: ${profileError.message}`);
-                    setLoading(false);
-                    return;
+                    if (profileError) throw new Error('Your account was created, but your profile could not be completed. Please sign in to retry.');
+                    setIsLoggedIn?.(true);
+                    navigate('/map');
+                } else {
+                    setSuccessMessage('Account request created. Check your email to confirm your account, then sign in.');
+                    setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setConfirmPassword('');
                 }
             }
-
-            setSuccessMessage('Account created. Redirecting to your dashboard…');
-            setIsLoggedIn?.(true);
-            setTimeout(() => navigate('/map'), 900);
-        } else {
-            if (data?.session?.user?.id) {
-                await supabase
-                    .from('profile')
-                    .upsert({
-                        id: data.session.user.id,
-                        email: normalizedEmail,
-                        full_name: fullName
-                    });
-            }
-
-            setSuccessMessage('Account request created. Check your email to confirm your account, then sign in.');
-            setFirstName('');
-            setLastName('');
-            setEmail('');
-            setPassword('');
-            setConfirmPassword('');
+        } catch (error) {
+            setErrorMessage(error.message || 'Your account could not be saved. Please try again.');
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
@@ -266,7 +236,7 @@ function CreateAccount({ setIsLoggedIn }) {
                         </div>
                     </div>
 
-                    <button type="submit" className={styles.submitButton} disabled={loading || !authReady || !supabase}>
+                    <button type="submit" className={styles.submitButton} disabled={loading || !authReady || !supabase || (hasInviteSession && Boolean(successMessage))}>
                         {!authReady ? 'Checking invite…' : loading ? 'Creating account…' : hasInviteSession ? 'Save password' : 'Create account'}
                     </button>
                 </form>

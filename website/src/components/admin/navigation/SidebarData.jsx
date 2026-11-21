@@ -1,3 +1,4 @@
+import { sensorLabelsById } from '../data/SensorNames.js';
 import { slugifyAdminPathSegment } from "../routing/AdminRouteUtils";
 import { fetchSensorDirectory } from "../data/SensorDirectoryData";
 import { getInstituteDisplayName, getInstituteSearchText } from '../data/InstituteNames.js';
@@ -13,6 +14,7 @@ const getDuplicateAwareCorridorNames = (sensors = []) => {
   }, new Map());
 
   const namesBySensorId = new Map();
+  const savedLabels = sensorLabelsById(sensors);
   groups.forEach((groupSensors) => {
     const sortedSensors = groupSensors
       .slice()
@@ -22,7 +24,7 @@ const getDuplicateAwareCorridorNames = (sensors = []) => {
       const corridorName = sensor.corridor_name || `Corridor ${sensor.sensor_id}`;
       namesBySensorId.set(
         sensor.sensor_id,
-        sortedSensors.length > 1 ? `${corridorName} ${index + 1}` : corridorName
+        sensor.sensor_name?.trim() ? savedLabels.get(sensor.sensor_id) : sortedSensors.length > 1 ? `${corridorName} ${index + 1}` : corridorName
       );
     });
   });
@@ -52,6 +54,7 @@ export const formatCampusNavigation = (institutes = [], sensors = []) =>
       areas[areaId].corridors.push({
         id: sensor.sensor_id,
         name: corridorNamesBySensorId.get(sensor.sensor_id) || sensor.corridor_name || `Corridor ${sensor.sensor_id}`,
+        locationName: sensor.corridor_name || '',
         status: sensor.status || "unknown",
         latitude: sensor.latitude,
         longitude: sensor.longitude,
@@ -104,7 +107,7 @@ export const filterCampusNavigation = (institutes, tokens) => {
             ...area,
             corridors: area.corridors.filter((corridor) =>
               tokens.every((token) =>
-                `${corridor.name} ${corridor.status}`.toLowerCase().includes(token)
+                `${corridor.id} ${corridor.name} ${corridor.locationName || ''} ${corridor.status}`.toLowerCase().includes(token)
               )
             ),
           };

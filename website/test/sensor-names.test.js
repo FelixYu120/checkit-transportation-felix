@@ -12,6 +12,7 @@ const instituteNamesUrl = new URL('../src/components/admin/data/InstituteNames.j
 const directorySource = readFileSync(new URL('../src/components/admin/data/SensorDirectoryData.js', import.meta.url), 'utf8')
   .replace(/import .* from "..\/..\/helper\/SupabaseClients.jsx";/,
     'const getSupabaseErrorContext = error => error; const shouldUseLocalData = false;')
+  .replace("'../../../sensorHeartbeat.js'", JSON.stringify(new URL('../src/sensorHeartbeat.js', import.meta.url).href))
   .replace("'./SensorNames.js'", JSON.stringify(namesUrl))
   .replace("'./InstituteNames.js'", JSON.stringify(instituteNamesUrl));
 const { fetchSensorDirectory } = await import(asModule(directorySource));
@@ -62,12 +63,12 @@ test('cloud directory feeds named navigation while routes and ID search keep sta
   const client = mockClient();
   const directory = await fetchSensorDirectory(client);
   const sensorQuery = client.queries.find(q => q.table === 'sensors');
-  assert.ok(sensorQuery.columns.split(',').includes('sensor_name'));
+  assert.ok(sensorQuery.columns.split(',').map(column => column.trim()).includes('sensor_name'));
   assert.equal(client.queries.filter(q => q.table === 'sensors').length, 1, 'lean schema works without legacy retries');
   const navigation = formatCampusNavigation(directory.institutes, directory.sensors);
   const entries = navigation[0].areas[0].corridors;
   assert.equal(entries.find(s => s.id === 'RADAR_ONE').name, 'Northbound Bike Path');
-  assert.equal(entries.find(s => s.id === 'RADAR_TWO').name, 'RADAR_TWO');
+  assert.equal(entries.find(s => s.id === 'RADAR_TWO').name, 'Gilman 2');
   assert.equal(filterCampusNavigation(navigation, ['northbound'])[0].areas[0].corridors[0].id, 'RADAR_ONE');
   assert.equal(filterCampusNavigation(navigation, ['radar_one'])[0].areas[0].corridors[0].id, 'RADAR_ONE');
   assert.equal(filterCampusNavigation(navigation, ['gilman'])[0].areas[0].corridors.length, 2);
@@ -78,6 +79,6 @@ test('maps fetch names even when the optional heading column is unavailable', as
   const rows = await fetchMapSensors(client, 'ucsd');
   assert.equal(rows[0].sensor_name, 'Northbound Bike Path');
   assert.equal(rows[0].sensor_id, 'RADAR_ONE');
-  assert.ok(client.queries.every(q => q.columns.includes('sensor_name')));
+  assert.ok(client.queries.filter(q => q.table === 'sensors').every(q => q.columns.includes('sensor_name')));
   assert.equal(client.queries.length, 2);
 });

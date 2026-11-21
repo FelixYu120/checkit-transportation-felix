@@ -263,9 +263,9 @@ const querySensorRows = async (supabase, instituteId, sensorId) => {
 
   let lastError = null;
 
-  const typeColumns = new Set(["deployment_type"]);
+  const optionalColumns = new Set(["deployment_type", "sensor_name"]);
   for (let attempt = 0; attempt < selectAttempts.length; attempt += 1) {
-    const selectColumns = [selectAttempts[attempt], ...typeColumns].join(", ");
+    const selectColumns = [selectAttempts[attempt], ...optionalColumns].join(", ");
     let query = supabase
       .from("sensors")
       .select(selectColumns)
@@ -280,9 +280,9 @@ const querySensorRows = async (supabase, instituteId, sensorId) => {
 
     lastError = error;
     if (!isMissingColumnError(error)) break;
-    const missingTypeColumn = [...typeColumns].find((column) => compactSupabaseError(error).includes(column));
-    if (missingTypeColumn) {
-      typeColumns.delete(missingTypeColumn);
+    const missingOptionalColumn = [...optionalColumns].find((column) => compactSupabaseError(error).includes(column));
+    if (missingOptionalColumn) {
+      optionalColumns.delete(missingOptionalColumn);
       attempt -= 1;
     }
   }

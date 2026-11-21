@@ -397,3 +397,45 @@ test("re-inviting an unconfirmed removed member restores access and resends onbo
   assert.equal(response.statusCode, 200);
   assert.equal(sent, true);
 });
+
+
+for (const state of ['orphan', 'existing-profile', 'concurrent-profile']) test(`duplicate Auth accounts are recovered safely: ${state}`, async () => {
+  const requests = [];
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    requests.push({ url: parsed, options });
+    if (parsed.pathname === '/auth/v1/user') return jsonResponse({ id: 'admin-user' });
+    if (parsed.pathname === '/auth/v1/admin/users') return jsonResponse({ users: [{ id: 'orphan-user', email: 'orphan@example.com', email_confirmed_at: '2026-11-01T00:00:00Z' }] });
+    if (parsed.pathname === '/auth/v1/invite') return jsonResponse({ message: 'A user with this email address has already been registered' }, 422);
+    if (parsed.pathname === '/auth/v1/otp') return jsonResponse({});
+    if (parsed.searchParams.has('email')) return jsonResponse([]);
+    if (parsed.searchParams.get('id') === 'eq.orphan-user') return jsonResponse(state === 'existing-profile' ? [{ id: 'orphan-user', role: 'admin', assigned_institute: 'other-institute' }] : []);
+    if (options.method === 'POST' && parsed.pathname === '/rest/v1/profile') return jsonResponse(state === 'concurrent-profile' ? [] : [{ id: 'orphan-user', role: 'viewer', assigned_institute: 'institute-1' }]);
+    return jsonResponse([{ id: 'admin-user', role: 'admin', assigned_institute: 'institute-1' }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: 'admin-access-token', body: { email: 'orphan@example.com', role: 'viewer' } }), response);
+  assert.equal(response.statusCode, state === 'orphan' ? 200 : 409);
+  const writes = requests.filter(({ url, options }) => url.pathname === '/rest/v1/profile' && options.method === 'POST');
+  if (state === 'existing-profile') assert.equal(writes.length, 0);
+  else assert.equal(writes[0].options.headers.Prefer, 'resolution=ignore-duplicates,return=representation');
+  assert.equal(requests.some(({ url }) => url.pathname === '/auth/v1/otp'), state === 'orphan');
+});
+
+test('email underscores and percent signs are literal, rather than profile search wildcards', async () => {
+  let lookup;
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/auth/v1/user') return jsonResponse({ id: 'admin-user' });
+    if (parsed.searchParams.has('email')) {
+      lookup = parsed.searchParams.get('email');
+      return jsonResponse([{ id: 'target-user', email: 'member_100%@example.com', role: 'viewer', assigned_institute: 'other-institute' }]);
+    }
+    if (options.method && options.method !== 'GET') throw new Error('An account in another institution must not change');
+    return jsonResponse([{ id: 'admin-user', role: 'admin', assigned_institute: 'institute-1' }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: 'admin-access-token', body: { email: 'Member_100%@Example.com', role: 'viewer' } }), response);
+  assert.equal(response.statusCode, 409);
+  assert.equal(lookup, String.raw`ilike.member\_100\%@example.com`);
+});

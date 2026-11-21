@@ -4,9 +4,27 @@ import styles from './ProfileDropdown.module.css';
 import supabase from '../helper/SupabaseClients';
 
 import ProfileModal from './ProfileModal';
+import ProfileAvatar from './ProfileAvatar';
+import { fetchCurrentProfile } from './ProfileData.js';
+import { PROFILE_UPDATED_EVENT } from './ProfilePhoto.js';
 
 const ProfileDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [profile, setProfile] = useState({});
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (!supabase) return;
+      try {
+        const result = await fetchCurrentProfile(supabase);
+        if (active) setProfile(result.profile);
+      } catch { if (active) setProfile({}); }
+    };
+    load();
+    window.addEventListener(PROFILE_UPDATED_EVENT, load);
+    const timer = window.setInterval(load, 45 * 60 * 1000);
+    return () => { active = false; window.removeEventListener(PROFILE_UPDATED_EVENT, load); window.clearInterval(timer); };
+  }, []);
   const dropdownRef = useRef(null);
   const [modalState, setModalState] = useState({ isOpen: false, mode: 'view' });
 
@@ -42,7 +60,7 @@ const ProfileDropdown = () => {
       <div className={styles.dropdownContainer} ref={dropdownRef}>
         <button type="button" onClick={() => setIsOpen(!isOpen)} className={styles.profileTrigger}
           aria-label="Profile menu" aria-expanded={isOpen} aria-controls={isOpen ? 'account-profile-menu' : undefined}>
-          <User size={20} />
+          <ProfileAvatar profile={profile} className={styles.profileAvatar} fallback={<User size={20} />} />
         </button>
 
         {isOpen && (

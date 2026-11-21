@@ -45,7 +45,7 @@ const buildSensorMetadataGroups = (sensor, instituteLabel, areaName, corridorNam
         rows: [
             ['Institute', instituteLabel],
             ['Area', areaName],
-            ['Lane', corridorName],
+            ['Lane', sensor?.corridor_name || corridorName],
             ['Coordinates', formatCoordinates(sensor?.latitude, sensor?.longitude)],
         ],
     },
@@ -316,7 +316,7 @@ const FloorDashboard = () => {
 
     if (loading) return <div className={styles.loading}>Loading corridor...</div>;
 
-    const corridorName = sensor?.corridor_name || formatAdminRouteLabel(corridorId);
+    const corridorName = sensor?.sensor_name?.trim() || sensor?.corridor_name || formatAdminRouteLabel(corridorId);
     const instituteLabel = instituteName || formatAdminRouteLabel(normalizedCollegeId);
     const areaName = sensor?.area_name || 'Unassigned Area';
     const areaPath = getAdminAreaPath(normalizedCollegeId, slugifyAdminPathSegment(areaName));

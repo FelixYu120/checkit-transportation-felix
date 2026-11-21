@@ -8,6 +8,7 @@ export const getSupabaseAuthRedirectPath = ({ pathname = "", search = "", hash =
 
   if (authType === "invite") return "/create-account";
   if (authType === "recovery") return "/set-password";
+  if (["magiclink", "signup", "email_change", "reauthentication"].includes(authType)) return "/login";
   if ((hasAuthCode || hasAuthToken) && !isPasswordPath) return "/create-account";
 
   return null;

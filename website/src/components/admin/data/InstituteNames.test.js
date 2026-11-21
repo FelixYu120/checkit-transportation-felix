@@ -41,9 +41,11 @@ const namesUrl = new URL('./InstituteNames.js', import.meta.url).href;
 const routeSource = readFileSync(new URL('../routing/AdminRouteUtils.jsx', import.meta.url), 'utf8')
   .replace("'../data/InstituteNames.js'", JSON.stringify(namesUrl));
 const routes = await import(asModule(routeSource));
+const sensorNamesUrl = new URL('./SensorNames.js', import.meta.url).href;
 const navigationSource = readFileSync(new URL('../navigation/SidebarData.jsx', import.meta.url), 'utf8')
   .replace('"../routing/AdminRouteUtils"', JSON.stringify(asModule(routeSource)))
   .replace("'../data/InstituteNames.js'", JSON.stringify(namesUrl))
+  .replace("'../data/SensorNames.js'", JSON.stringify(sensorNamesUrl))
   .replace('import { fetchSensorDirectory } from "../data/SensorDirectoryData";',
     'const fetchSensorDirectory = async () => ({ institutes: [], sensors: [] });');
 const { formatCampusNavigation, filterCampusNavigation, getSearchTokens } = await import(asModule(navigationSource));

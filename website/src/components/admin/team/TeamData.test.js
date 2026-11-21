@@ -104,3 +104,38 @@ test('signed-out invitations never call the backend', async () => {
   globalThis.fetch = () => { throw new Error('Must not call backend'); };
   await assert.rejects(inviteTeamMember({ auth: { getSession: async () => ({ data: { session: null } }) } }, { email: 'new@example.test', role: 'viewer' }), /Sign in/);
 });
+
+
+test("the directory stays institution-scoped before the photo and department columns exist", async () => {
+  const columns = [];
+  const queries = [];
+  const member = { id: 'legacy-member', role: 'viewer', full_name: 'Legacy Member', assigned_institute: 'institute-a' };
+  const supabase = {
+    auth: { getUser: async () => ({ data: { user: { id: 'manager' } }, error: null }) },
+    from() {
+      let select;
+      let single = false;
+      const filters = [];
+      const execute = async () => {
+        columns.push(select);
+        queries.push({ single, filters });
+        if (select.includes('department')) return { error: { message: 'column profile.department does not exist' } };
+        if (select.includes('avatar_path')) return { error: { message: 'column profile.avatar_path does not exist' } };
+        return { data: single ? { id: 'manager', role: 'admin', assigned_institute: 'institute-a' } : [member], error: null };
+      };
+      const query = {
+        select(value) { select = value; return this; },
+        eq(key,value) { filters.push([key,value]); return this; },
+        order() { return this; },
+        maybeSingle() { single = true; return execute(); },
+        then(resolve,reject) { return execute().then(resolve,reject); },
+      };
+      return query;
+    },
+  };
+  const result = await fetchInstitutionTeamMembers(supabase);
+  assert.equal(result.members[0].id, member.id);
+  assert.equal(result.members[0].avatar_url, '');
+  assert.equal(columns.length, 6);
+  assert.ok(queries.filter(query => !query.single).every(query => query.filters.some(([key,value]) => key === 'assigned_institute' && value === 'institute-a')));
+});

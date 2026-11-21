@@ -1,3 +1,5 @@
+import ProfileAvatar from "../../Header/ProfileAvatar";
+import { PROFILE_UPDATED_EVENT, withProfilePhotos } from "../../Header/ProfilePhoto.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Mail, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
@@ -24,13 +26,6 @@ const sortMembersAlphabetically = (members) =>
       sensitivity: "base"
     })
   );
-
-const getMemberInitials = (member) => {
-  const words = String(member.full_name || "").trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return String(member.email || "?").slice(0, 2).toUpperCase();
-  return [words[0], ...(words.length > 1 ? [words[words.length - 1]] : [])]
-    .map((word) => Array.from(word)[0]).join("").toUpperCase();
-};
 
 const MEMBER_TONES = ["forest", "ocean", "indigo", "plum", "amber", "teal"];
 
@@ -147,6 +142,28 @@ const TeamPage = () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const updated = ({ detail }) => {
+      if (!detail?.id) return;
+      const photo = { avatar_path: detail.avatar_path, avatar_url: detail.avatar_url || '' };
+      setMembers(current => current.map(member => member.id === detail.id ? { ...member, ...photo } : member));
+      setActiveMember(current => current?.id === detail.id ? { ...current, ...photo } : current);
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, updated);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, updated);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setInterval(async () => {
+      const refreshed = await withProfilePhotos(supabase, members);
+      if (!active) return;
+      setMembers(refreshed);
+      setActiveMember(current => current ? refreshed.find(member => member.id === current.id) || current : null);
+    }, 45 * 60 * 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [members]);
 
   useEffect(() => {
     const dialog = removalDialogRef.current;
@@ -382,9 +399,7 @@ const TeamPage = () => {
                 aria-label={`View details for ${member.full_name || member.email || "member"}`}
                 aria-haspopup="dialog"
               >
-                <span className={styles.avatar} data-member-tone={getMemberTone(member)} aria-hidden="true">
-                  {getMemberInitials(member)}
-                </span>
+                <ProfileAvatar className={styles.avatar} tone={getMemberTone(member)} profile={member} />
                 <span className={styles.memberText}>
                   <span className={styles.memberNameRow}>
                     <span className={styles.memberName} title={member.full_name || "Unnamed member"}>{member.full_name || "Unnamed member"}</span>
@@ -429,9 +444,7 @@ const TeamPage = () => {
             </button>
           </div>
           <div className={styles.memberDetailsProfile}>
-            <div className={styles.avatar} data-member-tone={getMemberTone(activeMember)} aria-hidden="true">
-              {getMemberInitials(activeMember)}
-            </div>
+            <ProfileAvatar className={styles.avatar} tone={getMemberTone(activeMember)} profile={activeMember} />
             <div>
               <p className={styles.memberDetailsEyebrow}>Team member</p>
               <h3>{activeMember.full_name || "Unnamed member"}</h3>
@@ -499,9 +512,7 @@ const TeamPage = () => {
             </div>
 
             <div className={styles.removalProfile}>
-              <div className={styles.avatar} data-member-tone={getMemberTone(selectedMember)} aria-hidden="true">
-                {getMemberInitials(selectedMember)}
-              </div>
+              <ProfileAvatar className={styles.avatar} tone={getMemberTone(selectedMember)} profile={selectedMember} />
               <div>
                 <h3>{selectedMemberName}</h3>
                 {selectedMember.email ? <p>{selectedMember.email}</p> : null}

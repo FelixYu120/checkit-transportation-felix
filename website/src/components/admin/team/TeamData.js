@@ -1,33 +1,20 @@
+import { withProfilePhotos } from "../../Header/ProfilePhoto.js";
 import { resolveTeamInviteUrl } from "./TeamInviteUrl.js";
 
-const PROFILE_SELECT_WITH_DEPARTMENT = "id, full_name, email, role, department, assigned_institute";
-const PROFILE_SELECT = "id, full_name, email, role, assigned_institute";
-
-/**
- * @typedef {Object} TeamMemberRecord
- * @property {string} id
- * @property {string} full_name
- * @property {string} email
- * @property {string=} role
- * @property {string=} department
- * @property {string=} assigned_institute
- */
-
-const readProfiles = async (supabase, select, applyFilters) => {
-  let query = supabase.from("profile").select(select);
-  query = applyFilters(query);
-  return query;
-};
+const PROFILE_COLUMNS = ['id', 'full_name', 'email', 'role', 'department', 'assigned_institute', 'avatar_path'];
 
 const readProfilesWithFallback = async (supabase, applyFilters) => {
-  const response = await readProfiles(supabase, PROFILE_SELECT_WITH_DEPARTMENT, applyFilters);
-
-  if (!response.error) return response;
-
-  const missingDepartment = /department/i.test(response.error.message || "");
-  if (!missingDepartment) return response;
-
-  return readProfiles(supabase, PROFILE_SELECT, applyFilters);
+  let columns = [...PROFILE_COLUMNS];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await applyFilters(supabase.from("profile").select(columns.join(', ')));
+    if (!response.error) return response;
+    const missing = ['department', 'avatar_path'].find(column =>
+      columns.includes(column) && String(response.error.message || '').toLowerCase().includes(column)
+    );
+    if (!missing) return response;
+    columns = columns.filter(column => column !== missing);
+    if (attempt === 2) return response;
+  }
 };
 
 const normalizeRole = (role) => {
@@ -79,7 +66,7 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
     institutionId: isCheckItAdmin ? "all" : institutionId,
     currentUserId: user.id,
     currentUserRole: currentRole,
-    members: membersResponse.data || []
+    members: await withProfilePhotos(supabase, membersResponse.data || [])
   };
 };
 

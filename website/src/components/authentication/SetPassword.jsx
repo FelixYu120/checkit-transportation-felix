@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
@@ -13,31 +13,37 @@ function SetPassword({ setIsLoggedIn }) {
     const [message, setMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const redirectTimerRef = useRef(null);
     const [hasSession, setHasSession] = useState(false);
 
     useEffect(() => {
         let mounted = true;
-
-        supabase.auth.getSession().then(({ data }) => {
-            if (mounted) setHasSession(Boolean(data.session));
+        if (!supabase) {
+            setErrorMessage('Password reset is not available. Please try again later.');
+            return undefined;
+        }
+        supabase.auth.getSession().then(({ data, error }) => {
+            if (!mounted) return;
+            setHasSession(!error && Boolean(data?.session));
+            if (error) setErrorMessage(error.message);
+        }).catch(error => {
+            if (mounted) setErrorMessage(error.message || 'Your reset link could not be verified. Please try again.');
         });
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-                setHasSession(Boolean(session));
-            }
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (mounted) setHasSession(Boolean(session));
         });
-
-        return () => {
-            mounted = false;
-            authListener.subscription.unsubscribe();
-        };
+        return () => { mounted = false; clearTimeout(redirectTimerRef.current); authListener.subscription.unsubscribe(); };
     }, []);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        if (loading || message) return;
         setErrorMessage('');
         setMessage('');
+        if (!supabase || !hasSession) {
+            setErrorMessage('Open a valid password reset link before saving your password.');
+            return;
+        }
 
         if (password.length < 8) {
             setErrorMessage('Use at least 8 characters for your password.');
@@ -50,17 +56,17 @@ function SetPassword({ setIsLoggedIn }) {
         }
 
         setLoading(true);
-        const { error } = await supabase.auth.updateUser({ password });
-
-        if (error) {
-            setErrorMessage(error.message);
-        } else {
+        try {
+            const { error } = await supabase.auth.updateUser({ password });
+            if (error) throw error;
             setMessage('Password updated. Redirecting to your dashboard…');
-            setIsLoggedIn(true);
-            setTimeout(() => navigate('/map'), 900);
+            setIsLoggedIn?.(true);
+            redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
+        } catch (error) {
+            setErrorMessage(error.message || 'Your password could not be saved. Please try again.');
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
@@ -72,7 +78,7 @@ function SetPassword({ setIsLoggedIn }) {
                     </a>
                 </div>
 
-                {errorMessage && <div className={styles.errorMessage}>{errorMessage}</div>}
+                {errorMessage && <div className={styles.errorMessage} role="alert">{errorMessage}</div>}
                 {message && <div className={styles.successMessage}>{message}</div>}
 
                 <div className={styles.fadein}>
@@ -142,7 +148,7 @@ function SetPassword({ setIsLoggedIn }) {
 
                         <div className={styles.navrow} style={{ marginTop: '24px' }}>
                             <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>Back</button>
-                            <button type="submit" className={styles.continuebutton} disabled={loading || !hasSession}>
+                            <button type="submit" className={styles.continuebutton} disabled={loading || !hasSession || Boolean(message)}>
                                 {loading ? 'Saving…' : 'Save password'}
                             </button>
                         </div>

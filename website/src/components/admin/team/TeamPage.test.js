@@ -26,6 +26,9 @@ const asModule = source => `data:text/javascript;base64,${Buffer.from(source).to
 const source = await readFile(new URL("./TeamPage.jsx", import.meta.url), "utf8");
 const transformed = await transformWithEsbuild(source, "TeamPage.jsx", { loader: "jsx", jsx: "transform" });
 const reactUrl = import.meta.resolve("react");
+const avatarSource = await readFile(new URL("../../Header/ProfileAvatar.jsx", import.meta.url), "utf8");
+const avatarTransform = await transformWithEsbuild(avatarSource, "ProfileAvatar.jsx", { loader: "jsx", jsx: "transform" });
+const avatarModule = asModule(avatarTransform.code.replace(/from "react"/g, `from ${JSON.stringify(reactUrl)}`));
 const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^"']+)\3/gm, (match, prefix, clause, quote, specifier) => {
   let target;
   if (specifier === "react") target = reactUrl;
@@ -34,6 +37,8 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
     target = asModule(`import React from ${JSON.stringify(reactUrl)};\n` + names.map(name => `export const ${name}=()=>React.createElement('span',{'aria-hidden':true});`).join("\n"));
   } else if (specifier.endsWith(".css")) target = asModule("export default new Proxy({}, {get: (_, key)=>String(key)});");
   else if (specifier.includes("SupabaseClients")) target = asModule("export default {};");
+  else if (specifier === "../../Header/ProfileAvatar") target = avatarModule;
+  else if (specifier === "../../Header/ProfilePhoto.js") target = import.meta.resolve("../../Header/ProfilePhoto.js");
   else if (specifier === "./TeamData") target = asModule(`
     const fixture=globalThis.__checkitTeamTest;
     export const fetchInstitutionTeamMembers=async()=>{
@@ -370,4 +375,21 @@ test('outside clicks close profile details and removal confirmation without remo
   assert.equal(document.querySelector('.removalDialog'), null);
   assert.equal(fixture.removeCalls.length, 0);
   assert.equal(document.querySelectorAll('.memberCard').length, 3);
+});
+
+
+test("uploaded photos appear on cards, member details, and removal confirmation without changing roles", async () => {
+  fixture.members[1].avatar_url = 'https://photos.example/member.webp';
+  fixture.members[1].avatar_path = 'member/original.webp';
+  await mount();
+  assert.equal(document.querySelector('[aria-label="View details for Emily Thompson"] .avatar img').src, 'https://photos.example/member.webp');
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.memberDetailsDialog .avatar img').src, 'https://photos.example/member.webp');
+  await act(async () => window.dispatchEvent(new window.CustomEvent('checkit:profile-updated', { detail: {
+    id: 'member', avatar_path: 'member/new.webp', avatar_url: 'https://photos.example/new.webp', role: 'checkit_admin',
+  } })));
+  assert.equal(document.querySelector('.memberDetailsDialog .avatar img').src, 'https://photos.example/new.webp');
+  assert.equal(document.querySelector('.memberDetailsFields .roleBadge').textContent, 'Viewer');
+  await click('.removeFromProfileButton');
+  assert.equal(document.querySelector('.removalDialog .avatar img').src, 'https://photos.example/new.webp');
 });
