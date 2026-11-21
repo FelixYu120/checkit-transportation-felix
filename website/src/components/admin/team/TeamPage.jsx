@@ -87,6 +87,12 @@ const TeamSkeleton = () => (
   </div>
 );
 
+const isDialogBackdropEvent = (event) => {
+  if (event.target !== event.currentTarget) return false;
+  const { left, right, top, bottom } = event.currentTarget.getBoundingClientRect();
+  return event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom;
+};
+
 const TeamPage = () => {
   const [members, setMembers] = useState([]);
   const [institutionId, setInstitutionId] = useState(null);
@@ -96,6 +102,7 @@ const TeamPage = () => {
   const [copiedEmail, setCopiedEmail] = useState("");
   const [activeMember, setActiveMember] = useState(null);
   const memberDialogRef = useRef(null);
+  const backdropPointerRef = useRef(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const removalDialogRef = useRef(null);
   const [confirmationName, setConfirmationName] = useState("");
@@ -161,6 +168,17 @@ const TeamPage = () => {
       dialog.querySelector('input[type="email"]')?.focus();
     }
   }, [inviteOpen]);
+
+  const getDialogBackdropProps = (closeDialog) => ({
+    onPointerDown: (event) => {
+      backdropPointerRef.current = isDialogBackdropEvent(event) ? event.currentTarget : null;
+    },
+    onClick: (event) => {
+      const startedOutside = backdropPointerRef.current === event.currentTarget;
+      backdropPointerRef.current = null;
+      if (startedOutside && isDialogBackdropEvent(event)) closeDialog();
+    },
+  });
 
   const closeMemberDetails = () => {
     memberDialogRef.current?.close();
@@ -398,6 +416,7 @@ const TeamPage = () => {
           ref={memberDialogRef}
           className={`${styles.memberModal} ${styles.memberDetailsDialog}`}
           aria-labelledby="team-member-details-title"
+          {...getDialogBackdropProps(closeMemberDetails)}
           onCancel={(event) => {
             event.preventDefault();
             closeMemberDetails();
@@ -458,6 +477,7 @@ const TeamPage = () => {
           ref={removalDialogRef}
           className={`${styles.memberModal} ${styles.removalDialog}`}
           aria-labelledby="team-remove-title"
+          {...getDialogBackdropProps(closeRemoveConfirmation)}
           aria-describedby="team-remove-description"
           onCancel={(event) => {
             event.preventDefault();
@@ -536,12 +556,10 @@ const TeamPage = () => {
           className={`${styles.memberModal} ${styles.inviteModal}`}
           aria-modal="true"
           aria-labelledby="team-invite-title"
+          {...getDialogBackdropProps(closeInviteModal)}
           onCancel={(event) => {
             event.preventDefault();
             closeInviteModal();
-          }}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) closeInviteModal();
           }}
         >
           <form className={styles.inviteForm} onSubmit={sendInvite} aria-busy={inviteLoading}>

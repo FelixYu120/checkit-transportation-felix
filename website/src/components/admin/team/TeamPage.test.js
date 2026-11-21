@@ -102,6 +102,8 @@ test("removal from member details waits for confirmation and updates the directo
     await enterName(" Emily Thompson ");
     assert.equal(document.querySelector('.removalDialog [type="submit"]').disabled, false);
     await submit();
+    await backdropGesture('.removalDialog');
+    assert.ok(document.querySelector('.removalDialog[open]'), 'a pending removal stays open');
     assert.equal(document.querySelectorAll(".memberCard").length, 3, "membership remains until the server confirms removal");
     assert.equal(document.querySelector('.removalDialog [type="submit"]').disabled, true);
     await act(async () => release());
@@ -217,6 +219,8 @@ test('pending invitations cannot be submitted twice or closed mid-request', asyn
     assert.equal(fixture.inviteCalls.length, 1);
     assert.ok(document.querySelector('.inviteModal input').disabled);
     assert.ok(document.querySelector('.inviteModal select').disabled);
+    await backdropGesture('.inviteModal');
+    assert.ok(document.querySelector('.inviteModal[open]'), 'a pending invitation stays open');
     await click('.inviteModal [aria-label="Close"]');
     assert.ok(document.querySelector('.inviteModal'));
     await act(async () => release());
@@ -321,4 +325,49 @@ test('a profile keeps its avatar color when its details are opened', async () =>
   await click('[aria-label="View details for Emily Thompson"]');
   assert.equal(document.querySelector('.memberDetailsProfile .avatar').getAttribute('data-member-tone'), tone);
   assert.equal(document.querySelector('.memberDetailsFields .roleBadge').getAttribute('data-role'), 'viewer');
+});
+
+const backdropGesture = async (selector, { down = [20, 20], up = down } = {}) => act(async () => {
+  const dialog = document.querySelector(selector);
+  assert.ok(dialog);
+  dialog.getBoundingClientRect = () => ({ left: 100, top: 100, right: 500, bottom: 400, width: 400, height: 300 });
+  dialog.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, clientX: down[0], clientY: down[1] }));
+  dialog.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, clientX: up[0], clientY: up[1] }));
+});
+
+test('clicking outside an invite closes it and clears the next invite without sending', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('operator@example.test');
+  await selectInviteRole('field_operator');
+  await backdropGesture('.inviteModal');
+  assert.equal(document.querySelector('.inviteModal'), null);
+  assert.equal(fixture.inviteCalls.length, 0);
+  await click('[aria-label="Invite member"]');
+  assert.equal(document.querySelector('.inviteModal input[type="email"]').value, '');
+  assert.equal(document.getElementById('team-invite-role').value, 'viewer');
+});
+
+test('clicks inside dialog padding and drags from inside to outside retain the invite', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('operator@example.test');
+  await backdropGesture('.inviteModal', { down: [110, 110] });
+  assert.ok(document.querySelector('.inviteModal[open]'));
+  await backdropGesture('.inviteModal', { down: [200, 200], up: [20, 20] });
+  assert.ok(document.querySelector('.inviteModal[open]'));
+  await click('.inviteModal input[type="email"]');
+  assert.equal(document.querySelector('.inviteModal input[type="email"]').value, 'operator@example.test');
+});
+
+test('outside clicks close profile details and removal confirmation without removing anyone', async () => {
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await backdropGesture('.memberDetailsDialog');
+  assert.equal(document.querySelector('.memberDetailsDialog'), null);
+  await click('[aria-label="Remove Emily Thompson from team"]');
+  await backdropGesture('.removalDialog');
+  assert.equal(document.querySelector('.removalDialog'), null);
+  assert.equal(fixture.removeCalls.length, 0);
+  assert.equal(document.querySelectorAll('.memberCard').length, 3);
 });
