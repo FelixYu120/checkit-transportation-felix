@@ -135,6 +135,31 @@ async function restoreProfile({ userId, role, assignedInstitute }) {
   });
 }
 
+async function getInviteAuthUser(profile, email) {
+  const payload = await callSupabase(`/auth/v1/admin/users/${encodeURIComponent(profile.id)}`);
+  const user = payload?.user || payload;
+  if (user?.id !== profile.id || String(user.email || "").toLowerCase() !== email) {
+    const error = new Error("The member's login does not match their profile. Contact an administrator.");
+    error.status = 409;
+    throw error;
+  }
+  return user;
+}
+
+async function sendExistingMemberEmail(user, email) {
+  const confirmed = Boolean(user.email_confirmed_at);
+  const sent = await callSupabase(confirmed ? "/auth/v1/otp" : "/auth/v1/invite", {
+    method: "POST",
+    query: { redirect_to: `${APP_PUBLIC_URL}/${confirmed ? "login" : "create-account"}` },
+    body: confirmed ? { email, create_user: false } : { email },
+  });
+  if (!confirmed && (sent?.id || sent?.user?.id) !== user.id) {
+    const error = new Error("The invitation service did not confirm an account. Please try again.");
+    error.status = 502;
+    throw error;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -187,28 +212,29 @@ export default async function handler(req, res) {
 
     const existingProfile = await getProfileByEmail(email);
     if (existingProfile?.id) {
-      // Removed members keep their account with no institute; re-inviting restores them.
-      if (existingProfile.assigned_institute || !assignedInstitute) {
+      if (!assignedInstitute || (existingProfile.assigned_institute && existingProfile.assigned_institute !== assignedInstitute)) {
         return res.status(409).json({ error: "A user with that email already exists in the platform." });
       }
 
       if (!isCheckItAdmin && ["checkit_admin", "checkit_field_operator"].includes(normalizeRole(existingProfile.role))) {
         return res.status(403).json({ error: "You cannot change this account's team access." });
       }
-      const restored = await restoreProfile({
-        userId: existingProfile.id,
-        role: requestedRole,
-        assignedInstitute,
-      });
-      if (!restored?.some(profile => profile.id === existingProfile.id && profile.assigned_institute === assignedInstitute)) {
-        return res.status(409).json({ error: "Team access could not be restored. Refresh the team and try again." });
+      const authUser = await getInviteAuthUser(existingProfile, email);
+      const needsRestore = !existingProfile.assigned_institute;
+      if (needsRestore) {
+        const restored = await restoreProfile({ userId: existingProfile.id, role: requestedRole, assignedInstitute });
+        if (!restored?.some(profile => profile.id === existingProfile.id && profile.assigned_institute === assignedInstitute)) {
+          return res.status(409).json({ error: "Team access could not be restored. Refresh the team and try again." });
+        }
       }
+      // Retry delivery for current members without changing their existing access.
+      await sendExistingMemberEmail(authUser, email);
 
       return res.status(200).json({
         ok: true,
         email,
-        role: requestedRole,
-        restored: true,
+        role: needsRestore ? requestedRole : normalizeRole(existingProfile.role),
+        restored: needsRestore,
       });
     }
 

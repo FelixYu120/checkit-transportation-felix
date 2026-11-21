@@ -132,12 +132,13 @@ test("institution admins cannot invite elevated roles", async () => {
   assert.match(response.payload.error, /cannot invite/i);
 });
 
-test("re-inviting a removed member restores their profile instead of sending an invite", async () => {
+test("re-inviting a removed confirmed member restores access and sends a sign-in email", async () => {
   const requests = [];
   global.fetch = async (url, options = {}) => {
     requests.push({ url: String(url), options });
     const parsed = new URL(url);
     if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/removed-user") return jsonResponse({ id: "removed-user", email: "removed@example.com", email_confirmed_at: "2026-10-21T00:00:00Z" });
     if (parsed.searchParams.has("email")) {
       return jsonResponse([{ id: "removed-user", email: "removed@example.com", role: "viewer", assigned_institute: null }]);
     }
@@ -160,6 +161,10 @@ test("re-inviting a removed member restores their profile instead of sending an 
   });
 
   assert.ok(!requests.some(({ url }) => url.includes("/auth/v1/invite")));
+  const emailRequest = requests.find(({ url }) => new URL(url).pathname === "/auth/v1/otp");
+  assert.ok(emailRequest);
+  assert.deepEqual(JSON.parse(emailRequest.options.body), { email: "removed@example.com", create_user: false });
+  assert.equal(new URL(emailRequest.url).searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + "/login");
   const restoreRequest = requests.find(({ options }) => options.method === "PATCH");
   assert.ok(restoreRequest);
   const restoreUrl = new URL(restoreRequest.url);
@@ -171,7 +176,7 @@ test("re-inviting a removed member restores their profile instead of sending an 
   });
 });
 
-test("inviting a member who is still on a team is rejected", async () => {
+test("inviting a member assigned to another institution is rejected", async () => {
   global.fetch = async (url, options = {}) => {
     const parsed = new URL(url);
     if (options.method && options.method !== "GET") throw new Error(`Unexpected ${options.method} ${url}`);
@@ -198,6 +203,7 @@ test("a concurrent team assignment cannot be reported as restored membership", a
   global.fetch = async (url, options = {}) => {
     const parsed = new URL(url);
     if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/removed-user") return jsonResponse({ id: "removed-user", email: "removed@example.com", email_confirmed_at: "2026-10-21T00:00:00Z" });
     if (parsed.searchParams.has("email")) return jsonResponse([{ id: "removed-user", role: "viewer", assigned_institute: null }]);
     if (options.method === "PATCH") return jsonResponse([]);
     return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
@@ -279,4 +285,115 @@ for (const [name, appUrl, productionHost, expected] of [
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
   }
+});
+
+for (const confirmed of [true, false]) test(`re-inviting a current ${confirmed ? "confirmed" : "unconfirmed"} member sends email without changing their role`, async () => {
+  const requests = [];
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    requests.push({ url: parsed, options });
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/member-user") return jsonResponse({ id: "member-user", email: "member@example.com", email_confirmed_at: confirmed ? "2026-10-21T00:00:00Z" : null });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "member-user", email: "member@example.com", role: "viewer", assigned_institute: "institute-1" }]);
+    if (["/auth/v1/otp", "/auth/v1/invite"].includes(parsed.pathname)) return jsonResponse({ id: "member-user" });
+    if (options.method && options.method !== "GET") throw new Error("Existing member access must not change");
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "member@example.com", role: "field_operator" } }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.payload.role, "viewer");
+  assert.equal(response.payload.restored, false);
+  const mail = requests.filter(({ options }) => options.method === "POST");
+  assert.equal(mail.length, 1);
+  assert.equal(mail[0].url.pathname, confirmed ? "/auth/v1/otp" : "/auth/v1/invite");
+  assert.equal(mail[0].url.searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + (confirmed ? "/login" : "/create-account"));
+  assert.deepEqual(JSON.parse(mail[0].options.body), confirmed ? { email: "member@example.com", create_user: false } : { email: "member@example.com" });
+});
+
+test("a restored member can retry email delivery after a mail failure", async () => {
+  let assignedInstitute = null;
+  let mailAttempts = 0;
+  let patches = 0;
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/member-user") return jsonResponse({ id: "member-user", email: "member@example.com", email_confirmed_at: "2026-10-21T00:00:00Z" });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "member-user", email: "member@example.com", role: "viewer", assigned_institute: assignedInstitute }]);
+    if (options.method === "PATCH") {
+      patches++;
+      assignedInstitute = "institute-1";
+      return jsonResponse([{ id: "member-user", assigned_institute: assignedInstitute }]);
+    }
+    if (parsed.pathname === "/auth/v1/otp") {
+      mailAttempts++;
+      return mailAttempts === 1 ? jsonResponse({ message: "Error sending sign-in email" }, 502) : jsonResponse({});
+    }
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const request = createRequest({ token: "admin-access-token", body: { email: "member@example.com", role: "viewer" } });
+  const failed = createResponse();
+  await handler(request, failed);
+  assert.equal(failed.statusCode, 502);
+  assert.match(failed.payload.error, /sending sign-in email/);
+  assert.notEqual(failed.payload.ok, true);
+  const retried = createResponse();
+  await handler(request, retried);
+  assert.equal(retried.statusCode, 200);
+  assert.equal(retried.payload.ok, true);
+  assert.equal(mailAttempts, 2);
+  assert.equal(patches, 1);
+});
+
+test("a mismatched login cannot restore access or send an email", async () => {
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (options.method && options.method !== "GET") throw new Error("Mismatched account must not change or receive mail");
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/member-user") return jsonResponse({ id: "member-user", email: "different@example.com", email_confirmed_at: "2026-10-21T00:00:00Z" });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "member-user", email: "member@example.com", role: "viewer", assigned_institute: null }]);
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "member@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 409);
+  assert.match(response.payload.error, /does not match/);
+});
+
+for (const assignedInstitute of [null, "institute-1"]) test(`institution admins cannot email a protected account with assignment ${assignedInstitute}`, async () => {
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (options.method && options.method !== "GET") throw new Error("Protected account must not change or receive mail");
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "protected-user", email: "protected@example.com", role: "checkit_admin", assigned_institute: assignedInstitute }]);
+    if (parsed.pathname.startsWith("/auth/v1/admin/")) throw new Error("Protected login must not be accessed");
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "protected@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 403);
+});
+
+test("re-inviting an unconfirmed removed member restores access and resends onboarding", async () => {
+  let restored = false;
+  let sent = false;
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/auth/v1/user") return jsonResponse({ id: "admin-user" });
+    if (parsed.pathname === "/auth/v1/admin/users/member-user") return jsonResponse({ id: "member-user", email: "member@example.com", email_confirmed_at: null });
+    if (parsed.searchParams.has("email")) return jsonResponse([{ id: "member-user", email: "member@example.com", role: "viewer", assigned_institute: null }]);
+    if (options.method === "PATCH") { restored = true; return jsonResponse([{ id: "member-user", assigned_institute: "institute-1" }]); }
+    if (parsed.pathname === "/auth/v1/invite") {
+      assert.equal(restored, true);
+      assert.equal(parsed.searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + "/create-account");
+      sent = true;
+      return jsonResponse({ id: "member-user" });
+    }
+    if (parsed.pathname === "/auth/v1/otp") throw new Error("Onboarding needs an invite email");
+    return jsonResponse([{ id: "admin-user", role: "admin", assigned_institute: "institute-1" }]);
+  };
+  const response = createResponse();
+  await handler(createRequest({ token: "admin-access-token", body: { email: "member@example.com", role: "viewer" } }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(sent, true);
 });
