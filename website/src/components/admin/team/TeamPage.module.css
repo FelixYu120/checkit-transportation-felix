@@ -162,7 +162,6 @@
 }
 
 .memberCard {
-  border-inline-start: 3px solid var(--member-accent, #3f755e);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -173,7 +172,6 @@
 .memberCard:hover,
 .memberCard:focus-within {
   border-color: #a8bdb2;
-  border-inline-start-color: var(--member-accent, #3f755e);
   box-shadow: 0 3px 10px rgba(35, 55, 45, .06);
 }
 
@@ -199,11 +197,11 @@
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(24, 43, 34, .12);
+  border: 1px solid var(--member-line, #cbded0);
   border-radius: 10px;
-  background: var(--member-accent, #3f755e);
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+  background: var(--member-tint, #deebe2);
+  color: var(--member-accent, #466451);
+  box-shadow: none;
   font-size: .875rem;
   font-weight: 600;
   letter-spacing: .025em;
@@ -211,32 +209,44 @@
 
 .memberCard[data-member-tone="forest"],
 .avatar[data-member-tone="forest"] {
-  --member-accent: #3f755e;
+  --member-accent: #466451;
+  --member-tint: #deebe2;
+  --member-line: #cbded0;
 }
 
 .memberCard[data-member-tone="ocean"],
 .avatar[data-member-tone="ocean"] {
-  --member-accent: #386b8a;
+  --member-accent: #4b6374;
+  --member-tint: #e0e8ed;
+  --member-line: #cdd8df;
 }
 
 .memberCard[data-member-tone="indigo"],
 .avatar[data-member-tone="indigo"] {
-  --member-accent: #58669c;
+  --member-accent: #5a627b;
+  --member-tint: #e5e7ef;
+  --member-line: #d2d6e3;
 }
 
 .memberCard[data-member-tone="plum"],
 .avatar[data-member-tone="plum"] {
-  --member-accent: #785a83;
+  --member-accent: #6c5a71;
+  --member-tint: #ebe5ec;
+  --member-line: #dbd0dd;
 }
 
 .memberCard[data-member-tone="amber"],
 .avatar[data-member-tone="amber"] {
-  --member-accent: #916b3d;
+  --member-accent: #776646;
+  --member-tint: #eee8de;
+  --member-line: #dfd5c4;
 }
 
 .memberCard[data-member-tone="teal"],
 .avatar[data-member-tone="teal"] {
-  --member-accent: #34797a;
+  --member-accent: #496d65;
+  --member-tint: #deebe8;
+  --member-line: #c9dcd7;
 }
 
 .memberDetailsArrow {
@@ -303,46 +313,21 @@
   max-width: 100%;
   box-sizing: border-box;
   padding: 2px 7px;
-  border: 1px solid #c9ddcf;
+  border: 1px solid var(--checkit-border, #d0dad2);
   border-radius: 5px;
-  background: #e0eee4;
-  color: #365e49;
+  background: #eef2ef;
+  color: #5b6e62;
   font-size: .6875rem;
   font-weight: 500;
   line-height: 1.4;
   white-space: normal;
 }
 
-.roleBadge[data-role="admin"] {
-  border-color: #c5d5e9;
-  background: #e0ebf7;
-  color: #315a83;
-}
-
-.roleBadge[data-role="checkit_admin"] {
-  border-color: #d4c2e5;
-  background: #ede2f7;
-  color: #654486;
-}
-
-.roleBadge[data-role="field_operator"] {
-  border-color: #e3cca5;
-  background: #f7e8cb;
-  color: #80561e;
-}
-
-.roleBadge[data-role="checkit_field_operator"] {
-  border-color: #b6d8d5;
-  background: #dcefeb;
-  color: #2c6663;
-}
-
-
 .youBadge {
   padding: 2px 7px;
   border-radius: 5px;
-  background: #d6e7dc;
-  color: #365c47;
+  background: #e3ece5;
+  color: #4f6b5b;
   font-size: .6875rem;
   font-weight: 500;
 }
