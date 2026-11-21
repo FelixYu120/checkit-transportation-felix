@@ -387,10 +387,10 @@ const TeamPage = () => {
                 </span>
                 <span className={styles.memberText}>
                   <span className={styles.memberNameRow}>
-                    <span className={styles.memberName}>{member.full_name || "Unnamed member"}</span>
+                    <span className={styles.memberName} title={member.full_name || "Unnamed member"}>{member.full_name || "Unnamed member"}</span>
                     {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
-                    <span className={styles.roleBadge} data-role={normalizeRole(member.role)}>{getRoleLabel(member.role)}</span>
                   </span>
+                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={getRoleLabel(member.role)}>{getRoleLabel(member.role)}</span>
                   <span className={styles.memberEmail}>{member.email || "No email available"}</span>
                 </span>
                 <ChevronRight className={styles.memberDetailsArrow} size={16} aria-hidden="true" />
