@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronRight, Copy, Mail, Plus, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Mail, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember } from "./TeamData";
 import styles from "./TeamPage.module.css";
@@ -32,10 +32,31 @@ const getMemberInitials = (member) => {
     .map((word) => Array.from(word)[0]).join("").toUpperCase();
 };
 
+const MEMBER_TONES = ["forest", "ocean", "indigo", "plum", "amber", "teal"];
+
+const getMemberTone = (member) => {
+  const identity = String(member.email || member.id || member.full_name || "member").trim().toLowerCase();
+  const hash = Array.from(identity).reduce((value, character) => (
+    (Math.imul(value, 31) + character.codePointAt(0)) >>> 0
+  ), 0);
+  return MEMBER_TONES[hash % MEMBER_TONES.length];
+};
+
 const normalizeRole = (role) => {
   const normalized = String(role || "viewer").trim().toLowerCase();
   return normalized === "user" ? "viewer" : normalized;
 };
+
+const MEMBER_ROLES = [
+  { value: "viewer", label: "Viewer" },
+  { value: "field_operator", label: "Field Operator" },
+  { value: "admin", label: "Admin" },
+  { value: "checkit_field_operator", label: "CheckIt Field Operator" },
+  { value: "checkit_admin", label: "CheckIt Admin" },
+];
+
+const getRoleLabel = (role) =>
+  MEMBER_ROLES.find((option) => option.value === normalizeRole(role))?.label || "Unknown role";
 
 const INSTITUTION_ADMIN_MANAGEABLE_ROLES = new Set(["field_operator", "viewer", "user"]);
 
@@ -82,7 +103,9 @@ const TeamPage = () => {
   const [removalMessage, setRemovalMessage] = useState("");
   const [savingAction, setSavingAction] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const inviteDialogRef = useRef(null);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
@@ -131,6 +154,14 @@ const TeamPage = () => {
     if (activeMember && dialog && !dialog.open) dialog.showModal();
   }, [activeMember]);
 
+  useEffect(() => {
+    const dialog = inviteDialogRef.current;
+    if (inviteOpen && dialog && !dialog.open) {
+      dialog.showModal();
+      dialog.querySelector('input[type="email"]')?.focus();
+    }
+  }, [inviteOpen]);
+
   const closeMemberDetails = () => {
     memberDialogRef.current?.close();
     setActiveMember(null);
@@ -147,6 +178,10 @@ const TeamPage = () => {
   const canEditSelectedMember = canManageMember(currentUserRole, currentUserId, selectedMember);
   const removalNameMatches = confirmationName.trim() === selectedMemberName;
   const canInviteMembers = ["checkit_admin", "admin"].includes(normalizeRole(currentUserRole));
+  const inviteRoles = MEMBER_ROLES.filter((option) => (
+    normalizeRole(currentUserRole) === "checkit_admin" ||
+    (normalizeRole(currentUserRole) === "admin" && ["viewer", "field_operator"].includes(option.value))
+  ));
 
   const copyEmail = async (email) => {
     if (!email) return;
@@ -182,14 +217,17 @@ const TeamPage = () => {
     setInviteError("");
     setInviteOpen(true);
     setInviteMessage("");
+    setInviteRole("viewer");
   };
 
   const closeInviteModal = () => {
     if (inviteLoading) return;
+    inviteDialogRef.current?.close();
     setInviteOpen(false);
     setInviteEmail("");
     setInviteError("");
     setInviteMessage("");
+    setInviteRole("viewer");
   };
 
   const refreshMembers = async () => {
@@ -229,15 +267,20 @@ const TeamPage = () => {
     event.preventDefault();
     const email = inviteEmail.trim().toLowerCase();
     if (!canInviteMembers || inviteLoading || !email) return;
+    if (!inviteRoles.some((option) => option.value === inviteRole)) {
+      setInviteError("Choose a role you can assign.");
+      return;
+    }
 
     setInviteLoading(true);
     setInviteError("");
     setInviteMessage("");
 
     try {
-      await inviteTeamMember(supabase, { email, role: "viewer" });
+      await inviteTeamMember(supabase, { email, role: inviteRole });
       setInviteMessage("Invited");
       setInviteEmail("");
+      setInviteRole("viewer");
       try {
         await refreshMembers();
       } catch (refreshError) {
@@ -260,7 +303,7 @@ const TeamPage = () => {
         <div className={styles.headerActions}>
           {canInviteMembers ? (
             <button className={styles.inviteTrigger} type="button" onClick={openInviteModal} aria-label="Invite member">
-              <Plus size={18} aria-hidden="true" />
+              <UserPlus size={16} aria-hidden="true" />
               <span>Invite member</span>
             </button>
           ) : null}
@@ -313,7 +356,7 @@ const TeamPage = () => {
       {!loading && !error && filteredMembers.length > 0 && (
         <section className={styles.memberGrid} aria-label="Team members">
           {filteredMembers.map((member) => (
-            <article className={styles.memberCard} key={member.id || member.email}>
+            <article className={styles.memberCard} key={member.id || member.email} data-member-tone={getMemberTone(member)}>
               <button
                 className={styles.memberDetailsButton}
                 type="button"
@@ -321,13 +364,14 @@ const TeamPage = () => {
                 aria-label={`View details for ${member.full_name || member.email || "member"}`}
                 aria-haspopup="dialog"
               >
-                <span className={styles.avatar} aria-hidden="true">
+                <span className={styles.avatar} data-member-tone={getMemberTone(member)} aria-hidden="true">
                   {getMemberInitials(member)}
                 </span>
                 <span className={styles.memberText}>
                   <span className={styles.memberNameRow}>
                     <span className={styles.memberName}>{member.full_name || "Unnamed member"}</span>
                     {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
+                    <span className={styles.roleBadge} data-role={normalizeRole(member.role)}>{getRoleLabel(member.role)}</span>
                   </span>
                   <span className={styles.memberEmail}>{member.email || "No email available"}</span>
                 </span>
@@ -366,7 +410,7 @@ const TeamPage = () => {
             </button>
           </div>
           <div className={styles.memberDetailsProfile}>
-            <div className={styles.avatar} aria-hidden="true">
+            <div className={styles.avatar} data-member-tone={getMemberTone(activeMember)} aria-hidden="true">
               {getMemberInitials(activeMember)}
             </div>
             <div>
@@ -375,6 +419,10 @@ const TeamPage = () => {
             </div>
           </div>
           <dl className={styles.memberDetailsFields}>
+            <div>
+              <dt>Role</dt>
+              <dd><span className={styles.roleBadge} data-role={normalizeRole(activeMember.role)}>{getRoleLabel(activeMember.role)}</span></dd>
+            </div>
             <div>
               <dt>Email</dt>
               <dd>
@@ -431,7 +479,7 @@ const TeamPage = () => {
             </div>
 
             <div className={styles.removalProfile}>
-              <div className={styles.avatar} aria-hidden="true">
+              <div className={styles.avatar} data-member-tone={getMemberTone(selectedMember)} aria-hidden="true">
                 {getMemberInitials(selectedMember)}
               </div>
               <div>
@@ -483,51 +531,82 @@ const TeamPage = () => {
       ) : null}
 
       {inviteOpen ? (
-        <div className={styles.modalBackdrop} onClick={closeInviteModal}>
-          <form
-            className={`${styles.memberModal} ${styles.inviteModal}`}
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="team-invite-title"
-            onClick={(event) => event.stopPropagation()}
-            onSubmit={sendInvite}
-          >
-            <div className={styles.modalHeader}>
+        <dialog
+          ref={inviteDialogRef}
+          className={`${styles.memberModal} ${styles.inviteModal}`}
+          aria-modal="true"
+          aria-labelledby="team-invite-title"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeInviteModal();
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeInviteModal();
+          }}
+        >
+          <form className={styles.inviteForm} onSubmit={sendInvite} aria-busy={inviteLoading}>
+            <div className={styles.inviteModalHeader}>
               <div className={styles.inviteModalTitle}>
                 <div className={styles.inviteIcon}>
-                  <UserPlus size={18} aria-hidden="true" />
+                  <UserPlus size={17} aria-hidden="true" />
                 </div>
                 <h2 id="team-invite-title">Invite member</h2>
               </div>
-              <button className={styles.iconButton} type="button" onClick={closeInviteModal} aria-label="Close">
-                <X size={20} />
+              <button className={styles.iconButton} type="button" onClick={closeInviteModal} aria-label="Close" disabled={inviteLoading}>
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
 
-            <div className={styles.inviteModalFields}>
-              <label className={styles.inviteModalField}>
-                <span>Email</span>
-                <input
-                  className={styles.input}
-                  type="email"
-                  value={inviteEmail}
-                  disabled={inviteLoading}
-                  onChange={(event) => setInviteEmail(event.target.value)}
-                  placeholder="name@example.com"
-                  required
-                />
-              </label>
+            <div className={styles.inviteModalBody}>
+              <div className={styles.inviteModalFields}>
+                <label className={styles.inviteModalField}>
+                  <span>Email</span>
+                  <input
+                    className={styles.input}
+                    type="email"
+                    value={inviteEmail}
+                    disabled={inviteLoading}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    placeholder="name@organization.com"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <label className={styles.inviteModalField}>
+                  <span>Role</span>
+                  <span className={styles.inviteRoleSelect}>
+                    <select
+                      id="team-invite-role"
+                      name="role"
+                      className={styles.input}
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value)}
+                      disabled={inviteLoading}
+                      required
+                    >
+                      {inviteRoles.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </span>
+                </label>
+              </div>
+              {inviteMessage ? <div className={styles.inviteSuccess} role="status">{inviteMessage}</div> : null}
+              {inviteError ? <div className={styles.inviteError} role="alert">{inviteError}</div> : null}
             </div>
 
-            <button className={styles.primaryButton} type="submit" disabled={inviteLoading || !inviteEmail.trim()}>
-              <Send size={16} aria-hidden="true" />
-              {inviteLoading ? "Sending..." : "Send invite"}
-            </button>
-
-            {inviteMessage ? <div className={styles.inviteSuccess} role="status">{inviteMessage}</div> : null}
-            {inviteError ? <div className={styles.inviteError} role="alert">{inviteError}</div> : null}
+            <div className={styles.inviteModalFooter}>
+              <button className={styles.cancelButton} type="button" onClick={closeInviteModal} disabled={inviteLoading}>
+                Cancel
+              </button>
+              <button className={styles.primaryButton} type="submit" disabled={inviteLoading || !inviteEmail.trim()}>
+                <Send size={15} aria-hidden="true" />
+                {inviteLoading ? "Sending..." : "Send invite"}
+              </button>
+            </div>
           </form>
-        </div>
+        </dialog>
       ) : null}
     </main>
   );

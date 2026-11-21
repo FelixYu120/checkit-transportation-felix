@@ -154,11 +154,14 @@ const enterInviteEmail = async value => act(async () => {
   Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(input, value);
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 });
-const submitInvite = async () => act(async () => document.querySelector('.inviteModal').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })));
+const submitInvite = async () => act(async () => document.querySelector('.inviteModal form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })));
 
-test('a confirmed invitation shows success and leaves a usable dialog', async () => {
+test('a confirmed invitation shows success and leaves a usable native dialog', async () => {
   await mount();
   await click('[aria-label="Invite member"]');
+  assert.equal(document.querySelector('.inviteModal').tagName, 'DIALOG');
+  assert.ok(document.querySelector('.inviteModal').open);
+  assert.equal(document.activeElement, document.querySelector('.inviteModal input[type="email"]'));
   await enterInviteEmail('New@Example.test');
   await submitInvite();
   assert.deepEqual(fixture.inviteCalls, [{ email: 'new@example.test', role: 'viewer' }]);
@@ -213,9 +216,109 @@ test('pending invitations cannot be submitted twice or closed mid-request', asyn
     await submitInvite();
     assert.equal(fixture.inviteCalls.length, 1);
     assert.ok(document.querySelector('.inviteModal input').disabled);
+    assert.ok(document.querySelector('.inviteModal select').disabled);
     await click('.inviteModal [aria-label="Close"]');
     assert.ok(document.querySelector('.inviteModal'));
     await act(async () => release());
     assert.equal(document.querySelector('.inviteModal [role="status"]').textContent, 'Invited');
   } finally { release(); }
+});
+
+const selectInviteRole = async value => act(async () => {
+  const select = document.getElementById('team-invite-role');
+  select.value = value;
+  select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+});
+
+test('member roles appear in one directory and in member details, including legacy viewer roles', async () => {
+  fixture.members[1].role = 'user';
+  fixture.members[2].role = 'field_operator';
+  await mount();
+  assert.equal(document.querySelectorAll('[aria-label="Team members"]').length, 1);
+  assert.deepEqual([...document.querySelectorAll('.memberCard .roleBadge')].map(badge => badge.textContent).sort(), ['Admin', 'Field Operator', 'Viewer']);
+  await click('[aria-label="View details for Emily Thompson"]');
+  const role = [...document.querySelectorAll('.memberDetailsFields > div')].find(field => field.querySelector('dt').textContent === 'Role');
+  assert.equal(role.querySelector('dd').textContent, 'Viewer');
+});
+
+test('institution admins can select an operator role and invitations reset to Viewer after success', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  const select = document.getElementById('team-invite-role');
+  assert.equal(select.value, 'viewer');
+  assert.deepEqual([...select.options].map(option => option.value), ['viewer', 'field_operator']);
+  await enterInviteEmail('operator@example.test');
+  await selectInviteRole('field_operator');
+  await submitInvite();
+  assert.deepEqual(fixture.inviteCalls, [{ email: 'operator@example.test', role: 'field_operator' }]);
+  assert.equal(select.value, 'viewer');
+  assert.equal(document.querySelector('.inviteModal [role="status"]').textContent, 'Invited');
+});
+
+for (const role of ['admin', 'checkit_field_operator', 'checkit_admin']) test(`CheckIt admins can invite the permitted ${role} role`, async () => {
+  fixture.currentUserRole = 'checkit_admin';
+  fixture.members[0].role = 'checkit_admin';
+  await mount();
+  await click('[aria-label="Invite member"]');
+  assert.deepEqual([...document.getElementById('team-invite-role').options].map(option => option.value), ['viewer', 'field_operator', 'admin', 'checkit_field_operator', 'checkit_admin']);
+  await enterInviteEmail('member@example.test');
+  await selectInviteRole(role);
+  await submitInvite();
+  assert.deepEqual(fixture.inviteCalls, [{ email: 'member@example.test', role }]);
+});
+
+test('a disallowed role injected into the invite selector is rejected before submission', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('member@example.test');
+  const option = document.createElement('option');
+  option.value = 'checkit_admin';
+  document.getElementById('team-invite-role').append(option);
+  await selectInviteRole('checkit_admin');
+  await submitInvite();
+  assert.equal(fixture.inviteCalls.length, 0);
+  assert.match(document.querySelector('.inviteModal [role="alert"]').textContent, /Choose a role you can assign/);
+});
+
+test('failed invitations preserve the selected role and reopening resets it to Viewer', async () => {
+  fixture.inviteError = new Error('Delivery unavailable');
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('operator@example.test');
+  await selectInviteRole('field_operator');
+  await submitInvite();
+  assert.equal(document.getElementById('team-invite-role').value, 'field_operator');
+  await click('.inviteModal [aria-label="Close"]');
+  await click('[aria-label="Invite member"]');
+  assert.equal(document.getElementById('team-invite-role').value, 'viewer');
+});
+
+test('viewers cannot open invitations', async () => {
+  fixture.currentUserRole = 'viewer';
+  fixture.members[0].role = 'viewer';
+  await mount();
+  assert.equal(document.querySelector('[aria-label="Invite member"]'), null);
+});
+
+
+test('invite dialog cancellation closes cleanly without sending an invitation', async () => {
+  await mount();
+  await click('[aria-label="Invite member"]');
+  await enterInviteEmail('member@example.test');
+  await act(async () => document.querySelector('.inviteModal').dispatchEvent(new dom.window.Event('cancel', { cancelable: true })));
+  assert.equal(document.querySelector('.inviteModal'), null);
+  assert.equal(fixture.inviteCalls.length, 0);
+  assert.equal(document.querySelectorAll('.memberCard').length, 3);
+});
+
+test('a profile keeps its avatar color when its details are opened', async () => {
+  await mount();
+  const button = document.querySelector('[aria-label="View details for Emily Thompson"]');
+  const card = button.closest('.memberCard');
+  const tone = card.getAttribute('data-member-tone');
+  assert.ok(['forest', 'ocean', 'indigo', 'plum', 'amber', 'teal'].includes(tone));
+  assert.equal(button.querySelector('.avatar').getAttribute('data-member-tone'), tone);
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.memberDetailsProfile .avatar').getAttribute('data-member-tone'), tone);
+  assert.equal(document.querySelector('.memberDetailsFields .roleBadge').getAttribute('data-role'), 'viewer');
 });

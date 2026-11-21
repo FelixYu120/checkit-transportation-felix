@@ -157,11 +157,12 @@
   min-width: 0;
   border: 1px solid var(--checkit-border, #d0dad2);
   border-radius: 10px;
-  background: #fff;
+  background: var(--checkit-panel, #fbfcfa);
   box-shadow: none;
 }
 
 .memberCard {
+  border-inline-start: 3px solid var(--member-accent, #3f755e);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -172,7 +173,8 @@
 .memberCard:hover,
 .memberCard:focus-within {
   border-color: #a8bdb2;
-  box-shadow: 0 2px 6px rgba(35, 55, 45, .04);
+  border-inline-start-color: var(--member-accent, #3f755e);
+  box-shadow: 0 3px 10px rgba(35, 55, 45, .06);
 }
 
 .memberDetailsButton {
@@ -197,13 +199,44 @@
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid #d8e2dc;
+  border: 1px solid rgba(24, 43, 34, .12);
   border-radius: 10px;
-  background: #edf2ee;
-  color: #3c6050;
+  background: var(--member-accent, #3f755e);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
   font-size: .875rem;
   font-weight: 600;
   letter-spacing: .025em;
+}
+
+.memberCard[data-member-tone="forest"],
+.avatar[data-member-tone="forest"] {
+  --member-accent: #3f755e;
+}
+
+.memberCard[data-member-tone="ocean"],
+.avatar[data-member-tone="ocean"] {
+  --member-accent: #386b8a;
+}
+
+.memberCard[data-member-tone="indigo"],
+.avatar[data-member-tone="indigo"] {
+  --member-accent: #58669c;
+}
+
+.memberCard[data-member-tone="plum"],
+.avatar[data-member-tone="plum"] {
+  --member-accent: #785a83;
+}
+
+.memberCard[data-member-tone="amber"],
+.avatar[data-member-tone="amber"] {
+  --member-accent: #916b3d;
+}
+
+.memberCard[data-member-tone="teal"],
+.avatar[data-member-tone="teal"] {
+  --member-accent: #34797a;
 }
 
 .memberDetailsArrow {
@@ -266,11 +299,50 @@
   overflow-wrap: anywhere;
 }
 
+.roleBadge {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 2px 7px;
+  border: 1px solid #c9ddcf;
+  border-radius: 5px;
+  background: #e0eee4;
+  color: #365e49;
+  font-size: .6875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.roleBadge[data-role="admin"] {
+  border-color: #c5d5e9;
+  background: #e0ebf7;
+  color: #315a83;
+}
+
+.roleBadge[data-role="checkit_admin"] {
+  border-color: #d4c2e5;
+  background: #ede2f7;
+  color: #654486;
+}
+
+.roleBadge[data-role="field_operator"] {
+  border-color: #e3cca5;
+  background: #f7e8cb;
+  color: #80561e;
+}
+
+.roleBadge[data-role="checkit_field_operator"] {
+  border-color: #b6d8d5;
+  background: #dcefeb;
+  color: #2c6663;
+}
+
+
 .youBadge {
   padding: 2px 7px;
   border-radius: 5px;
-  background: #e8efe9;
-  color: #4e6c5d;
+  background: #d6e7dc;
+  color: #365c47;
   font-size: .6875rem;
   font-weight: 500;
 }
@@ -337,11 +409,11 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #e1eae3;
-  color: #34524d;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--checkit-green, #34524d);
+  color: #fff;
 }
 
 .inviteSuccess,
@@ -386,7 +458,126 @@
 }
 
 .inviteModal {
-  width: min(100%, 440px);
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--checkit-border, #d0dad2);
+  border-radius: 12px;
+  background: var(--checkit-panel, #fbfcfa);
+  color: var(--checkit-ink, #15201f);
+  font-family: var(--checkit-font, system-ui, sans-serif);
+  box-shadow: 0 20px 60px rgba(24, 43, 34, .2);
+}
+
+.inviteModal::backdrop {
+  background: rgba(21, 32, 31, .36);
+  backdrop-filter: blur(3px);
+}
+
+.inviteForm {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: inherit;
+}
+
+.inviteModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--checkit-border, #d0dad2);
+}
+
+.inviteModalHeader h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -.015em;
+}
+
+.inviteModalHeader .iconButton {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.inviteModalHeader .iconButton:hover:not(:disabled) {
+  background: #e7eee8;
+}
+
+.inviteModalBody {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.inviteRoleSelect {
+  position: relative;
+  display: block;
+}
+
+.inviteRoleSelect select {
+  appearance: none;
+  padding-right: 38px;
+}
+
+.inviteRoleSelect > svg {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--checkit-muted, #63756b);
+  pointer-events: none;
+}
+
+.inviteModal .input {
+  min-height: 42px;
+  border-color: #bccdc1;
+  border-radius: 8px;
+  font-size: .875rem;
+  font-weight: 400;
+}
+
+.inviteModal .input:focus {
+  border-color: var(--checkit-green, #34524d);
+  box-shadow: 0 0 0 3px rgba(52, 82, 77, .12);
+}
+
+.inviteModalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--checkit-border, #d0dad2);
+  background: #edf2ee;
+}
+
+.inviteModalFooter .primaryButton,
+.inviteModalFooter .cancelButton {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: .8125rem;
+  font-weight: 600;
+}
+
+.inviteModalFooter .primaryButton {
+  box-shadow: 0 1px 2px rgba(35, 55, 45, .12);
+}
+
+.inviteModalFooter .primaryButton:hover:not(:disabled) {
+  background: var(--checkit-green-dark, #28423e);
 }
 
 .inviteModalTitle {
@@ -410,15 +601,17 @@
   gap: 8px;
 }
 
-.inviteModalField span {
-  color: #334155;
-  font-size: 0.9rem;
-  font-weight: 650;
+.inviteModalField > span:first-child {
+  color: var(--checkit-ink, #15201f);
+  font-size: .8125rem;
+  font-weight: 600;
 }
 
 .inviteModal .inviteSuccess,
 .inviteModal .inviteError {
-  margin-top: 14px;
+  margin: 16px 0 0;
+  border-radius: 6px;
+  font-size: .8125rem;
 }
 
 .modalHeader {
@@ -586,6 +779,8 @@
 }
 
 .memberDetailsFields {
+  display: grid;
+  gap: 12px;
   margin: 0;
   padding: 0 24px 28px;
 }
@@ -851,7 +1046,8 @@
     padding: 20px;
   }
 
-  .memberDetailsDialog {
+  .memberDetailsDialog,
+  .inviteModal {
     padding: 0;
   }
 }

@@ -74,16 +74,18 @@ const inviteClient = { auth: { getSession: async () => ({ data: { session: { acc
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 
-test('invitations send the signed-in token and normalized email, and require confirmation', async () => {
+test('invitations send the selected role, signed-in token and normalized email, and require confirmation', async () => {
   let request;
   globalThis.fetch = async (url, options) => {
     request = { url, options };
     return new Response(JSON.stringify({ ok: true, email: 'new@example.test' }));
   };
-  assert.equal((await inviteTeamMember(inviteClient, { email: ' NEW@Example.Test ', role: 'viewer' })).ok, true);
-  assert.equal(request.url, 'https://checkit-transportation-felix.vercel.app/api/team/invite');
-  assert.equal(request.options.headers.Authorization, 'Bearer session-token');
-  assert.deepEqual(JSON.parse(request.options.body), { email: 'new@example.test', role: 'viewer' });
+  for (const role of ['viewer', 'field_operator', 'admin', 'checkit_field_operator', 'checkit_admin']) {
+    assert.equal((await inviteTeamMember(inviteClient, { email: ' NEW@Example.Test ', role })).ok, true);
+    assert.equal(request.url, 'https://checkit-transportation-felix.vercel.app/api/team/invite');
+    assert.equal(request.options.headers.Authorization, 'Bearer session-token');
+    assert.deepEqual(JSON.parse(request.options.body), { email: 'new@example.test', role });
+  }
 });
 
 for (const body of ['<!doctype html><html>App fallback</html>', '{}', '{"ok":false}', '']) {
