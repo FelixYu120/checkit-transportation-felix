@@ -25,33 +25,32 @@ import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.
 import styles from "./App.module.css";
 import supabase from "./components/helper/SupabaseClients.jsx";
 import { hasPortalAccess } from './lib/portalAccess.js';
+import { leavePortal, redirectToLanding } from './components/authentication/portalExit.js';
 
 function AnalyticsAccessRoute({ isLoggedIn, children }) {
-    const [accessReady, setAccessReady] = useState(false);
-    const [allowed, setAllowed] = useState(false);
+    const [access, setAccess] = useState('checking');
 
     useEffect(() => {
         let active = true;
+        let revoked = false;
         let latestRequest = 0;
 
         const verifyAccess = async () => {
-            if (!active) return;
+            if (!active || revoked) return;
             const request = ++latestRequest;
             if (!supabase || !isLoggedIn) {
-                setAccessReady(true);
-                setAllowed(false);
+                setAccess('signedOut');
                 return;
             }
 
             try {
                 const { data: userResult, error: authError } = await supabase.auth.getUser();
                 if (authError) throw authError;
-
                 const userId = userResult?.user?.id;
                 if (!userId) {
                     if (active && request === latestRequest) {
-                        setAllowed(false);
-                        setAccessReady(true);
+                        revoked = true;
+                        setAccess('revoked');
                     }
                     return;
                 }
@@ -61,22 +60,21 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
                     .select('role,assigned_institute')
                     .eq('id', userId)
                     .maybeSingle();
-
                 if (error) throw error;
 
                 if (active && request === latestRequest) {
-                    setAllowed(hasPortalAccess(data));
-                    setAccessReady(true);
+                    revoked = !hasPortalAccess(data);
+                    setAccess(revoked ? 'revoked' : 'allowed');
                 }
-            } catch {
+            } catch (error) {
                 if (active && request === latestRequest) {
-                    setAllowed(false);
-                    setAccessReady(true);
+                    revoked = [401, 403].includes(error?.status);
+                    setAccess(revoked ? 'revoked' : 'unavailable');
                 }
             }
         };
 
-        verifyAccess();
+        void verifyAccess();
         if (!supabase || !isLoggedIn) return () => { active = false; };
         const timer = window.setInterval(verifyAccess, 30000);
         const refresh = () => { if (document.visibilityState === 'visible') void verifyAccess(); };
@@ -85,7 +83,6 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
         const { data: listener } = supabase.auth.onAuthStateChange(() => {
             window.setTimeout(verifyAccess, 0);
         });
-
         return () => {
             active = false;
             window.clearInterval(timer);
@@ -95,17 +92,14 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
         };
     }, [isLoggedIn]);
 
-    if (!isLoggedIn) return <Navigate to="/login" replace />;
-    if (!accessReady) return <div className={styles.appLayout} />;
-    if (!allowed) {
-        return (
-            <div className={styles.centeredPageShell}>
-                <h1>Access unavailable</h1>
-            </div>
-        );
-    }
+    useEffect(() => {
+        // Remove the complete portal shell before starting session cleanup.
+        if (access === 'revoked') void leavePortal(supabase);
+        else if (access === 'unavailable') redirectToLanding();
+    }, [access]);
 
-    return children;
+    if (!isLoggedIn) return <Navigate to="/login" replace />;
+    return access === 'allowed' ? children : null;
 }
 
 function AppShell({ isLoggedIn, setIsLoggedIn }) {
@@ -114,13 +108,8 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
         location.pathname.startsWith('/dashboard') ||
         location.pathname.startsWith('/insights-studio') ||
         location.pathname.startsWith('/team');
-    const requireAnalyticsAccess = (element) => (
-        <AnalyticsAccessRoute isLoggedIn={isLoggedIn}>
-            {element}
-        </AnalyticsAccessRoute>
-    );
 
-    return (
+    const shell = (
         <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             
             {!['/login', '/create-account'].includes(location.pathname) && (isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />)}
@@ -135,7 +124,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                     <Route path="/dashboard/pepper_canyon/*" element={<Navigate to={DEFAULT_ADMIN_ROUTE} replace />} />
 
                     {/* ------------------- ADMIN DASHBOARD ROUTES ------------------- */}
-                    <Route path="/dashboard/institute/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
+                    <Route path="/dashboard/institute/:collegeId" element={<AdminLayout />}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="corridors/:floorId" element={<FloorDashboard />} />
                         <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
@@ -145,7 +134,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/dashboard/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
+                    <Route path="/dashboard/:collegeId" element={<AdminLayout />}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="corridors/:floorId" element={<FloorDashboard />} />
                         <Route path="corridors/:floorId/:legacyId" element={<Navigate to=".." replace />} />
@@ -155,7 +144,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path=":floorId/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/dashboard/college/:collegeId" element={requireAnalyticsAccess(<AdminLayout />)}>
+                    <Route path="/dashboard/college/:collegeId" element={<AdminLayout />}>
                         <Route index element={<CollegeOverview />} />
                         <Route path="floor/:floorId" element={<FloorDashboard />} />
                         <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
@@ -167,10 +156,10 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                             <Route path="floor/:floorId/corridor/:legacyId" element={<Navigate to=".." replace />} />
                         </Route>
                     </Route>
-                    <Route path="/insights-studio" element={requireAnalyticsAccess(<InsightsStudio />)} />
-                    <Route path="/insights-studio/solo" element={requireAnalyticsAccess(<InsightBuilderPage type="solo" title="Solo Insight" />)} />
-                    <Route path="/insights-studio/comparison" element={requireAnalyticsAccess(<InsightBuilderPage type="comparison" title="Comparison Insight" />)} />
-                    <Route path="/team" element={requireAnalyticsAccess(<TeamPage />)} />
+                    <Route path="/insights-studio" element={<InsightsStudio />} />
+                    <Route path="/insights-studio/solo" element={<InsightBuilderPage type="solo" title="Solo Insight" />} />
+                    <Route path="/insights-studio/comparison" element={<InsightBuilderPage type="comparison" title="Comparison Insight" />} />
+                    <Route path="/team" element={<TeamPage />} />
 
                     {/* ------------------- STATIC PAGES ------------------- */}
                     <Route path="/resources" element={<div className={styles.centeredPageShell}><Resources/></div>} />
@@ -190,6 +179,10 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
             </div>
         </div>
     );
+
+    return isAdminRoute
+        ? <AnalyticsAccessRoute isLoggedIn={isLoggedIn}>{shell}</AnalyticsAccessRoute>
+        : shell;
 }
 
 function AppSession() {

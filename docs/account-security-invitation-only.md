@@ -18,7 +18,7 @@ Use dedicated test accounts in a test institution. Keep an administrator account
 2. Sign in with an existing authorized account on each website and Field Teams. Expect the correct platform, role, and institution.
 3. Invite a fresh test address with a viewer role. Confirm delivery, open the link, enter a name/password, and verify the selected role. The email delivery check is manual; automated tests do not send real invitations.
 4. Sign out and sign back in with the invited account. Try invitation acceptance again and an expired link; neither should create an extra account or grant a higher role.
-5. Remove the test member while their protected page is open in another browser. Expect access to close on focus or within 30 seconds. Direct data access is separately enforced by database/server permissions.
+5. Remove the test member while their protected page is open in another browser. Expect the complete portal, including its header and navigation, to disappear on focus or within 30 seconds. The current platform session is signed out and the browser replaces the protected page with `https://checkit.dev/`. Reopening a protected URL must never show a portal header or private page before membership is verified. Direct data access is separately enforced by database/server permissions.
 6. Reinvite the same address. Expect it to work without a duplicate-account error and preserve appropriate role boundaries.
 7. Sign out normally, reload, and reopen the site. Expect the session to stay signed out. Browser password-manager entries may remain saved.
 8. With the app loaded, interrupt connectivity and sign out. If local logout completes but remote revocation fails, expect the local-only sign-out notice. Reopen after restoring connectivity and verify the local session is absent.
@@ -48,3 +48,10 @@ The application changes still require a successful Vercel deployment. Felix can 
 ## Account-security follow-up
 
 Administrator MFA enrollment, recovery and enforcement across the websites and Field Teams, fresh verification for password changes, hosted-secret ownership review, and any paid protections remain separately tracked. This release does not certify the entire account-security workstream complete. No MFA enrollment, administrator demotion, paid-plan purchase, or user deletion is implicit in deployment.
+
+
+## Revoked-member exit behavior
+
+The access guard covers the complete portal shell rather than only the page content. Confirmed missing or revoked membership removes all portal UI before local session cleanup begins, clears the portal conversation cache, and sends the browser to the main CheckIt landing page using history replacement. Session-cleanup errors do not leave the portal visible. A temporary verification outage also removes the portal and returns to the landing page, while preserving a valid session for later retry.
+
+This uses the existing 30-second membership recheck plus focus and authentication events; it does not claim instantaneous delivery of a remote removal notification. Public pages retain their existing access rules. No user account is deleted, and an authorized reinvitation can restore membership.

@@ -21,9 +21,9 @@ let root;
 let router;
 let importVersion = 0;
 
-async function mount(path, signedIn = true, profile = { role: 'admin', assigned_institute: 'ucsd' }) {
+async function mount(path, signedIn = true, profile = { role: 'admin', assigned_institute: 'ucsd' }, options = {}) {
   window.history.replaceState(null, '', path);
-  globalThis.__checkitRoutingFixture = { signedIn, profile, listeners: new Set(), user: { id: 'owner', email: 'owner@example.test' } };
+  globalThis.__checkitRoutingFixture = { signedIn, profile, listeners: new Set(), user: { id: 'owner', email: 'owner@example.test' }, redirects: [], signOutCalls: [], ...options };
   let { code } = await transformWithEsbuild(source, 'App.jsx', { loader: 'jsx', jsx: 'transform' });
   code = code.replace(/(import\s+([\s\S]*?)\s+from\s*)['"]([^'"]+)['"]/g, (match, prefix, clause, specifier) => {
     if (specifier === 'react') return prefix + JSON.stringify(reactUrl);
@@ -34,8 +34,14 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
         export default { auth:{
           getSession:async()=>({data:{session:fixture().signedIn?{user:fixture().user}:null}}),
           getUser:async()=>({data:{user:fixture().user},error:null}),
+          signOut:async options=>{fixture().signOutCalls.push(options);if(fixture().signOutGate)await fixture().signOutGate;if(fixture().signOutThrows)throw new Error('Logout unavailable');fixture().signedIn=false;return {error:fixture().signOutError||null};},
           onAuthStateChange:callback=>{const listeners=fixture().listeners;listeners.add(callback);return {data:{subscription:{unsubscribe(){listeners.delete(callback)}}}}}
         },from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
+    } else if (specifier.includes('portalExit')) {
+      const target = new URL('../../authentication/portalExit.js', import.meta.url).href;
+      stub = `import {leavePortal as exit,CHECKIT_LANDING_URL} from ${JSON.stringify(target)};
+        export const redirectToLanding=()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LANDING_URL);
+        export const leavePortal=client=>exit(client,redirectToLanding);`;
     } else if (specifier.includes('portalAccess')) {
       return prefix + JSON.stringify(new URL('../../../lib/portalAccess.js', import.meta.url).href);
     } else if (specifier.endsWith('.css')) {
@@ -112,7 +118,9 @@ test('signed-out visitors cannot enter Insights Studio', async () => {
 for (const profile of [null, { role: 'viewer', assigned_institute: null }, { role: 'admin', assigned_institute: '' }, { role: 'unknown', assigned_institute: 'ucsd' }]) {
   test(`inactive or invalid membership cannot enter protected routes: ${JSON.stringify(profile)}`, async () => {
     await mount('/team', true, profile);
-    await until(() => document.body.textContent.includes('Access unavailable'));
+    await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+    assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
     assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   });
 }
@@ -129,7 +137,9 @@ test('returning to an open tab rechecks membership and removes revoked access', 
   await until(() => document.querySelector('[data-page="TeamPage"]'));
   globalThis.__checkitRoutingFixture.profile = { role: 'viewer', assigned_institute: null };
   await act(async () => document.dispatchEvent(new window.Event('visibilitychange')));
-  await until(() => document.body.textContent.includes('Access unavailable'));
+  await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+    assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
 
@@ -144,7 +154,9 @@ test('a delayed older membership response cannot restore access after removal', 
   fixture.profileLookup = null;
   fixture.profile = null;
   await act(async () => document.dispatchEvent(new window.Event('visibilitychange')));
-  await until(() => document.body.textContent.includes('Access unavailable'));
+  await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+    assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
   await act(async () => release({ data: { role: 'admin', assigned_institute: 'ucsd' }, error: null }));
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
@@ -159,7 +171,9 @@ test('an account switch cannot reuse the previous account’s protected page', a
     for (const callback of [...fixture.listeners]) callback('SIGNED_IN', { user: fixture.user });
     await new Promise(resolve => window.setTimeout(resolve, 0));
   });
-  await until(() => document.body.textContent.includes('Access unavailable'));
+  await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+    assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
 
@@ -177,9 +191,74 @@ test('membership is rechecked periodically while a protected page stays open', a
     assert.equal(typeof recheck, 'function');
     globalThis.__checkitRoutingFixture.profile = null;
     await act(async () => recheck());
-    await until(() => document.body.textContent.includes('Access unavailable'));
+    await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+    assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
     assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   } finally {
     window.setInterval = original;
   }
+});
+
+
+test('the portal header and pages never mount before membership is verified', async () => {
+  let release;
+  await mount('/team', true, { role: 'admin', assigned_institute: 'ucsd' }, {
+    profileLookup: () => new Promise(resolve => { release = resolve; }),
+  });
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+  await act(async () => release({ data: { role: 'admin', assigned_institute: 'ucsd' }, error: null }));
+  await until(() => document.querySelector('[data-page="TeamPage"]'));
+  assert.ok(document.querySelector('[data-page="AdminHeader"]'));
+});
+
+test('revocation removes the entire portal before waiting for logout', async () => {
+  await mount('/team');
+  await until(() => document.querySelector('[data-page="TeamPage"]'));
+  const fixture = globalThis.__checkitRoutingFixture;
+  let release;
+  fixture.signOutGate = new Promise(resolve => { release = resolve; });
+  fixture.profile = null;
+  await act(async () => document.dispatchEvent(new window.Event('visibilitychange')));
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+  assert.deepEqual(fixture.signOutCalls, [{ scope: 'local' }]);
+  assert.deepEqual(fixture.redirects, []);
+  // A queued refresh cannot resurrect the portal while sign-out is pending.
+  fixture.profile = { role: 'admin', assigned_institute: 'ucsd' };
+  await act(async () => window.dispatchEvent(new window.Event('focus')));
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+  await act(async () => release());
+  await until(() => fixture.redirects.length > 0);
+  assert.deepEqual(fixture.redirects, ['https://checkit.dev/']);
+});
+
+test('a logout failure cannot leave a revoked member inside the portal', async () => {
+  await mount('/team', true, null, { signOutThrows: true });
+  await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+});
+
+test('temporary verification failures leave the portal without deleting a valid session', async () => {
+  await mount('/team', true, { role: 'admin', assigned_institute: 'ucsd' }, {
+    profileError: { message: 'Temporary network failure', status: 503 },
+  });
+  const fixture = globalThis.__checkitRoutingFixture;
+  await until(() => fixture.redirects.length > 0);
+  assert.deepEqual(fixture.signOutCalls, []);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+});
+
+test('a revoked member cannot recover portal content through another protected URL', async () => {
+  await mount('/team', true, { role: 'viewer', assigned_institute: null });
+  const fixture = globalThis.__checkitRoutingFixture;
+  await until(() => fixture.redirects.length > 0);
+  await act(async () => router.navigate('/insights-studio/comparison?id=report-123'));
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.equal(document.querySelector('[data-page="InsightBuilderPage"]'), null);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
