@@ -1,3 +1,4 @@
+import supabase from '../../helper/SupabaseClients';
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Send } from 'lucide-react'; 
 import styles from './PromiSidebar.module.css';
@@ -7,6 +8,18 @@ const PromiSidebar = ({ floorId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const requestVersion = useRef(0);
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      requestVersion.current += 1;
+      setChatHistory([{role:'assistant',content:'Hello, I am Promi! What would you like to know?'}]);
+      setInputText('');
+      setLoading(false);
+      setErrorMessage('');
+    });
+    return () => { requestVersion.current += 1; data.subscription.unsubscribe(); };
+  }, []);
   const chatEndRef = useRef(null);
 
   const [chatHistory, setChatHistory] = useState([
@@ -21,17 +34,12 @@ const PromiSidebar = ({ floorId }) => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || loading) return;
+    const version = ++requestVersion.current;
+    setErrorMessage('');
 
     const userMessage = { role: 'user', content: inputText };
-    const contextHistory = [
-      { 
-        role: 'system', 
-        content: `You are an assistant for Checkit. The user is currently viewing ${floorId ? `Corridor ${floorId}` : 'the transportation network'}. Do not mention sensor IDs. Only discuss corridor-level transportation data.` 
-      },
-      ...chatHistory,
-      userMessage
-    ];
+    const contextHistory = [...chatHistory, userMessage].slice(-50);
 
     setChatHistory([...chatHistory, userMessage]);
     setInputText('');
@@ -39,10 +47,14 @@ const PromiSidebar = ({ floorId }) => {
 
     try {
         const baseUrl = 'https://checkit-api.vercel.app';
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) throw new Error('Sign in again to use Promi.');
         
         const promiRes = await fetch(`${baseUrl}/api/promi`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(55000),
             body: JSON.stringify({ 
                 chatHistory: contextHistory,
                 floorId
@@ -51,13 +63,14 @@ const PromiSidebar = ({ floorId }) => {
         
 
         const promiData = await promiRes.json();
-        if (promiData.reply) {
+        if (!promiRes.ok) throw new Error(promiData.error || 'Promi is temporarily unavailable.');
+        if (version === requestVersion.current && promiData.reply) {
             setChatHistory(prev => [...prev, { role: 'assistant', content: promiData.reply }]);
         }
     } catch (error) {
-        console.error("Promi Error:", error);
+        if (version === requestVersion.current) setErrorMessage(error.message || 'Promi is temporarily unavailable.');
     } finally {
-        setLoading(false);
+        if (version === requestVersion.current) setLoading(false);
     }
   };
 
@@ -68,6 +81,7 @@ const PromiSidebar = ({ floorId }) => {
         {isOpen ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
       </button>
 
+      {errorMessage && <p role="alert">{errorMessage}</p>}
       <div className={styles.header}>Promi Assistant</div>
 
       <div className={styles.chatContainer}>
