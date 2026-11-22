@@ -61,10 +61,16 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
                     .eq('id', userId)
                     .maybeSingle();
                 if (error) throw error;
+                let accountReady = false;
+                if (hasPortalAccess(data)) {
+                    const readiness = await supabase.rpc('portal_account_ready');
+                    if (readiness.error) throw readiness.error;
+                    accountReady = readiness.data === true;
+                }
 
                 if (active && request === latestRequest) {
                     revoked = !hasPortalAccess(data);
-                    setAccess(revoked ? 'revoked' : 'allowed');
+                    setAccess(revoked ? 'revoked' : accountReady ? 'allowed' : 'onboarding');
                 }
             } catch (error) {
                 if (active && request === latestRequest) {
@@ -99,6 +105,7 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
     }, [access]);
 
     if (!isLoggedIn) return <Navigate to="/login" replace />;
+    if (access === 'onboarding') return <Navigate to="/create-account" replace />;
     return access === 'allowed' ? children : null;
 }
 

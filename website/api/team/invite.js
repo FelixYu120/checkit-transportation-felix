@@ -37,7 +37,7 @@ const readJsonBody = async (req) => {
   return raw ? JSON.parse(raw) : {};
 };
 
-async function callSupabase(path, { method = "GET", token = SUPABASE_SERVICE_KEY, body, query, headers = {} } = {}) {
+export async function callSupabase(path, { method = "GET", token = SUPABASE_SERVICE_KEY, body, query, headers = {} } = {}) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     throw new Error("Supabase admin configuration is missing.");
   }
@@ -49,6 +49,7 @@ async function callSupabase(path, { method = "GET", token = SUPABASE_SERVICE_KEY
 
   const response = await fetch(url, {
     method,
+    signal: AbortSignal.timeout(15000),
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
       Authorization: `Bearer ${token}`,

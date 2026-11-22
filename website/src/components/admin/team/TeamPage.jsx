@@ -287,7 +287,7 @@ const TeamPage = () => {
     try {
       await removeTeamMember(supabase, selectedMember.id);
       setMembers((current) => current.filter((member) => member.id !== selectedMember.id));
-      setRemovalMessage(`${selectedMemberName} was removed from the team.`);
+      setRemovalMessage(`${selectedMemberName} was permanently removed from this platform.`);
       removalDialogRef.current?.close();
       setSelectedMember(null);
       setConfirmationName("");
@@ -405,7 +405,7 @@ const TeamPage = () => {
                     <span className={styles.memberName} title={member.full_name || "Unnamed member"}>{member.full_name || "Unnamed member"}</span>
                     {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
                   </span>
-                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={getRoleLabel(member.role)}>{getRoleLabel(member.role)}</span>
+                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={member.removal_pending ? "Removal pending" : getRoleLabel(member.role)}>{member.removal_pending ? "Removal pending" : getRoleLabel(member.role)}</span>
                   <span className={styles.memberEmail}>{member.email || "No email available"}</span>
                 </span>
                 <ChevronRight className={styles.memberDetailsArrow} size={16} aria-hidden="true" />
@@ -499,7 +499,7 @@ const TeamPage = () => {
         >
           <form onSubmit={removeMember}>
             <div className={styles.modalHeader}>
-              <h2 id="team-remove-title">Remove team member?</h2>
+              <h2 id="team-remove-title">Permanently remove account?</h2>
               <button
                 className={styles.iconButton}
                 type="button"
@@ -520,7 +520,7 @@ const TeamPage = () => {
             </div>
 
             <p id="team-remove-description" className={styles.removalDescription}>
-              To remove this person from the team, type <strong>{selectedMemberName}</strong> exactly as shown.
+              This permanently deletes their account, credentials, and personal profile files from this platform. Company reports and firmware are preserved with personal attribution removed. A future invitation requires fresh account setup. To continue, type <strong>{selectedMemberName}</strong> exactly as shown.
             </p>
             <label className={styles.confirmationLabel} htmlFor="team-remove-name">
               {selectedMember.full_name ? "Full name" : "Email address"}
@@ -554,7 +554,7 @@ const TeamPage = () => {
                 disabled={Boolean(savingAction) || !canEditSelectedMember || !removalNameMatches}
               >
                 <Trash2 size={16} aria-hidden="true" />
-                {savingAction === "remove" ? "Removing..." : "Remove member"}
+                {savingAction === "remove" ? "Removing..." : "Permanently remove"}
               </button>
             </div>
           </form>

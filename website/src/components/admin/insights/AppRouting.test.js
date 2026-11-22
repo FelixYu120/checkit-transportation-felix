@@ -36,7 +36,7 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
           getUser:async()=>({data:{user:fixture().user},error:null}),
           signOut:async options=>{fixture().signOutCalls.push(options);if(fixture().signOutGate)await fixture().signOutGate;if(fixture().signOutThrows)throw new Error('Logout unavailable');fixture().signedIn=false;return {error:fixture().signOutError||null};},
           onAuthStateChange:callback=>{const listeners=fixture().listeners;listeners.add(callback);return {data:{subscription:{unsubscribe(){listeners.delete(callback)}}}}}
-        },from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
+        },rpc:async()=>({data:fixture().accountReady!==false,error:fixture().readinessError||null}),from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
     } else if (specifier.includes('portalExit')) {
       const target = new URL('../../authentication/portalExit.js', import.meta.url).href;
       stub = `import {leavePortal as exit,CHECKIT_LANDING_URL} from ${JSON.stringify(target)};
@@ -261,4 +261,20 @@ test('a revoked member cannot recover portal content through another protected U
   assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
   assert.equal(document.querySelector('[data-page="InsightBuilderPage"]'), null);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+});
+
+
+test('a fresh invitation cannot enter the portal before choosing a password', async () => {
+  await mount('/team',true,{role:'viewer',assigned_institute:'ucsd'},{accountReady:false});
+  await until(() => window.location.pathname === '/create-account');
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+  assert.deepEqual(globalThis.__checkitRoutingFixture.signOutCalls, []);
+});
+
+test('account setup verification fails closed without rendering the portal', async () => {
+  await mount('/team',true,{role:'viewer',assigned_institute:'ucsd'},{readinessError:new Error('Unavailable')});
+  await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
+  assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
 });

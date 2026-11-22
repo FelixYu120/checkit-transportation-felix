@@ -2,7 +2,7 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { fetchInstitutionTeamMembers, removeTeamMember, inviteTeamMember } from "./TeamData.js";
 
-const createTeam = ({ removal = "detach", role = "checkit_admin" } = {}) => {
+const createTeam = ({ role = "checkit_admin" } = {}) => {
   const profiles = new Map([
     ["manager", { id: "manager", role, assigned_institute: "institute-a", full_name: "Manager" }],
     ["member", { id: "member", role: "viewer", assigned_institute: "institute-a", full_name: "Team Member" }],
@@ -30,44 +30,62 @@ const createTeam = ({ removal = "detach", role = "checkit_admin" } = {}) => {
       };
       return query;
     },
-    async rpc(name, args) {
-      calls.push({ name, args });
-      const member = profiles.get(args.target_profile_id);
-      if (removal === "denied") return { data: null, error: new Error("Only admins can remove team members.") };
-      if (removal === "delete") profiles.delete(args.target_profile_id);
-      if (removal === "detach" && member) profiles.set(member.id, { ...member, assigned_institute: null });
-      return { data: null, error: null };
+    async rpc(name) {
+      calls.push({ name });
+      assert.equal(name, 'pending_team_account_removals');
+      return { data: [], error: null };
     },
   };
   return { supabase, calls };
 };
-
-test("removed members stay out of the admin directory after a reload", async () => {
-  const { supabase } = createTeam();
-  assert.equal((await fetchInstitutionTeamMembers(supabase)).members.some(member => member.id === "removed"), false);
-  await removeTeamMember(supabase, "member");
-  assert.equal((await fetchInstitutionTeamMembers(supabase)).members.some(member => member.id === "member"), false);
-});
 
 test("institution admins only load members assigned to their own institution", async () => {
   const { supabase } = createTeam({ role: "admin" });
   assert.deepEqual((await fetchInstitutionTeamMembers(supabase)).members.map(member => member.id), ["manager", "member"]);
 });
 
-for (const removal of ["detach", "delete"]) test(`removal confirms the saved membership when the server uses ${removal}`, async () => {
-  const { supabase, calls } = createTeam({ removal });
-  await removeTeamMember(supabase, "member");
-  assert.deepEqual(calls, [{ name: "remove_team_member", args: { target_profile_id: "member" } }]);
+test("pending cleanups remain visible after reloading so an administrator can retry", async () => {
+  const { supabase } = createTeam({ role: "admin" });
+  supabase.rpc = async name => {
+    assert.equal(name, 'pending_team_account_removals');
+    return { data: [{ id: 'pending', role: 'viewer', assigned_institute: null }], error: null };
+  };
+  const result = await fetchInstitutionTeamMembers(supabase);
+  assert.equal(result.members.find(member => member.id === 'pending').removal_pending, true);
 });
 
-test("a successful RPC response that leaves membership unchanged is not reported as removal", async () => {
-  const { supabase } = createTeam({ removal: "noop" });
-  await assert.rejects(removeTeamMember(supabase, "member"), /still.*team|not.*removed/i);
+test('permanent removal sends the signed-in token and requires server confirmation', async () => {
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url, options };
+    return new Response(JSON.stringify({ ok: true, removed: true, memberId: 'member' }));
+  };
+  await removeTeamMember(inviteClient, 'member');
+  assert.match(request.url, /\/api\/team\/remove$/);
+  assert.equal(request.options.headers.Authorization, 'Bearer session-token');
+  assert.deepEqual(JSON.parse(request.options.body), { memberId: 'member' });
 });
 
-test("backend permission failures remain visible", async () => {
-  const { supabase } = createTeam({ removal: "denied" });
-  await assert.rejects(removeTeamMember(supabase, "member"), /Only admins/);
+for (const payload of [{}, {ok:true}, {ok:true,removed:false,memberId:'member'}, {ok:true,removed:true,memberId:'other'}]) {
+  test(`a partial removal response never claims permanent deletion: ${JSON.stringify(payload)}`, async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+    await assert.rejects(removeTeamMember(inviteClient, 'member'), /deletion could not be confirmed/);
+  });
+}
+
+test('missing removal deployment does not fall back to membership detachment', async () => {
+  globalThis.fetch = async () => new Response('<html>App fallback</html>', {status:404});
+  await assert.rejects(removeTeamMember(inviteClient, 'member'), /unavailable/);
+});
+
+test('cleanup failures stay visible and retryable', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({error:'Cleanup is incomplete. Retry removal.'}), {status:500});
+  await assert.rejects(removeTeamMember(inviteClient, 'member'), /Cleanup is incomplete/);
+});
+
+test('signed-out removal never calls the backend', async () => {
+  globalThis.fetch = () => { throw new Error('Must not call backend'); };
+  await assert.rejects(removeTeamMember({auth:{getSession:async()=>({data:{session:null}})}},'member'), /Sign in/);
 });
 
 const inviteClient = { auth: { getSession: async () => ({ data: { session: { access_token: 'session-token' } } }) } };
@@ -111,6 +129,7 @@ test("the directory stays institution-scoped before the photo and department col
   const queries = [];
   const member = { id: 'legacy-member', role: 'viewer', full_name: 'Legacy Member', assigned_institute: 'institute-a' };
   const supabase = {
+    rpc: async () => ({data:[],error:null}),
     auth: { getUser: async () => ({ data: { user: { id: 'manager' } }, error: null }) },
     from() {
       let select;

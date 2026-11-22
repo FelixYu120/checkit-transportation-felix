@@ -50,7 +50,7 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
       fixture.removeCalls.push(id);
       if(fixture.removalGate) await fixture.removalGate;
       if(fixture.removeError) throw fixture.removeError;
-      fixture.members=fixture.members.map(member=>member.id===id?{...member,assigned_institute:null}:member);
+      fixture.members=fixture.members.filter(member=>member.id!==id);
     };
     export const inviteTeamMember=async(_client, invitation)=>{
       fixture.inviteCalls.push(invitation);
@@ -116,7 +116,7 @@ test("removal from member details waits for confirmation and updates the directo
     assert.equal(document.querySelectorAll(".memberCard").length, 2);
     assert.equal(fixture.loads, 1, "a failed directory refresh cannot undo confirmed removal");
     assert.deepEqual(fixture.removeCalls, ["member"]);
-    assert.match(document.querySelector('[role="status"]').textContent, /Emily Thompson was removed/);
+    assert.match(document.querySelector('[role="status"]').textContent, /Emily Thompson was permanently removed/);
   } finally { release(); }
 });
 

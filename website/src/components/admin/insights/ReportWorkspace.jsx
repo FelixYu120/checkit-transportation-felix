@@ -50,7 +50,7 @@ function ActionItem({ action, members, versions, disabled, onUpdate, onCompare }
   const assignee = members.find(member => member.id === action.assigned_to);
   return <article className={styles.item}>
     <h3>{action.title}</h3>
-    <p>{assignee?.label || 'Team member'} · Due {action.due_date}{action.intervention_date ? ` · Change made ${action.intervention_date}` : ''}</p>
+    <p>{assignee?.label || (action.assigned_to ? 'Team member' : 'Unassigned')} · Due {action.due_date}{action.intervention_date ? ` · Change made ${action.intervention_date}` : ''}</p>
     <div className={styles.fields}><label>Status<select disabled={disabled} value={status} onChange={event => setStatus(event.target.value)}>
       <option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option>
     </select></label>

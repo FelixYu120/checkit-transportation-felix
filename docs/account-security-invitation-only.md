@@ -54,4 +54,42 @@ Administrator MFA enrollment, recovery and enforcement across the websites and F
 
 The access guard covers the complete portal shell rather than only the page content. Confirmed missing or revoked membership removes all portal UI before local session cleanup begins, clears the portal conversation cache, and sends the browser to the main CheckIt landing page using history replacement. Session-cleanup errors do not leave the portal visible. A temporary verification outage also removes the portal and returns to the landing page, while preserving a valid session for later retry.
 
-This uses the existing 30-second membership recheck plus focus and authentication events; it does not claim instantaneous delivery of a remote removal notification. Public pages retain their existing access rules. No user account is deleted, and an authorized reinvitation can restore membership.
+This uses the existing 30-second membership recheck plus focus and authentication events; it does not claim instantaneous delivery of a remote removal notification. Public pages retain their existing access rules. The original membership-only removal retained the Auth account. The permanent-removal release below replaces that behavior for future removals.
+
+
+## Permanent account removal release — November 22, 2026
+
+The team confirmation now explicitly describes permanent deletion **from the selected platform**. Occupancy and Transportation have independent identity stores; removing a person from one does not silently delete the other account. No existing member is removed merely by applying this release. Previously detached accounts are not bulk-deleted, and Felix's restored account is not targeted.
+
+An authenticated administrator calls `POST /api/team/remove` with a member UUID. Supabase verifies the caller, and the database independently rechecks current role, institution, target role, and self-removal protection. Institution administrators can remove their own viewers/field operators; CheckIt administrators can remove other elevated accounts across institutions. Finalization is executable only by the server service role.
+
+Removal first records private, temporary retry state and revokes membership and platform-wide privileges. A concurrent invitation cannot reactivate a pending removal. Personal profile photos, including orphaned older photos, are deleted through the Storage API. Upload checks lock the account row so an in-flight upload cannot escape the cleanup list. If cleanup fails, the account remains revoked and appears as **Removal pending** in the authorized team directory. Retrying continues cleanup. The UI never falls back to the former membership-only RPC or reports a partial cleanup as permanent deletion.
+
+The final database transaction transfers reports to another administrator in the same institution, preserves company firmware with reassigned ownership, anonymizes structured historical identity and attribution, unassigns follow-up work, removes old email-based report shares, and deletes the Auth account, profile, identities, refresh tokens, sessions, factors and account-linked SCIM data. It also deletes its temporary removal record. A report owner cannot be removed without another administrator in that institution. Unknown owned file buckets block removal for review rather than deleting company assets. Finish pending removals before removing their receiving administrator. If the receiving administrator's role/institution changes during cleanup, support must repair the recipient before finalization.
+
+Saved report versions remain immutable during normal work; only the owner-executed removal transaction may redact attribution. Company narrative content is preserved. The release does not promise to remove arbitrary mentions embedded in free text, third-party mailboxes, browser password vaults, managed audit records, or retained backups. Existing access JWTs can remain cryptographically valid until expiry; missing membership denies private application access. The website exits the portal on its existing focus/authentication/30-second recheck.
+
+A reinvitation after successful deletion creates a fresh Auth identity. A server-owned readiness check verifies that the account has a password before protected portal pages render. Opening an email invitation authenticates email ownership, but a fresh invited account must still complete password setup. Existing accounts with passwords remain ready. Public signup remains disabled. This does not configure the still-pending production SMTP provider.
+
+### Deployment and verification
+
+Stage `supabase/migrations/20261123010000_permanent_team_account_removal.sql` first, in a transaction, and record its exact version in Supabase migration history. Other pending telemetry/photo migrations are outside this release. Deploy the API and website together and verify the production API is live. Only then apply and record `20261123010100_retire_membership_only_removal.sql`. The second phase makes the old removal RPC explicitly require a portal refresh, so an outdated client cannot silently detach an account. If publication is blocked, leave the retirement migration unapplied: existing administrators must retain their current ability to revoke access while the release awaits deployment.
+
+For local SQL regression tests, create an isolated PostgreSQL database named `checkit_permanent_removal_test` and run:
+
+```sh
+python3 supabase/tests/run_permanent_removal.py --host /path/to/local/socket --port 55439
+```
+
+The runner inlines the actual workflow and removal migrations in one fixture transaction and rolls back synthetic identities, files, reports, and permissions. The historical `team_member_removal.sql` tests cover the superseded migration; this new suite covers permanent deletion.
+
+After deployment, use a dedicated disposable account, not a real colleague:
+
+1. Keep an administrator signed in separately. Invite the disposable address with a viewer role and complete its account setup.
+2. Keep its private portal open in another browser, remove it as administrator, type its exact displayed name/email, and confirm permanent removal. The member should disappear, and its open portal should leave for CheckIt's landing page on focus or within 30 seconds.
+3. Try the old password and old protected URLs. Private access must fail. Confirm profile photos are gone and company reports/firmware remain with transferred ownership and former-member attribution.
+4. Reinvite the same email. It must have a new UUID, require fresh password setup, and inherit no old email-based report shares. Delivery still requires working SMTP.
+5. With a disposable account, simulate a Storage/API outage. Expect no false success, a revoked account, a pending-removal row after reload, and a successful retry once connectivity is restored.
+6. Confirm viewers, field operators, another institution's administrator, and self-removal are denied; confirm authorized administration still works on both platforms.
+
+Rolling back the website must not restore the detach-only RPC. Keep the new removal protections in place; completed account deletions are irreversible and are not undone by a code rollback.

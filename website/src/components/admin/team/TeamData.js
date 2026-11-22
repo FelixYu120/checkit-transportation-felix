@@ -61,12 +61,18 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   );
 
   if (membersResponse.error) throw membersResponse.error;
+  const pending = await supabase.rpc("pending_team_account_removals");
+  if (pending.error) throw pending.error;
+  const members = [...(membersResponse.data || [])];
+  for (const member of pending.data || []) {
+    if (!members.some(existing => existing.id === member.id)) members.push({ ...member, removal_pending: true });
+  }
 
   return {
     institutionId: isCheckItAdmin ? "all" : institutionId,
     currentUserId: user.id,
     currentUserRole: currentRole,
-    members: await withProfilePhotos(supabase, membersResponse.data || [])
+    members: await withProfilePhotos(supabase, members)
   };
 };
 
@@ -83,24 +89,22 @@ export const updateTeamMemberRole = async (supabase, memberId, role) => {
 export const removeTeamMember = async (supabase, memberId) => {
   if (!supabase || !memberId) throw new Error("Choose a member to remove.");
 
-  const { data, error } = await supabase.rpc("remove_team_member", {
-    target_profile_id: memberId
+  const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const token = sessionResult?.session?.access_token;
+  if (!token) throw new Error("Sign in before removing a member.");
+  const response = await fetch(resolveTeamInviteUrl(import.meta.env?.VITE_TEAM_API_URL).replace(/\/invite$/, "/remove"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ memberId }),
   });
-  if (error) throw error;
-
-  // The RPC can return no body. Confirm the persisted membership before showing success.
-  const { data: remainingMember, error: verificationError } = await supabase
-    .from("profile")
-    .select("id, assigned_institute")
-    .eq("id", memberId)
-    .maybeSingle();
-  if (verificationError) {
-    throw new Error("The removal could not be confirmed. Refresh the team before trying again.", { cause: verificationError });
+  let result;
+  try { result = await response.json(); } catch { /* A missing endpoint may serve HTML. */ }
+  if (!response.ok) throw new Error(result?.error || "Account removal is unavailable. Refresh and try again.");
+  if (result?.ok !== true || result?.removed !== true || result?.memberId !== memberId) {
+    throw new Error("Permanent account deletion could not be confirmed. Refresh and try again.");
   }
-  if (remainingMember?.assigned_institute) {
-    throw new Error("This member is still assigned to the team. Please try again.");
-  }
-  return data;
+  return result;
 };
 
 export const inviteTeamMember = async (supabase, { email, role }) => {
