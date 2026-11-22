@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import styles from './LoginPage.module.css';
 import supabase from '../helper/SupabaseClients'; 
+import { LOCAL_SIGN_OUT_MESSAGE } from './signOut.js';
 
 const AUTOFILL_PREFIX = 'checkit-transportation';
 
@@ -20,6 +21,7 @@ function Login({ setIsLoggedIn }) {
     const [showPassword, setShowPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const locallySignedOut = new URLSearchParams(window.location.search).get('signedOut') === 'local';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -78,6 +80,8 @@ function Login({ setIsLoggedIn }) {
                     <span className={styles.productName}>Transportation</span>
                 </div>
                 <h1 id="login-title" className={styles.title}>Sign in</h1>
+
+                {locallySignedOut && <div className={styles.successMessage} role="status">{LOCAL_SIGN_OUT_MESSAGE}</div>}
 
                 {errorMessage && <div id="login-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
 

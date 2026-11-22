@@ -10,14 +10,14 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
   auth: {
     getSession: async () => {
       if (fixture.gate) await fixture.gate;
       if (fixture.sessionError) throw fixture.sessionError;
-      return { data: { session: { user: account } }, error: null };
+      return { data: { session: fixture.initialSession }, error: null };
     },
     getUser: async () => ({ data: { user: account }, error: null }),
     onAuthStateChange: callback => { fixture.sessionCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
@@ -26,7 +26,7 @@ fixture.client = {
     async resetPasswordForEmail(email) { fixture.calls.push({ action: 'reset', email }); if (fixture.failure) throw fixture.failure; return { error: null }; },
     async signUp() { throw new Error('An invited account must not register again'); },
   },
-  from() { return { async upsert(input) { fixture.calls.push({ action: 'profile', input }); return { error: fixture.profileError }; } }; },
+  from() { return { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: fixture.inviteProfile, error: null }; }, async upsert(input) { fixture.calls.push({ action: 'profile', input }); return { error: fixture.profileError }; } }; },
 };
 const reactUrl = import.meta.resolve('react');
 const asModule = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
@@ -37,6 +37,8 @@ async function loadComponent(name) {
     let target;
     if (specifier === 'react') target = reactUrl;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, key)=>String(key)});');
+    else if (specifier.includes('portalAccess')) target = new URL('../../lib/portalAccess.js', import.meta.url).href;
+    else if (specifier === './signOut.js') target = new URL('./signOut.js', import.meta.url).href;
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__authFormTest.client;');
     else if (specifier === 'react-router-dom') target = asModule(`import React from ${JSON.stringify(reactUrl)}; export const useNavigate=()=>path=>globalThis.__authFormTest.navigations.push(path); export const Link=props=>React.createElement('a',props);`);
     else if (specifier === 'lucide-react') target = asModule(`import React from ${JSON.stringify(reactUrl)};` + clause.match(/\{([\s\S]*?)\}/)[1].split(',').map(name => `export const ${name.trim()}=()=>React.createElement('span',{'aria-hidden':true});`).join('\n'));
@@ -239,4 +241,38 @@ test('an unconfirmed sign-in cannot claim success or navigate into the platform'
   assert.deepEqual(fixture.logins, []);
   assert.deepEqual(fixture.navigations, []);
   assert.equal(document.querySelector('button[type="submit"]').disabled, false);
+});
+
+
+test('partial logout clearly reports that only this device is signed out', async () => {
+  window.history.replaceState(null, '', '/login?signedOut=local');
+  try {
+    await mount(Login);
+    assert.match(document.querySelector('[role="status"]').textContent, /Signed out on this device/);
+    assert.match(document.querySelector('[role="status"]').textContent, /couldn’t confirm sign-out on your other devices/);
+  } finally {
+    window.history.replaceState(null, '', '/');
+  }
+});
+
+
+test('signed-out visitors see invitation-only access without a registration form', async () => {
+  fixture.initialSession = null;
+  await mount(CreateAccount);
+  assert.match(document.body.textContent, /Access is by invitation only/);
+  assert.equal(document.querySelector('form'), null);
+  assert.equal(document.querySelector('input[type="password"]'), null);
+  assert.deepEqual(fixture.calls, []);
+});
+
+test('an existing account without membership cannot complete invitation setup', async () => {
+  fixture.inviteProfile = null;
+  await mount(CreateAccount);
+  await enter('#signup-first-name', 'Example');
+  await enter('#signup-last-name', 'User');
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  await submit();
+  assert.match(document.querySelector('[role="alert"]').textContent, /active invitation is required/);
+  assert.deepEqual(fixture.calls, []);
+  assert.deepEqual(fixture.logins, []);
 });

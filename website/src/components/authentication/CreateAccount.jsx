@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './LoginPage.module.css';
+import { hasPortalAccess } from '../../lib/portalAccess.js';
 
 function CreateAccount({ setIsLoggedIn }) {
     const navigate = useNavigate();
@@ -54,6 +55,11 @@ function CreateAccount({ setIsLoggedIn }) {
         }
 
 
+        if (!hasInviteSession) {
+            setErrorMessage('Access is by invitation only. Ask your administrator for an invitation.');
+            return;
+        }
+
         const trimmedFirstName = firstName.trim();
         const trimmedLastName = lastName.trim();
         const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
@@ -77,40 +83,27 @@ function CreateAccount({ setIsLoggedIn }) {
         setLoading(true);
         try {
             const metadata = { first_name: trimmedFirstName, last_name: trimmedLastName, full_name: fullName };
-            if (hasInviteSession) {
-                const identity = await supabase.auth.getUser();
-                if (identity.error) throw identity.error;
-                const user = identity.data?.user;
-                if (!user?.id) throw new Error('Your invitation session has expired. Reopen the invitation to retry.');
-                // Save the profile first: a profile error must not strand the
-                // user after their password has already changed.
-                const { error: profileError } = await supabase.from('profile').upsert({
-                    id: user.id, email: user.email || normalizedEmail, full_name: fullName
-                });
-                if (profileError) throw new Error('Your profile could not be completed. Please try again.');
-                const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
-                if (error) throw error;
-                if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
-                setSuccessMessage('Account created. Redirecting to your dashboard…');
-                setIsLoggedIn?.(true);
-                redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
-            } else {
-                const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: {
-                    data: metadata, emailRedirectTo: `${window.location.origin}/login`
-                } });
-                if (error) throw error;
-                if (data?.session?.user?.id) {
-                    const { error: profileError } = await supabase.from('profile').upsert({
-                        id: data.session.user.id, email: data.session.user.email || normalizedEmail, full_name: fullName
-                    });
-                    if (profileError) throw new Error('Your account was created, but your profile could not be completed. Please sign in to retry.');
-                    setIsLoggedIn?.(true);
-                    navigate('/map');
-                } else {
-                    setSuccessMessage('Account request created. Check your email to confirm your account, then sign in.');
-                    setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setConfirmPassword('');
-                }
+            const identity = await supabase.auth.getUser();
+            if (identity.error) throw identity.error;
+            const user = identity.data?.user;
+            if (!user?.id) throw new Error('Your invitation session has expired. Reopen the invitation to retry.');
+            const { data: membership, error: membershipError } = await supabase.from('profile')
+                .select('role,assigned_institute').eq('id', user.id).maybeSingle();
+            if (membershipError) throw membershipError;
+            if (!hasPortalAccess(membership)) {
+                throw new Error('An active invitation is required. Ask your administrator to invite you.');
             }
+            // Complete an existing invited account; public registration is disabled.
+            const { error: profileError } = await supabase.from('profile').upsert({
+                id: user.id, email: user.email || normalizedEmail, full_name: fullName
+            });
+            if (profileError) throw new Error('Your profile could not be completed. Please try again.');
+            const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
+            if (error) throw error;
+            if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
+            setSuccessMessage('Account ready. Redirecting to your dashboard…');
+            setIsLoggedIn?.(true);
+            redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
         } catch (error) {
             setErrorMessage(error.message || 'Your account could not be saved. Please try again.');
         } finally {
@@ -127,15 +120,15 @@ function CreateAccount({ setIsLoggedIn }) {
                     </a>
                     <span className={styles.productName}>Transportation</span>
                 </div>
-                <h1 id="signup-title" className={styles.title}>Create account</h1>
+                <h1 id="signup-title" className={styles.title}>{hasInviteSession ? 'Complete your account' : 'Invitation required'}</h1>
                 <p id="signup-intro" className={styles.intro}>
-                    {hasInviteSession ? 'Add your name and choose a password.' : 'Use the email approved for platform access.'}
+                    {!authReady ? 'Checking your invitation…' : hasInviteSession ? 'Add your name and choose a password.' : 'Access is by invitation only. Ask your institution administrator for an invitation.'}
                 </p>
 
                 {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
                 {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
 
-                <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
+                {(!authReady || hasInviteSession) && <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
                     <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
                             <label htmlFor="signup-first-name">First name</label>
@@ -237,9 +230,9 @@ function CreateAccount({ setIsLoggedIn }) {
                     </div>
 
                     <button type="submit" className={styles.submitButton} disabled={loading || !authReady || !supabase || (hasInviteSession && Boolean(successMessage))}>
-                        {!authReady ? 'Checking invite…' : loading ? 'Creating account…' : hasInviteSession ? 'Save password' : 'Create account'}
+                        {!authReady ? 'Checking invite…' : loading ? 'Saving…' : 'Save password'}
                     </button>
-                </form>
+                </form>}
                 <Link className={styles.backLink} to="/login">Back to sign in</Link>
             </div>
         </main>

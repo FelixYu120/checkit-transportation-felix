@@ -24,19 +24,7 @@ import { DEFAULT_ADMIN_ROUTE } from './components/admin/routing/AdminRouteUtils.
 
 import styles from "./App.module.css";
 import supabase from "./components/helper/SupabaseClients.jsx";
-
-const ANALYTICS_ALLOWED_ROLES = new Set([
-  'viewer',
-  'field_operator',
-  'admin',
-  'checkit_field_operator',
-  'checkit_admin',
-]);
-
-const normalizeAnalyticsRole = (role) => {
-    const normalized = String(role || 'viewer').trim().toLowerCase();
-    return normalized === 'user' ? 'viewer' : normalized;
-};
+import { hasPortalAccess } from './lib/portalAccess.js';
 
 function AnalyticsAccessRoute({ isLoggedIn, children }) {
     const [accessReady, setAccessReady] = useState(false);
@@ -44,9 +32,12 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
 
     useEffect(() => {
         let active = true;
+        let latestRequest = 0;
 
         const verifyAccess = async () => {
-            if (!isLoggedIn) {
+            if (!active) return;
+            const request = ++latestRequest;
+            if (!supabase || !isLoggedIn) {
                 setAccessReady(true);
                 setAllowed(false);
                 return;
@@ -58,7 +49,7 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
 
                 const userId = userResult?.user?.id;
                 if (!userId) {
-                    if (active) {
+                    if (active && request === latestRequest) {
                         setAllowed(false);
                         setAccessReady(true);
                     }
@@ -67,19 +58,18 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
 
                 const { data, error } = await supabase
                     .from('profile')
-                    .select('role')
+                    .select('role,assigned_institute')
                     .eq('id', userId)
                     .maybeSingle();
 
                 if (error) throw error;
 
-                const role = normalizeAnalyticsRole(data?.role);
-                if (active) {
-                    setAllowed(ANALYTICS_ALLOWED_ROLES.has(role));
+                if (active && request === latestRequest) {
+                    setAllowed(hasPortalAccess(data));
                     setAccessReady(true);
                 }
             } catch {
-                if (active) {
+                if (active && request === latestRequest) {
                     setAllowed(false);
                     setAccessReady(true);
                 }
@@ -87,9 +77,21 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
         };
 
         verifyAccess();
+        if (!supabase || !isLoggedIn) return () => { active = false; };
+        const timer = window.setInterval(verifyAccess, 30000);
+        const refresh = () => { if (document.visibilityState === 'visible') void verifyAccess(); };
+        document.addEventListener('visibilitychange', refresh);
+        window.addEventListener('focus', refresh);
+        const { data: listener } = supabase.auth.onAuthStateChange(() => {
+            window.setTimeout(verifyAccess, 0);
+        });
 
         return () => {
             active = false;
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', refresh);
+            window.removeEventListener('focus', refresh);
+            listener?.subscription?.unsubscribe();
         };
     }, [isLoggedIn]);
 
@@ -193,6 +195,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
 function AppSession() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
+    const [sessionIdentity, setSessionIdentity] = useState(null);
 
     useEffect(() => {
         if (!supabase) {
@@ -209,6 +212,7 @@ function AppSession() {
         let authEventReceived = false;
         supabase.auth.getSession().then(({ data, error }) => {
             if (!active || authEventReceived) return;
+            setSessionIdentity(data?.session?.user?.id || null);
             setIsLoggedIn(!error && Boolean(data?.session));
             setAuthReady(true);
         }).catch(() => {
@@ -220,6 +224,7 @@ function AppSession() {
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!active) return;
             authEventReceived = true;
+            setSessionIdentity(session?.user?.id || null);
             setIsLoggedIn(Boolean(session));
             setAuthReady(true);
         });
@@ -234,7 +239,7 @@ function AppSession() {
         return <div className={styles.appLayout} />;
     }
 
-    return <AppShell isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />;
+    return <AppShell key={sessionIdentity} isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />;
 }
 
 // A data router lets the report editor protect browser Back as well as app links.

@@ -86,3 +86,10 @@
 }
 
 .profileAvatar { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; }
+
+.signOutError {
+  margin: 8px 12px;
+  color: #9b2c2c;
+  font-size: 13px;
+  line-height: 1.5;
+}

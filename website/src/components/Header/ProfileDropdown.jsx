@@ -7,10 +7,14 @@ import ProfileModal from './ProfileModal';
 import ProfileAvatar from './ProfileAvatar';
 import { fetchCurrentProfile } from './ProfileData.js';
 import { PROFILE_UPDATED_EVENT } from './ProfilePhoto.js';
+import { signOutAccount } from '../authentication/signOut.js';
 
 const ProfileDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState({});
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
+  const signOutPending = useRef(false);
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -43,6 +47,7 @@ const ProfileDropdown = () => {
   }, []);
 
   const handleAction = async (action) => {
+    if (signOutPending.current) return;
     setIsOpen(false);
 
     if (action === 'Profile') {
@@ -50,8 +55,19 @@ const ProfileDropdown = () => {
     } else if (action === 'Change Password') {
       setModalState({ isOpen: true, mode: 'password' });
     } else if (action === 'Log Out') {
-      await supabase.auth.signOut();
-      window.location.href = '/';
+      signOutPending.current = true;
+      setSigningOut(true);
+      setSignOutError('');
+      try {
+        const { remoteSignedOut } = await signOutAccount(supabase);
+        window.location.replace(remoteSignedOut ? '/' : '/login?signedOut=local');
+      } catch {
+        setSignOutError('We couldn’t confirm sign-out on this device. Please try again.');
+        setIsOpen(true);
+      } finally {
+        signOutPending.current = false;
+        setSigningOut(false);
+      }
     }
   };
 
@@ -76,8 +92,9 @@ const ProfileDropdown = () => {
               <KeyRound size={16} /> Change password
             </button>
             <hr className={styles.divider} />
-            <button onClick={() => handleAction('Log Out')} className={`${styles.menuItem} ${styles.dangerItem}`}>
-              <LogOut size={16} /> Sign out
+            {signOutError && <p className={styles.signOutError} role="alert">{signOutError}</p>}
+            <button onClick={() => handleAction('Log Out')} className={`${styles.menuItem} ${styles.dangerItem}`} disabled={signingOut}>
+              <LogOut size={16} /> {signingOut ? 'Signing out…' : 'Sign out'}
             </button>
           </div>
         )}
