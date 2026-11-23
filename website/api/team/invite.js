@@ -103,12 +103,12 @@ async function getProfileByEmail(email) {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
-async function upsertInviteProfile({ userId, email, role, assignedInstitute, onlyIfMissing = false }) {
+async function upsertInviteProfile({ userId, email, role, assignedInstitute }) {
   return callSupabase("/rest/v1/profile", {
     method: "POST",
     query: { on_conflict: "id" },
     headers: {
-      Prefer: `resolution=${onlyIfMissing ? "ignore" : "merge"}-duplicates,return=representation`,
+      Prefer: "resolution=merge-duplicates,return=representation",
     },
     body: [{
       id: userId,
@@ -116,23 +116,6 @@ async function upsertInviteProfile({ userId, email, role, assignedInstitute, onl
       role,
       assigned_institute: assignedInstitute || null,
     }],
-  });
-}
-
-async function restoreProfile({ userId, role, assignedInstitute }) {
-  return callSupabase("/rest/v1/profile", {
-    method: "PATCH",
-    query: {
-      id: `eq.${userId}`,
-      assigned_institute: "is.null",
-    },
-    headers: {
-      Prefer: "return=representation",
-    },
-    body: {
-      role,
-      assigned_institute: assignedInstitute,
-    },
   });
 }
 
@@ -147,14 +130,17 @@ async function getInviteAuthUser(profile, email) {
   return user;
 }
 
-async function sendExistingMemberEmail(user, email, actorId) {
+async function sendPendingInvitationEmail(user, email, actorId) {
   const delivery = await callSupabase('/rest/v1/rpc/authorize_invitation_delivery', {
     method: 'POST', body: { actor_profile_id: actorId, target_profile_id: user.id },
   });
+  if (delivery.setup_required !== true) {
+    throw Object.assign(new Error('User already has an account.'), {status: 409});
+  }
   const confirmed = Boolean(user.email_confirmed_at);
   const sent = await callSupabase(confirmed ? "/auth/v1/otp" : "/auth/v1/invite", {
     method: "POST",
-    query: { redirect_to: `${APP_PUBLIC_URL}/create-account` },
+    query: { redirect_to: new URL("/signup", APP_PUBLIC_URL).href },
     body: confirmed ? { email, create_user: false } : { email },
   });
   if (!confirmed && (sent?.id || sent?.user?.id) !== user.id) {
@@ -165,21 +151,6 @@ async function sendExistingMemberEmail(user, email, actorId) {
   await callSupabase('/rest/v1/rpc/record_invitation_delivery', {
     method: 'POST', body: { actor_profile_id: actorId, target_profile_id: user.id, delivery_started_at: delivery.delivery_started_at },
   });
-}
-
-async function findAuthUserByEmail(email) {
-  const normalizedEmail = email.toLowerCase();
-  const perPage = 200;
-  for (let page = 1; page <= 10; page += 1) {
-    const result = await callSupabase("/auth/v1/admin/users", {
-      query: { page: String(page), per_page: String(perPage) },
-    });
-    const users = result?.users || [];
-    const match = users.find((user) => String(user.email || "").toLowerCase() === normalizedEmail);
-    if (match) return match;
-    if (users.length < perPage) return null;
-  }
-  return null;
 }
 
 export default async function handler(req, res) {
@@ -244,72 +215,41 @@ export default async function handler(req, res) {
       if (!isCheckItAdmin && ["checkit_admin", "checkit_field_operator"].includes(normalizeRole(existingProfile.role))) {
         return res.status(403).json({ error: "You cannot change this account's team access." });
       }
+      if (!existingProfile.assigned_institute && normalizeRole(existingProfile.role) !== 'checkit_admin') {
+        return res.status(409).json({error: 'Finish removing this account before inviting again.'});
+      }
       const authUser = await getInviteAuthUser(existingProfile, email);
-      const needsRestore = !existingProfile.assigned_institute;
-      if (needsRestore) {
-        const restored = await restoreProfile({ userId: existingProfile.id, role: requestedRole, assignedInstitute });
-        if (!restored?.some(profile => profile.id === existingProfile.id && profile.assigned_institute === assignedInstitute)) {
-          return res.status(409).json({ error: "Team access could not be restored. Refresh the team and try again." });
-        }
-      }
-      // Every administrator-issued invitation requires account setup.
-      await sendExistingMemberEmail(authUser, email, currentUser.id);
-
-      return res.status(200).json({
-        ok: true,
-        email,
-        role: needsRestore ? requestedRole : normalizeRole(existingProfile.role),
-        restored: needsRestore,
-      });
+      await sendPendingInvitationEmail(authUser, email, currentUser.id);
+      return res.status(200).json({ok: true, email, role: normalizeRole(existingProfile.role), redirectTo: new URL('/signup', APP_PUBLIC_URL).href});
     }
 
-    const redirectTo = `${APP_PUBLIC_URL}/create-account`;
+    const redirectTo = new URL('/signup', APP_PUBLIC_URL).href;
     let invitedUser;
-    let reactivated = false;
     try {
-      invitedUser = await callSupabase("/auth/v1/invite", {
-        method: "POST",
-        query: { redirect_to: redirectTo },
-        body: {
-          email,
-          data: {
-            role: requestedRole,
-            assigned_institute: assignedInstitute,
-            invited_by: currentUser.id,
-          },
-        },
+      invitedUser = await callSupabase('/auth/v1/invite', {
+        method: 'POST', query: {redirect_to: redirectTo},
+        body: {email, data: {role: requestedRole, assigned_institute: assignedInstitute, invited_by: currentUser.id}},
       });
-    } catch (inviteError) {
-      if (!/already.*(?:registered|exists)/i.test(inviteError.message || "")) throw inviteError;
-      const existingUser = await findAuthUserByEmail(email);
-      if (!existingUser) throw inviteError;
-      if (await getProfileById(existingUser.id)) {
-        return res.status(409).json({ error: "This account already has a profile. Refresh the team and try again." });
+    } catch (error) {
+      // An existing identity must be removed through the removal protocol,
+      // never silently reattached to a new invitation.
+      if (/already.*(?:registered|exists)/i.test(error.message || '')) {
+        return res.status(409).json({error: 'Finish removing this account before inviting again.'});
       }
-      invitedUser = existingUser;
-      reactivated = true;
+      throw error;
     }
-
-    const invitedUserId = invitedUser?.id || invitedUser?.user?.id;
-    if (!invitedUserId) {
-      return res.status(502).json({ error: "The invitation service did not confirm an account. Please try again." });
+    const user = invitedUser?.user || invitedUser;
+    if (!user?.id || String(user.email || '').toLowerCase() !== email) {
+      return res.status(502).json({error: 'Invitation could not be confirmed.'});
     }
-    const savedProfiles = await upsertInviteProfile({
-      userId: invitedUserId,
-      email,
-      role: requestedRole,
-      assignedInstitute,
-      onlyIfMissing: reactivated,
+    const savedProfiles = await upsertInviteProfile({userId: user.id, email, role: requestedRole, assignedInstitute});
+    if (!savedProfiles?.some(profile => profile.id === user.id && profile.role === requestedRole && (profile.assigned_institute || null) === (assignedInstitute || null))) {
+      return res.status(409).json({error: 'Invitation could not be confirmed.'});
+    }
+    await callSupabase('/rest/v1/rpc/record_invitation_delivery', {
+      method: 'POST', body: {actor_profile_id: currentUser.id, target_profile_id: user.id, delivery_started_at: delivery.delivery_started_at},
     });
-    if (reactivated && !savedProfiles?.some(profile => profile.id === invitedUserId && profile.assigned_institute === assignedInstitute)) {
-      return res.status(409).json({ error: "The account's team access changed. Refresh the team and try again." });
-    }
-
-    if (reactivated) await sendExistingMemberEmail(invitedUser, email, currentUser.id);
-    else await callSupabase('/rest/v1/rpc/record_invitation_delivery', {
-      method: 'POST', body: { actor_profile_id: currentUser.id, target_profile_id: invitedUserId, delivery_started_at: delivery.delivery_started_at },
-    });
-    return res.status(200).json({ ok: true, email, role: requestedRole, redirectTo, ...(reactivated ? { restored: true } : {}) });
+    return res.status(200).json({ok: true, email, role: requestedRole, redirectTo});
   } catch (err) {
     console.error("Transportation Invite Error:", err);
     return res.status(err.status || 500).json({

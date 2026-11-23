@@ -1,3 +1,5 @@
+import { signOutAccount } from './signOut.js';
+
 export const CHECKIT_LANDING_URL = 'https://checkit.dev/';
 export const CHECKIT_LOGIN_PATH = '/login';
 
@@ -27,4 +29,11 @@ export async function leavePortal(client, redirect = redirectToLogin) {
   finally {
     redirect();
   }
+}
+
+// A verified email session permits password setup, not automatic portal entry.
+export async function finishPasswordSetup(client, redirect = redirectToLogin) {
+  await signOutAccount(client);
+  clearPortalCache();
+  redirect();
 }

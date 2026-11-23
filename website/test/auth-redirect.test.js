@@ -24,7 +24,7 @@ test("keeps password recovery callbacks on the password page", () => {
   );
   assert.equal(
     getSupabaseAuthRedirectPath({ pathname: "/set-password", search: "?code=test" }),
-    null
+    "/set-password"
   );
 });
 

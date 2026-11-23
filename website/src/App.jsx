@@ -12,7 +12,7 @@ import Login from "./components/authentication/Login.jsx";
 import CreateAccount from "./components/authentication/CreateAccount.jsx";
 import ForgotPassword from "./components/authentication/ForgotPassword.jsx";
 import SetPassword from "./components/authentication/SetPassword.jsx";
-import { getSupabaseAuthRedirectPath } from "./components/authentication/authRedirect.js";
+import { readEmailCallback, resolveEmailCallback } from "./components/authentication/authRedirect.js";
 
 // --- Admin Dashboard Component (Protected Area) ---
 import AdminLayout from './components/admin/layout/AdminLayout.jsx';
@@ -28,7 +28,8 @@ import { hasPortalAccess } from './lib/portalAccess.js';
 import { leavePortal, redirectToLanding } from './components/authentication/portalExit.js';
 
 // Capture before detectSessionInUrl clears an invite/recovery fragment.
-const supabaseAuthRedirectPath = getSupabaseAuthRedirectPath(window.location);
+const supabaseEmailCallback = readEmailCallback(window.location);
+const supabaseAuthRedirectPath = supabaseEmailCallback.redirectPath;
 
 function AnalyticsAccessRoute({ isLoggedIn, children }) {
     const [access, setAccess] = useState('checking');
@@ -184,6 +185,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                     <Route path="/verify" element={<Login page="verify" setIsLoggedIn={setIsLoggedIn} />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/set-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/reset-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
 
                 </Routes>
             </div>
@@ -208,7 +210,8 @@ function AppSession() {
         const callbackNeedsRedirect = Boolean(supabaseAuthRedirectPath && window.location.pathname !== supabaseAuthRedirectPath);
         let active = true;
         let authEventReceived = false;
-        supabase.auth.getSession().then(({ data, error }) => {
+        let resolvingCallback = supabaseEmailCallback.hasCallback;
+        resolveEmailCallback(supabase, supabaseEmailCallback).then(({ data, error }) => {
             if (!active) return;
             // getSession waits for URL parsing AND session persistence. Redirecting
             // earlier can unload the page between hash clearing and storage.
@@ -216,12 +219,20 @@ function AppSession() {
                 window.location.replace(supabaseAuthRedirectPath);
                 return;
             }
+            resolvingCallback = false;
             if (authEventReceived) return;
             setSessionIdentity(data?.session?.user?.id || null);
             setIsLoggedIn(!error && Boolean(data?.session));
             setAuthReady(true);
-        }).catch(() => {
-            if (!active || authEventReceived) return;
+        }).catch(error => {
+            if (!active) return;
+            if (supabaseEmailCallback.hasCallback) {
+                const notice = ['invite_expired', 'invite_invalid', 'reset_expired', 'reset_invalid'].includes(error?.message)
+                    ? error.message : supabaseEmailCallback.failureNotice;
+                void leavePortal(supabase, () => window.location.replace(`/login?notice=${notice}`));
+                return;
+            }
+            if (authEventReceived) return;
             setIsLoggedIn(false);
             setAuthReady(true);
         });
@@ -229,7 +240,7 @@ function AppSession() {
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!active) return;
             // Keep the shell hidden until the callback has been persisted and routed.
-            if (callbackNeedsRedirect) return;
+            if (resolvingCallback || callbackNeedsRedirect) return;
             authEventReceived = true;
             setSessionIdentity(session?.user?.id || null);
             setIsLoggedIn(Boolean(session));

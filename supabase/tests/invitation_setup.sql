@@ -14,12 +14,14 @@ create table auth.sessions(id uuid primary key,user_id uuid references auth.user
 create table public.profile(id uuid primary key references auth.users on delete cascade,role text,assigned_institute text);
 create table checkit_accounts_private.removals(target_id uuid primary key references auth.users on delete cascade);
 alter table auth.users add column updated_at timestamptz;
+alter table auth.users add column recovery_sent_at timestamptz;
 create table auth.mfa_amr_claims(session_id uuid references auth.sessions on delete cascade,authentication_method text);
 create table auth.refresh_tokens(user_id text,session_id uuid,created_at timestamptz default clock_timestamp());
 \i :migration_file
 \i :repair_file
+\i :protocol_file
 create function pg_temp.assert_true(value boolean,message text) returns void language plpgsql as $$ begin if value is distinct from true then raise exception '%',message; end if; end $$;
-create function pg_temp.denied(statement text) returns void language plpgsql as $$ begin begin execute statement; exception when insufficient_privilege then return; end; raise exception 'Unexpected success: %',statement; end $$;
+create function pg_temp.denied(statement text) returns void language plpgsql as $$ begin begin execute statement; exception when others then return; end; raise exception 'Unexpected success: %',statement; end $$;
 create function pg_temp.identify(subject_id uuid,session_id uuid) returns void language plpgsql as $$ begin perform set_config('request.jwt.claims',jsonb_build_object('sub',subject_id,'session_id',session_id,'role','authenticated')::text,true); end $$;
 insert into auth.users(id,email,encrypted_password,invited_at,raw_user_meta_data) values
  ('00000000-0000-0000-0000-000000000001','admin@example.test','admin-hash',now()-interval '1 day','{}'),
@@ -56,34 +58,22 @@ reset role;
 update auth.users set encrypted_password='new-hash' where id='00000000-0000-0000-0000-000000000003';
 select pg_temp.assert_true((select used_at is not null from checkit_accounts_private.invitation_setups where user_id='00000000-0000-0000-0000-000000000003'),'First password consumes the setup ticket');
 set role authenticated;
-select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='completed','Completed accounts cannot reopen signup by URL');
+select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='login_required','Completed accounts cannot reopen signup by URL');
 reset role;
 update auth.users set encrypted_password='normal-password-change' where id='00000000-0000-0000-0000-000000000003';
-select set_config('checkit.reinvite_time',clock_timestamp()::text,true);
-select pg_temp.assert_true((public.record_invitation_delivery('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000003',current_setting('checkit.reinvite_time')::timestamptz)->>'setup_required')::boolean,'A new explicit invite requires fresh signup even for a legacy password account');
-select pg_temp.assert_true((select encrypted_password='' from auth.users where id='00000000-0000-0000-0000-000000000003'),'A delivered re-invite clears the previous password');
-select pg_temp.assert_true(not exists(select 1 from auth.sessions where user_id='00000000-0000-0000-0000-000000000003'),'A delivered re-invite revokes old sessions');
-select pg_temp.assert_true((select expires_at-issued_at=interval '15 minutes' from checkit_accounts_private.invitation_setups where user_id='00000000-0000-0000-0000-000000000003'),'Setup expires in fifteen minutes');
--- A password session created during delivery is not an invitation session.
-insert into auth.sessions(id,user_id,created_at) values('20000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003',clock_timestamp());
+-- Completed active accounts are never reset or resurrected by Invite.
+select pg_temp.denied($q$select public.authorize_invitation_delivery('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000003')$q$);
+select pg_temp.assert_true((select encrypted_password='normal-password-change' from auth.users where id='00000000-0000-0000-0000-000000000003'),'Inviting an existing account cannot clear its credentials');
+select pg_temp.identify('00000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003');
+select pg_temp.assert_true(not public.portal_account_ready(),'Completing signup does not turn the email session into a password login');
+insert into auth.sessions(id,user_id) values('20000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003');
 insert into auth.mfa_amr_claims values('20000000-0000-0000-0000-000000000003','password');
 select pg_temp.identify('00000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000003');
-select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='open_latest_invitation','An old password cannot replace opening the new invitation');
-select pg_temp.denied($q$update auth.users set encrypted_password='bypass' where id='00000000-0000-0000-0000-000000000003'$q$);
-insert into auth.sessions(id,user_id,created_at) values('30000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003',clock_timestamp());
-insert into auth.mfa_amr_claims values('30000000-0000-0000-0000-000000000003','otp');
-select pg_temp.identify('00000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000003');
-select pg_temp.assert_true((public.invitation_setup_status()->>'eligible')::boolean,'The latest email opens signup for a re-invited member');
-update auth.users set encrypted_password='replacement-password' where id='00000000-0000-0000-0000-000000000003';
-select pg_temp.assert_true(public.portal_account_ready(),'A completed account with the new session can enter the portal');
-select public.record_invitation_delivery('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000003',current_setting('checkit.reinvite_time')::timestamptz);
-select pg_temp.assert_true((select encrypted_password='replacement-password' from auth.users where id='00000000-0000-0000-0000-000000000003'),'Retrying delivery recording cannot reset a completed signup');
-select pg_temp.identify('00000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003');
-select pg_temp.assert_true(not public.portal_account_ready(),'Old session tokens stay blocked after the replacement password is saved');
+select pg_temp.assert_true(public.portal_account_ready(),'Signing in with the newly chosen password permits portal access');
 select pg_temp.denied($q$select public.authorize_invitation_delivery('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001')$q$);
 set role authenticated;
 select pg_temp.identify('00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000004');
-select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='completed','Existing password accounts remain closed to signup');
+select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='login_required','Existing password accounts remain closed to signup');
 select pg_temp.identify('00000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000005');
 select pg_temp.assert_true(public.invitation_setup_status()->>'reason'='invitation_required','Being signed in alone does not grant signup');
 reset role;
@@ -115,6 +105,26 @@ do $$ begin
   end;
 end $$;
 select pg_temp.assert_true(not has_function_privilege('authenticated','public.record_invitation_delivery(uuid,uuid,timestamptz)','execute'),'A recipient cannot reissue their own setup deadline');
+
+-- Recovery requires its own unexpired, unused ticket and recovery-authenticated session.
+update auth.users set recovery_sent_at=clock_timestamp() where id='00000000-0000-0000-0000-000000000004';
+insert into auth.sessions(id,user_id) values('10000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000004');
+insert into auth.mfa_amr_claims values('10000000-0000-0000-0000-000000000004','recovery');
+select pg_temp.identify('00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000004');
+select pg_temp.assert_true(not (public.password_reset_status()->>'eligible')::boolean,'An invitation session is not a recovery session');
+select pg_temp.identify('00000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000004');
+select pg_temp.assert_true((public.password_reset_status()->>'eligible')::boolean,'A fresh recovery email opens password reset');
+select pg_temp.assert_true(not public.portal_account_ready(),'Recovery does not sign the user into the portal');
+update auth.users set encrypted_password='reset-password' where id='00000000-0000-0000-0000-000000000004';
+select pg_temp.assert_true(not (public.password_reset_status()->>'eligible')::boolean,'Saving the password consumes recovery setup');
+update auth.users set recovery_sent_at=clock_timestamp()-interval '16 minutes' where id='00000000-0000-0000-0000-000000000004';
+select pg_temp.assert_true(not (public.password_reset_status()->>'eligible')::boolean,'Expired recovery setup stays blocked after email verification');
+update auth.users set recovery_sent_at=clock_timestamp() where id='00000000-0000-0000-0000-000000000002';
+select pg_temp.identify('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000002');
+select pg_temp.assert_true(not (public.password_reset_status()->>'eligible')::boolean,'An unfinished or revoked invitation cannot bypass signup through reset');
+delete from auth.users where id='00000000-0000-0000-0000-000000000004';
+select pg_temp.assert_true(not exists(select 1 from checkit_accounts_private.password_reset_setups where user_id='00000000-0000-0000-0000-000000000004'),'Account removal also deletes recovery records');
+select pg_temp.assert_true(not has_function_privilege('anon','public.password_reset_status()','execute'),'Anonymous callers cannot inspect recovery state');
 
 rollback;
 \echo Invitation setup checks passed.

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import styles from './LoginPage.module.css';
+import { EMAIL_LINK_MESSAGES } from './authRedirect.js';
 import supabase from '../helper/SupabaseClients'; 
 import { LOCAL_SIGN_OUT_MESSAGE } from './signOut.js';
 
@@ -19,7 +20,7 @@ function Login({ setIsLoggedIn }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+    const [errorMessage, setErrorMessage] = useState(() => EMAIL_LINK_MESSAGES[new URLSearchParams(window.location.search).get('notice')] || '');
     const [loading, setLoading] = useState(false);
     const locallySignedOut = new URLSearchParams(window.location.search).get('signedOut') === 'local';
 

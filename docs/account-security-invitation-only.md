@@ -4,7 +4,7 @@
 
 - Public self-registration is removed from both websites. Account completion requires a verified existing identity and active membership, including the explicit CheckIt administrator exception.
 - Hosted Supabase signup must also be disabled (`disable_signup=true`). Removing a registration form alone does not enforce invitation-only access.
-- Existing administrative invitation and reinvitation flows remain available. All administrator-issued invitations lead to account setup, including re-invitations.
+- Existing administrative invitation and reinvitation flows remain available. New invitations and resends of unfinished invitations lead to signup. Completed accounts are not reset by Invite; removed accounts must be deleted and receive a fresh identity when invited again.
 - Both websites use Supabase JS 2.110.7, pinned to the release verified by the outage regression tests. Local logout is confirmed before redirecting. Failed server-wide revocation is reported separately.
 - Transportation requires active membership for protected routes, resets views on account switches, and rechecks access every 30 seconds and on focus/authentication changes.
 - Both websites ignore outdated membership responses so a delayed result cannot restore revoked access.
@@ -111,10 +111,35 @@ The removal dialog uses “Remove user?” and exact-name confirmation, with the
 
 ## One-use invitation setup and cleanup repair
 
-Signup URLs render no form until `invitation_setup_status` confirms a valid, unused invitation and a session created after its issuance. A completed account, missing invite, expired window, revoked membership or older session returns to login. Setup expires fifteen minutes after issuance, including while the form is open. Refreshing a session does not extend it. Resending mail records a fresh window only after delivery is accepted; the recipient must open the latest invitation. A fresh administrator-issued invitation resets setup for that recipient after email delivery is accepted, clears the previous password, and revokes previous sessions. Self-invitations are rejected. Opening signup without a new invitation never reopens completed setup. The first-password Auth trigger checks the deadline and consumes the ticket in the same database transaction; existing password changes continue to work. Both `/signup` and `/create-account` use this gate. No existing password is changed by deployment; only a subsequent successful administrator-issued invitation resets its recipient. Setup requires a new invite/OTP session, and the portal also verifies that the current session still exists. Duplicate delivery recording never resets completed setup, and an older concurrent delivery cannot replace a newer invitation. Email token expiration is configured to 900 seconds in both production projects; Supabase applies this setting to other email links, including password recovery, too.
+Signup URLs render no form until `invitation_setup_status` confirms a valid, unused invitation and a session created after its issuance. A completed account, missing invite, expired window, revoked membership or older session returns to login. Setup expires fifteen minutes after issuance, including while the form is open. Refreshing a session does not extend it. Resending mail records a fresh window only after delivery is accepted; the recipient must open the latest invitation. Only unfinished invitations can be resent. Completed active accounts cannot be reset by Invite. Deleted accounts receive a new identity on a new invitation; detached or orphaned identities are never silently restored. Self-invitations are rejected. Opening signup without a new invitation never reopens completed setup. The first-password Auth trigger checks the deadline and consumes the ticket in the same database transaction; existing password changes continue to work. Both `/signup` and `/create-account` use this gate. No existing password is changed by deployment or by inviting an already-completed account. Setup requires a new invite/OTP session, and the portal also verifies that the current session still exists. Duplicate delivery recording never resets completed setup, and an older concurrent delivery cannot replace a newer invitation. Email token expiration is configured to 900 seconds in both production projects; Supabase applies this setting to other email links, including password recovery, too.
 
 Apply `20261123021000_single_use_invitation_setup.sql` alone, then deploy the invitation API and website. Occupancy needs both its API and website projects published. Transportation deploys them together. This supersedes the earlier session-only signup gate. Synthetic tests cover expiry, consumed tickets, older sessions, sender authorization and preservation of normal password changes.
 
 `20261123020000_fix_account_cleanup_report_guard.sql` repairs the legacy saved-report trigger, which was reverting ownership transfers made by server cleanup. The trusted removal transaction can transfer reports; normal client ownership checks remain intact. The actual legacy trigger is now included in cleanup regressions. This migration changes function definitions and processes no existing removal job by itself. Real-user cleanup is completed by the admin's Remove action.
 
 User-facing removal wording is “Remove”, with a short confirmation prompt, no pending-removal badge, and “Name was removed.” with dismiss and three-second expiry. Internal retry state remains private so a failed file operation cannot cause false success or reactivate access.
+
+
+## Invite, signup, login and password reset
+
+The required sequence on both platforms is email → signup → login with the chosen credentials. The same sequence applies after removal and a new invitation. Signup and recovery sessions cannot enter the portal as password logins. Saving a signup or reset password verifies local session cleanup and returns to `/login`; neither action automatically opens a dashboard.
+
+New invitation emails target `/signup`; reset emails target `/reset-password`. The email templates place the one-time token hash in the URL fragment, and the frontend exchanges it once through Supabase `verifyOtp`. The token is not sent to Vercel in a URL query. React StrictMode and repeated subscribers share the same exchange. Legacy Supabase confirmation URLs remain supported. Invalid or expired link errors are preserved as short notices instead of disappearing into an unexplained login page.
+
+Signup still requires an active, unused, unexpired server invitation and a fresh invite/OTP session. Password reset requires its own 15-minute ticket, an existing completed active account, and a matching recovery session. Saving the new password consumes that reset ticket; ordinary profile password changes also invalidate outstanding reset setup. Removing the Auth account cascades both invitation and recovery records.
+
+### Publishing this release
+
+1. Apply `20261123040000_invitation_login_password_reset.sql` to each matching Supabase project. In this task Codex applied the scoped migration and recorded it in migration history; do not bulk-apply unrelated migrations.
+2. Configure the matching Auth email templates and exact redirect paths with `node supabase/scripts/configure-email-links.mjs --project-ref <ref> --apply`, using an existing `SUPABASE_ACCESS_TOKEN` in the environment. In this task Codex applied and read back this configuration on both projects. Never put that token in frontend environment variables or Git.
+3. Felix publishes the latest website and API code. For Occupancy, publish the website first, then `checkit-api`. Transportation publishes its website/API together. The template branches retain legacy links for older callback paths, so changing the configuration does not require all clients to upgrade simultaneously. No new Vercel environment variables are required.
+4. Send fresh emails after publication. Existing emails keep their original destination and expire normally; configuration changes do not rewrite delivered mail.
+
+### User acceptance checks
+
+- Invite a new email. Open its newest link within 15 minutes: signup appears, all required fields must be completed, and saving leads to login. Sign in with the chosen password.
+- Remove that user with its portal open. It must lose access. Invite the same email again: a new account ID and fresh signup are required, with no old password, session, personal photo, or account grants restored.
+- Open `/signup` directly without a valid invitation, and reopen a completed or expired invite. No registration form is available.
+- Request password reset, open the newest email, save a new password, and sign in. The old password and used reset link must not work.
+
+Local verification combines the real browser Auth SDK with stubbed Auth HTTP responses, real React route/form tests, and isolated PostgreSQL account/removal fixtures. It sends no email and changes no real member account. Real email delivery and browser acceptance checks still require the published release.

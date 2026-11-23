@@ -10,10 +10,10 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:3600}, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
-  rpc: async name => { assert.equal(name, 'invitation_setup_status'); return {data:fixture.setupStatus,error:null}; },
+  rpc: async name => { assert.ok(['invitation_setup_status','password_reset_status'].includes(name)); return {data:name==='password_reset_status'?fixture.resetStatus:fixture.setupStatus,error:null}; },
   auth: {
     getSession: async () => {
       if (fixture.gate) await fixture.gate;
@@ -22,9 +22,10 @@ fixture.client = {
     },
     getUser: async () => ({ data: { user: account }, error: null }),
     onAuthStateChange: callback => { fixture.sessionCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
+    async signOut() { fixture.calls.push({action:'logout'}); fixture.initialSession=null; return {error:null}; },
     async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
     async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
-    async resetPasswordForEmail(email) { fixture.calls.push({ action: 'reset', email }); if (fixture.failure) throw fixture.failure; return { error: null }; },
+    async resetPasswordForEmail(email, options) { fixture.calls.push({ action: 'reset', email, options }); if (fixture.failure) throw fixture.failure; return { error: null }; },
     async signUp() { throw new Error('An invited account must not register again'); },
   },
   from() {
@@ -49,7 +50,10 @@ async function loadComponent(name) {
     if (specifier === 'react') target = reactUrl;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, key)=>String(key)});');
     else if (specifier.includes('portalAccess')) target = new URL('../../lib/portalAccess.js', import.meta.url).href;
-    else if (specifier === './portalExit.js') target = asModule('export const leavePortal=async()=>globalThis.__authFormTest.navigations.push("/login");');
+    else if (specifier === './portalExit.js') target = asModule(`import {finishPasswordSetup as finish, leavePortal as leave} from ${JSON.stringify(new URL('./portalExit.js', import.meta.url).href)};
+      export const finishPasswordSetup=client=>finish(client,()=>globalThis.__authFormTest.navigations.push('/login'));
+      export const leavePortal=(client,redirect)=>leave(client,redirect||(()=>globalThis.__authFormTest.navigations.push('/login')));`);
+    else if (specifier === './authRedirect.js') target = new URL('./authRedirect.js', import.meta.url).href;
     else if (specifier === './signOut.js') target = new URL('./signOut.js', import.meta.url).href;
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__authFormTest.client;');
     else if (specifier === 'react-router-dom') target = asModule(`import React from ${JSON.stringify(reactUrl)}; const navigate=path=>globalThis.__authFormTest.navigations.push(path); export const useNavigate=()=>navigate; export const Link=props=>React.createElement('a',props);`);
@@ -57,7 +61,7 @@ async function loadComponent(name) {
     else throw new Error(`Unexpected import ${specifier}`);
     return prefix + JSON.stringify(target);
   });
-  return (await import(asModule(code))).default;
+  return (await import(asModule(code.replaceAll('window.location.replace(', 'globalThis.__authFormTest.navigations.push(')))).default;
 }
 const Login = await loadComponent('Login');
 const ForgotPassword = await loadComponent('ForgotPassword');
@@ -69,6 +73,9 @@ const sessionCode = `import React, {useState,useEffect} from ${JSON.stringify(re
 const supabase=globalThis.__authFormTest.client;
 const styles={appLayout:'auth-loading'};
 const supabaseAuthRedirectPath=null;
+const supabaseEmailCallback={hasCallback:false};
+const resolveEmailCallback=client=>client.auth.getSession();
+const leavePortal=async(_client,redirect)=>redirect();
 const getSupabaseAuthRedirectPath=()=>null;
 const AppShell=({isLoggedIn})=>React.createElement('div',{'data-authenticated':String(isLoggedIn)});
 ${sessionSource}
@@ -76,6 +83,7 @@ export default AppSession;`;
 const sessionTransform = await transformWithEsbuild(sessionCode, 'AppSession.jsx', { loader:'jsx', jsx:'transform' });
 const { default: AppSession } = await import(asModule(sessionTransform.code));
 const callbackSource = sessionCode.replace('const supabaseAuthRedirectPath=null;', 'const supabaseAuthRedirectPath="/create-account";')
+  .replace('const supabaseEmailCallback={hasCallback:false};','const supabaseEmailCallback={hasCallback:true,failureNotice: "invite_invalid"};')
   .replace('window.location.replace(supabaseAuthRedirectPath)', 'globalThis.__authFormTest.callbackRedirects.push(supabaseAuthRedirectPath)');
 const callbackTransform = await transformWithEsbuild(callbackSource, 'InviteCallbackSession.jsx', {loader:'jsx',jsx:'transform'});
 const {default: InviteCallbackSession} = await import(asModule(callbackTransform.code));
@@ -118,9 +126,8 @@ test('password-save network failures release loading, and signing out disables t
   await submit();
   assert.match(document.querySelector('[role="alert"]').textContent, /Connection lost/);
   assert.equal(document.querySelector('button[type="submit"]').disabled, false);
-  await act(async () => fixture.sessionCallback('SIGNED_OUT', null));
-  assert.equal(document.querySelector('button[type="submit"]').disabled, true);
-  await submit();
+  await act(async () => { fixture.sessionCallback('SIGNED_OUT', null); await new Promise(resolve=>setTimeout(resolve,5)); });
+  assert.equal(document.querySelector('form'), null);
   assert.equal(fixture.calls.filter(call => call.action === 'password').length, 1);
 });
 
@@ -178,31 +185,18 @@ test('a late initial session failure cannot undo a newer successful sign-in', as
   assert.equal(document.querySelector('[data-authenticated]').dataset.authenticated, 'true');
 });
 
-for (const Component of [SetPassword, CreateAccount]) test(`${Component.name} cancels its delayed redirect when the user leaves`, async () => {
-  const originalSet = globalThis.setTimeout;
-  const originalClear = globalThis.clearTimeout;
-  const marker = {};
-  let scheduled = false;
-  let cancelled = false;
-  try {
-    globalThis.setTimeout = (callback, delay, ...args) => {
-      if (delay === 900) { scheduled = true; return marker; }
-      return originalSet(callback, delay, ...args);
-    };
-    globalThis.clearTimeout = timer => { if (timer === marker) cancelled = true; else originalClear(timer); };
-    await mount(Component);
-    if (Component === CreateAccount) {
-      await enter('#signup-first-name', 'Example');
-      await enter('#signup-last-name', 'User');
-    }
-    for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
-    await submit();
-    assert.equal(scheduled, true);
-    assert.equal(document.querySelector('button[type="submit"]').disabled, true);
-    await act(async () => root.unmount());
-    root = null;
-    assert.equal(cancelled, true);
-  } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; }
+for (const Component of [SetPassword, CreateAccount]) test(`${Component.name} ends the email session and requires credentials on the login page`, async () => {
+  await mount(Component);
+  if (Component === CreateAccount) {
+    await enter('#signup-first-name', 'Example');
+    await enter('#signup-last-name', 'User');
+  }
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  await submit();
+  assert.deepEqual(fixture.calls.filter(call=>['password','logout'].includes(call.action)).map(call=>call.action), ['password','logout']);
+  assert.deepEqual(fixture.navigations, ['/login']);
+  assert.deepEqual(fixture.logins, []);
+  assert.equal(fixture.initialSession, null);
 });
 
 
@@ -277,7 +271,7 @@ test('signed-out visitors see invitation-only access without a registration form
   assert.match(document.body.textContent, /Access is by invitation only/);
   assert.equal(document.querySelector('form'), null);
   assert.equal(document.querySelector('input[type="password"]'), null);
-  assert.deepEqual(fixture.calls, []);
+  assert.deepEqual(fixture.calls.filter(call=>call.action!=='logout'), []);
 });
 
 test('an existing account without membership cannot complete invitation setup', async () => {
@@ -302,7 +296,9 @@ test('invitation completion updates only the authenticated profile name before s
   assert.deepEqual(fixture.calls.filter(call => call.action === 'profile'), [{action:'profile',input:{full_name:'Felix Example'}}]);
   assert.deepEqual(fixture.calls.find(call => call.action === 'profileScope'), {action:'profileScope',column:'id',value:account.id});
   assert.equal(fixture.calls.some(call => call.action === 'password'), true);
-  assert.deepEqual(fixture.logins, [true]);
+  assert.deepEqual(fixture.logins, []);
+  assert.deepEqual(fixture.navigations, ['/login']);
+  assert.equal(fixture.calls.at(-1).action, 'logout');
 });
 
 for (const profileResult of [{id:'wrong-user',full_name:'Example User'},{id:account.id,full_name:'Old Name'}]) {
@@ -320,12 +316,12 @@ for (const profileResult of [{id:'wrong-user',full_name:'Example User'},{id:acco
 }
 
 
-for (const reason of ['completed','expired','invitation_required','open_latest_invitation','revoked']) {
+for (const reason of ['completed','login_required','expired','invitation_required','open_latest_invitation','revoked']) {
   test(`signup URL denies ${reason} sessions and returns to login`, async () => {
     fixture.setupStatus = {eligible:false,reason,user_id:account.id};
     await mount(CreateAccount);
     assert.equal(document.querySelector('form'), null);
-    assert.ok(fixture.navigations.includes('/login'));
+    assert.ok(fixture.navigations.some(path=>path.startsWith('/login')));
   });
 }
 
@@ -333,7 +329,7 @@ test('typing the signup URL without an invitation session never renders the form
   fixture.initialSession = null;
   await mount(CreateAccount);
   assert.equal(document.querySelector('form'), null);
-  assert.ok(fixture.navigations.includes('/login'));
+  assert.ok(fixture.navigations.some(path=>path.startsWith('/login')));
 });
 
 test('an invitation that expires before submission cannot save a profile or password', async () => {
@@ -345,7 +341,7 @@ test('an invitation that expires before submission cannot save a profile or pass
   await submit();
   assert.equal(fixture.calls.some(call => ['profile','password'].includes(call.action)), false);
   assert.equal(document.querySelector('form'), null);
-  assert.ok(fixture.navigations.includes('/login'));
+  assert.ok(fixture.navigations.some(path=>path.startsWith('/login')));
 });
 
 
@@ -363,7 +359,7 @@ test('an open signup form closes when its invitation deadline arrives', async ()
     assert.equal(typeof expire,'function');
     await act(async () => expire());
     assert.equal(document.querySelector('form'),null);
-    assert.ok(fixture.navigations.includes('/login'));
+    assert.ok(fixture.navigations.some(path=>path.startsWith('/login')));
   } finally { window.setTimeout=original; }
 });
 
@@ -383,4 +379,43 @@ test('an invite callback waits for SDK session persistence before redirecting an
     assert.deepEqual(fixture.callbackRedirects, ['/create-account']);
     assert.equal(document.querySelector('[data-authenticated]'), null);
   } finally {window.history.replaceState(null, '', '/');}
+});
+
+
+for (const reason of ['expired','used','not_recovery']) test(`password reset rejects ${reason} sessions without a writable form`, async () => {
+  fixture.resetStatus={eligible:false,reason};
+  await mount(SetPassword);
+  assert.equal(document.querySelector('form'), null);
+  assert.equal(fixture.calls.some(call=>call.action==='password'), false);
+});
+
+test('a reset which expires before submission cannot change the password', async () => {
+  await mount(SetPassword);
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  fixture.resetStatus={eligible:false};
+  await submit();
+  assert.equal(document.querySelector('form'), null);
+  assert.equal(fixture.calls.some(call=>call.action==='password'),false);
+});
+
+test('reset email targets the current platform password-reset route', async () => {
+  await mount(ForgotPassword);
+  await enter('input[type="email"]','member@example.test');
+  await submit();
+  assert.deepEqual(fixture.calls.find(call=>call.action==='reset').options, {redirectTo:'https://example.test/reset-password'});
+});
+
+test('expired invite errors remain visible on login', async () => {
+  window.history.replaceState(null,'','/login?notice=invite_expired');
+  try { await mount(Login); assert.match(document.querySelector('[role="alert"]').textContent,/Invite expired/); }
+  finally {window.history.replaceState(null,'','/');}
+});
+
+
+test('leaving signup returns to login without keeping its email session or saving a password', async () => {
+  await mount(CreateAccount);
+  await act(async()=>document.querySelector('.backLink').click());
+  assert.equal(fixture.initialSession,null);
+  assert.deepEqual(fixture.navigations,['/login']);
+  assert.equal(fixture.calls.some(call=>call.action==='password'||call.action==='profile'),false);
 });

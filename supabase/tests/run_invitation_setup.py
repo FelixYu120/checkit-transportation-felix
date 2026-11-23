@@ -15,7 +15,9 @@ migration = (tests.parent / 'migrations/20261123021000_single_use_invitation_set
 migration = '\n'.join(line for line in migration.splitlines() if line.strip().lower() not in ('begin;', 'commit;'))
 repair = (tests.parent / 'migrations/20261123030000_fix_reinvitation_signup.sql').read_text()
 repair = '\n'.join(line for line in repair.splitlines() if line.strip().lower() not in ('begin;', 'commit;'))
-sql = (tests / 'invitation_setup.sql').read_text().replace('\\i :migration_file', migration).replace('\\i :repair_file', repair)
+protocol = (tests.parent / 'migrations/20261123040000_invitation_login_password_reset.sql').read_text()
+protocol = '\n'.join(line for line in protocol.splitlines() if line.strip().lower() not in ('begin;', 'commit;'))
+sql = (tests / 'invitation_setup.sql').read_text().replace('\\i :migration_file', migration).replace('\\i :repair_file', repair).replace('\\i :protocol_file', protocol)
 subprocess.run([args.psql, '--host', args.host, '--port', args.port, '--username', args.username,
                 '--dbname', 'checkit_invitation_setup_test', '--no-psqlrc', '--set', 'ON_ERROR_STOP=on'],
                input=sql, text=True, check=True)

@@ -23,7 +23,7 @@ let importVersion = 0;
 
 async function mount(path, signedIn = true, profile = { role: 'admin', assigned_institute: 'ucsd' }, options = {}) {
   window.history.replaceState(null, '', path);
-  globalThis.__checkitRoutingFixture = { signedIn, profile, listeners: new Set(), user: { id: 'owner', email: 'owner@example.test' }, redirects: [], signOutCalls: [], ...options };
+  globalThis.__checkitRoutingFixture = { signedIn, profile, listeners: new Set(), user: { id: 'owner', email: 'owner@example.test' }, redirects: [], signOutCalls: [], verifyCalls: [], ...options };
   let { code } = await transformWithEsbuild(source, 'App.jsx', { loader: 'jsx', jsx: 'transform' });
   code = code.replace(/(import\s+([\s\S]*?)\s+from\s*)['"]([^'"]+)['"]/g, (match, prefix, clause, specifier) => {
     if (specifier === 'react') return prefix + JSON.stringify(reactUrl);
@@ -34,6 +34,7 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
         export default { auth:{
           getSession:async()=>({data:{session:fixture().signedIn?{user:fixture().user}:null}}),
           getUser:async()=>({data:{user:fixture().user},error:null}),
+          verifyOtp:async input=>{fixture().verifyCalls.push(input);if(fixture().verifyError)return {data:{session:null},error:fixture().verifyError};fixture().signedIn=true;return {data:{session:{user:fixture().user,access_token:'fixture-callback-token'}}};},
           signOut:async options=>{fixture().signOutCalls.push(options);if(fixture().signOutGate)await fixture().signOutGate;if(fixture().signOutThrows)throw new Error('Logout unavailable');fixture().signedIn=false;return {error:fixture().signOutError||null};},
           onAuthStateChange:callback=>{const listeners=fixture().listeners;listeners.add(callback);return {data:{subscription:{unsubscribe(){listeners.delete(callback)}}}}}
         },rpc:async()=>({data:fixture().accountReady!==false,error:fixture().readinessError||null}),from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
@@ -41,13 +42,13 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
       const target = new URL('../../authentication/portalExit.js', import.meta.url).href;
       stub = `import {leavePortal as exit,CHECKIT_LANDING_URL,CHECKIT_LOGIN_PATH} from ${JSON.stringify(target)};
         export const redirectToLanding=()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LANDING_URL);
-        export const leavePortal=client=>exit(client,()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LOGIN_PATH));`;
+        export const leavePortal=(client,redirect)=>exit(client,redirect||(()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LOGIN_PATH)));`;
     } else if (specifier.includes('portalAccess')) {
       return prefix + JSON.stringify(new URL('../../../lib/portalAccess.js', import.meta.url).href);
     } else if (specifier.endsWith('.css')) {
       stub = 'export default {};';
     } else if (specifier.includes('authRedirect')) {
-      stub = 'export const getSupabaseAuthRedirectPath=()=>null;';
+      return prefix + JSON.stringify(new URL('../../authentication/authRedirect.js', import.meta.url).href);
     } else if (specifier.includes('AdminRouteUtils')) {
       stub = "export const DEFAULT_ADMIN_ROUTE='/dashboard/ucsd';";
     } else {
@@ -64,6 +65,7 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
     }
     return prefix + JSON.stringify(asModule(stub));
   });
+  code=code.replaceAll('window.location.replace(', 'globalThis.__checkitRoutingFixture.redirects.push(');
   const app = await import(asModule(code + `\nexport {appRouter};\n// fixture ${++importVersion}`));
   router = app.appRouter;
   root = createRoot(document.getElementById('root'));
@@ -278,4 +280,18 @@ test('account setup verification fails closed without rendering the portal', asy
   await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+});
+
+
+for (const [path,type,target] of [['/signup','invite','/create-account'],['/signup','magiclink','/create-account'],['/reset-password','recovery','/set-password']])test(`${type} email callback verifies once and routes to ${target}`,async()=>{
+  await mount(`${path}#token_hash=fixture-hash&type=${type}`,false);
+  await until(()=>globalThis.__checkitRoutingFixture.redirects.includes(target));
+  assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[{token_hash:'fixture-hash',type}]);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
+});
+
+test('an expired invitation routes to login with an explicit error and no portal content',async()=>{
+  await mount('/signup#token_hash=expired-fixture&type=invite',false,undefined,{verifyError:{code:'otp_expired'}});
+  await until(()=>globalThis.__checkitRoutingFixture.redirects.includes('/login?notice=invite_expired'));
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
 });

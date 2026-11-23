@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './LoginPage.module.css';
 import { hasPortalAccess } from '../../lib/portalAccess.js';
-import { leavePortal } from './portalExit.js';
+import { leavePortal, finishPasswordSetup } from './portalExit.js';
 
-function CreateAccount({ setIsLoggedIn }) {
-    const navigate = useNavigate();
+function CreateAccount() {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
@@ -20,7 +19,6 @@ function CreateAccount({ setIsLoggedIn }) {
     ));
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
-    const redirectTimerRef = useRef(null);
     const setupFinishedRef = useRef(false);
     const [hasInviteSession, setHasInviteSession] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
@@ -36,8 +34,11 @@ function CreateAccount({ setIsLoggedIn }) {
             exiting = true;
             setHasInviteSession(false);
             setAuthReady(true);
-            if (reason === 'completed') navigate('/login', { replace: true });
-            else void leavePortal(supabase);
+            void leavePortal(supabase, () => {
+                const notice = reason === 'expired' ? '?notice=invite_expired'
+                    : ['completed', 'login_required', 'invitation_required'].includes(reason) ? '' : '?notice=invite_invalid';
+                window.location.replace(`/login${notice}`);
+            });
         };
         const verify = async (session, request) => {
             if (!active || exiting || setupFinishedRef.current || request !== version) return;
@@ -62,7 +63,7 @@ function CreateAccount({ setIsLoggedIn }) {
                 setAuthReady(true);
                 deadlineTimer = window.setTimeout(() => closeSetup('expired'), remaining * 1000);
             } catch {
-                if (active && request === version) closeSetup('invitation_required');
+                if (active && request === version) closeSetup('verification_failed');
             }
         };
         const refresh = () => {
@@ -73,7 +74,7 @@ function CreateAccount({ setIsLoggedIn }) {
             supabase.auth.getSession().then(({ data, error }) => {
                 if (error) throw error;
                 return verify(data?.session, request);
-            }).catch(() => { if (active && request === version) closeSetup('invitation_required'); });
+            }).catch(() => { if (active && request === version) closeSetup('verification_failed'); });
         };
         refresh();
         if (!supabase) return () => { active = false; };
@@ -88,13 +89,12 @@ function CreateAccount({ setIsLoggedIn }) {
         return () => {
             active = false;
             window.clearTimeout(deadlineTimer);
-            clearTimeout(redirectTimerRef.current);
             queued.forEach(timer => window.clearTimeout(timer));
             listener?.subscription?.unsubscribe();
             window.removeEventListener('focus', focus);
             document.removeEventListener('visibilitychange', focus);
         };
-    }, [navigate]);
+    }, []);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -164,9 +164,8 @@ function CreateAccount({ setIsLoggedIn }) {
             if (error) throw error;
             if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
             setupFinishedRef.current = true;
-            setSuccessMessage('Account ready. Redirecting to your dashboard…');
-            setIsLoggedIn?.(true);
-            redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
+            setSuccessMessage('Account ready.');
+            await finishPasswordSetup(supabase);
         } catch (error) {
             setErrorMessage(error.message || 'Your account could not be saved. Please try again.');
         } finally {
@@ -296,7 +295,7 @@ function CreateAccount({ setIsLoggedIn }) {
                         {!authReady ? 'Checking invite…' : loading ? 'Saving…' : 'Save password'}
                     </button>
                 </form>}
-                <Link className={styles.backLink} to="/login">Back to sign in</Link>
+                <Link className={styles.backLink} to="/login" onClick={event => { event.preventDefault(); void leavePortal(supabase); }}>Back to sign in</Link>
             </div>
         </main>
     );

@@ -19,10 +19,10 @@ function ForgotPassword() {
         try {
             if (!supabase) throw new Error('Password reset is not available. Please try again later.');
             const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: `${window.location.origin}/set-password`
+                redirectTo: `${window.location.origin}/reset-password`
             });
             if (error) throw error;
-            setSuccessMessage('Check your email for a secure password setup link.');
+            setSuccessMessage('Check your email for a reset link.');
         } catch (error) {
             setErrorMessage(error.message || 'The reset link could not be sent. Please try again.');
         } finally {

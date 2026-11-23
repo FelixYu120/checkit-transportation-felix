@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './Login.module.css';
+import { finishPasswordSetup, leavePortal } from './portalExit.js';
 
-function SetPassword({ setIsLoggedIn }) {
+function SetPassword() {
     const navigate = useNavigate();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -13,26 +14,71 @@ function SetPassword({ setIsLoggedIn }) {
     const [message, setMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
-    const redirectTimerRef = useRef(null);
+    const completedRef = useRef(false);
     const [hasSession, setHasSession] = useState(false);
 
     useEffect(() => {
-        let mounted = true;
-        if (!supabase) {
-            setErrorMessage('Password reset is not available. Please try again later.');
-            return undefined;
-        }
-        supabase.auth.getSession().then(({ data, error }) => {
-            if (!mounted) return;
-            setHasSession(!error && Boolean(data?.session));
-            if (error) setErrorMessage(error.message);
-        }).catch(error => {
-            if (mounted) setErrorMessage(error.message || 'Your reset link could not be verified. Please try again.');
+        let active = true;
+        let version = 0;
+        let deadlineTimer;
+        const queued = new Set();
+        if (!supabase) return undefined;
+        const verify = async (session, request) => {
+            if (!active || completedRef.current || request !== version) return;
+            if (!session?.user?.id) { setHasSession(false); return; }
+            try {
+                const identity = await supabase.auth.getUser();
+                if (identity.error) throw identity.error;
+                const result = await supabase.rpc('password_reset_status');
+                if (result.error) throw result.error;
+                if (!active || completedRef.current || request !== version) return;
+                const remaining = Number(result.data?.remaining_seconds);
+                if (result.data?.eligible !== true || result.data.user_id !== identity.data?.user?.id || identity.data?.user?.id !== session.user.id || !Number.isFinite(remaining) || remaining <= 0) {
+                    setHasSession(false);
+                    setErrorMessage('Reset link is invalid or expired.');
+                    return;
+                }
+                window.clearTimeout(deadlineTimer);
+                setHasSession(true);
+                setErrorMessage('');
+                deadlineTimer = window.setTimeout(() => {
+                    if (!completedRef.current) {
+                        setHasSession(false);
+                        setErrorMessage('Reset link expired. Request a new one.');
+                    }
+                }, remaining * 1000);
+            } catch {
+                if (active && request === version) {
+                    setHasSession(false);
+                    setErrorMessage('Reset link could not be verified.');
+                }
+            }
+        };
+        const refresh = () => {
+            if (!active || completedRef.current) return;
+            const request = ++version;
+            supabase.auth.getSession().then(({data, error}) => {
+                if (error) throw error;
+                return verify(data?.session, request);
+            }).catch(() => { if (active && request === version) setHasSession(false); });
+        };
+        refresh();
+        const {data: listener} = supabase.auth.onAuthStateChange((_event, session) => {
+            const request = ++version;
+            const timer = window.setTimeout(() => { queued.delete(timer); void verify(session, request); }, 0);
+            queued.add(timer);
         });
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (mounted) setHasSession(Boolean(session));
-        });
-        return () => { mounted = false; clearTimeout(redirectTimerRef.current); authListener.subscription.unsubscribe(); };
+        const focus = () => { if (document.visibilityState !== 'hidden') refresh(); };
+        window.addEventListener('focus', focus);
+        document.addEventListener('visibilitychange', focus);
+        return () => {
+            active = false;
+            window.clearTimeout(deadlineTimer);
+            queued.forEach(timer => window.clearTimeout(timer));
+            listener?.subscription?.unsubscribe();
+            window.removeEventListener('focus', focus);
+            document.removeEventListener('visibilitychange', focus);
+        };
     }, []);
 
     const handleSubmit = async (event) => {
@@ -57,11 +103,20 @@ function SetPassword({ setIsLoggedIn }) {
 
         setLoading(true);
         try {
-            const { error } = await supabase.auth.updateUser({ password });
+            const identity = await supabase.auth.getUser();
+            if (identity.error) throw identity.error;
+            const reset = await supabase.rpc('password_reset_status');
+            if (reset.error) throw reset.error;
+            if (reset.data?.eligible !== true || reset.data.user_id !== identity.data?.user?.id) {
+                setHasSession(false);
+                throw new Error('Reset link is invalid or expired.');
+            }
+            const { data, error } = await supabase.auth.updateUser({ password });
             if (error) throw error;
-            setMessage('Password updated. Redirecting to your dashboard…');
-            setIsLoggedIn?.(true);
-            redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
+            if (data?.user?.id !== identity.data?.user?.id) throw new Error('Password update could not be confirmed.');
+            completedRef.current = true;
+            setMessage('Password updated.');
+            await finishPasswordSetup(supabase);
         } catch (error) {
             setErrorMessage(error.message || 'Your password could not be saved. Please try again.');
         } finally {
@@ -85,17 +140,17 @@ function SetPassword({ setIsLoggedIn }) {
                     <div className={styles.headerBlock}>
                         <h1 className={styles.logintitle}>Set password</h1>
                         <p className={styles.supportText}>
-                            Choose a password for your CheckIt administrator account.
+                            Choose your new password.
                         </p>
                     </div>
 
                     {!hasSession && (
                         <div className={styles.noticeMessage}>
-                            Open this page from the secure email link. If the link expired, request a new one from the sign-in page.
+                            Open the reset link from your email.
                         </div>
                     )}
 
-                    <form className={styles.formlayout} onSubmit={handleSubmit}>
+                    {hasSession && <form className={styles.formlayout} onSubmit={handleSubmit}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel} htmlFor="transportation-new-password">New password</label>
                             <div className={styles.passwordField}>
@@ -147,12 +202,13 @@ function SetPassword({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.navrow} style={{ marginTop: '24px' }}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>Back</button>
+                            <button type="button" className={styles.backbutton} onClick={() => { void leavePortal(supabase); }}>Back</button>
                             <button type="submit" className={styles.continuebutton} disabled={loading || !hasSession || Boolean(message)}>
                                 {loading ? 'Saving…' : 'Save password'}
                             </button>
                         </div>
-                    </form>
+                    </form>}
+                    {!hasSession && <button type="button" className={styles.backbutton} onClick={() => navigate('/forgot-password')}>Request a new link</button>}
                 </div>
             </div>
         </div>
