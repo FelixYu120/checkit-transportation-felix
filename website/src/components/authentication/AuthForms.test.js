@@ -10,7 +10,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
   auth: {
@@ -26,7 +26,17 @@ fixture.client = {
     async resetPasswordForEmail(email) { fixture.calls.push({ action: 'reset', email }); if (fixture.failure) throw fixture.failure; return { error: null }; },
     async signUp() { throw new Error('An invited account must not register again'); },
   },
-  from() { return { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: fixture.inviteProfile, error: null }; }, async upsert(input) { fixture.calls.push({ action: 'profile', input }); return { error: fixture.profileError }; } }; },
+  from() {
+    let updatedName;
+    return {
+      select() { return this; },
+      eq(column, value) { if (updatedName !== undefined) fixture.calls.push({ action: 'profileScope', column, value }); return this; },
+      update(input) { updatedName = input.full_name; fixture.calls.push({ action: 'profile', input }); return this; },
+      async maybeSingle() { return { data: fixture.inviteProfile, error: null }; },
+      async single() { return { data: fixture.profileResult || { id: account.id, full_name: updatedName }, error: fixture.profileError }; },
+      async upsert() { throw new Error('Invited profiles must be updated without requesting changes to their ID.'); },
+    };
+  },
 };
 const reactUrl = import.meta.resolve('react');
 const asModule = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
@@ -276,3 +286,30 @@ test('an existing account without membership cannot complete invitation setup', 
   assert.deepEqual(fixture.calls, []);
   assert.deepEqual(fixture.logins, []);
 });
+
+
+test('invitation completion updates only the authenticated profile name before setting the password', async () => {
+  await mount(CreateAccount);
+  await enter('#signup-first-name', 'Felix');
+  await enter('#signup-last-name', 'Example');
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  await submit();
+  assert.deepEqual(fixture.calls.filter(call => call.action === 'profile'), [{action:'profile',input:{full_name:'Felix Example'}}]);
+  assert.deepEqual(fixture.calls.find(call => call.action === 'profileScope'), {action:'profileScope',column:'id',value:account.id});
+  assert.equal(fixture.calls.some(call => call.action === 'password'), true);
+  assert.deepEqual(fixture.logins, [true]);
+});
+
+for (const profileResult of [{id:'wrong-user',full_name:'Example User'},{id:account.id,full_name:'Old Name'}]) {
+  test(`an unconfirmed name save cannot finish password setup: ${profileResult.id}/${profileResult.full_name}`, async () => {
+    fixture.profileResult = profileResult;
+    await mount(CreateAccount);
+    await enter('#signup-first-name', 'Example');
+    await enter('#signup-last-name', 'User');
+    for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+    await submit();
+    assert.match(document.querySelector('[role="alert"]').textContent, /profile update could not be confirmed/);
+    assert.equal(fixture.calls.some(call => call.action === 'password'), false);
+    assert.deepEqual(fixture.logins, []);
+  });
+}

@@ -63,7 +63,6 @@ function CreateAccount({ setIsLoggedIn }) {
         const trimmedFirstName = firstName.trim();
         const trimmedLastName = lastName.trim();
         const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
-        const normalizedEmail = email.trim();
 
         if (!trimmedFirstName || !trimmedLastName) {
             setErrorMessage('Enter your first and last name.');
@@ -93,11 +92,15 @@ function CreateAccount({ setIsLoggedIn }) {
             if (!hasPortalAccess(membership)) {
                 throw new Error('An active invitation is required. Ask your administrator to invite you.');
             }
-            // Complete an existing invited account; public registration is disabled.
-            const { error: profileError } = await supabase.from('profile').upsert({
-                id: user.id, email: user.email || normalizedEmail, full_name: fullName
-            });
-            if (profileError) throw new Error('Your profile could not be completed. Please try again.');
+            // Invitations already create the profile. Update only editable fields;
+            // an upsert also requests UPDATE(id), which Occupancy correctly denies.
+            const { data: savedProfile, error: profileError } = await supabase.from('profile')
+                .update({ full_name: fullName }).eq('id', user.id)
+                .select('id,full_name').single();
+            if (profileError) throw new Error('Your profile could not be completed. Please try again.', { cause: profileError });
+            if (savedProfile?.id !== user.id || savedProfile.full_name !== fullName) {
+                throw new Error('Your profile update could not be confirmed. Reopen your invitation to retry.');
+            }
             const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
             if (error) throw error;
             if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');

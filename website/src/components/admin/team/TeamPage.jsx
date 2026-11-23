@@ -533,7 +533,7 @@ const TeamPage = () => {
             </div>
 
             <p id="team-remove-description" className={styles.removalDescription}>
-              This permanently deletes their account, credentials, and personal profile files from this platform. Company reports and firmware are preserved with personal attribution removed. A future invitation requires fresh account setup. To continue, type <strong>{selectedMemberName}</strong> exactly as shown.
+              Type <strong>{selectedMemberName}</strong> to confirm.
             </p>
             <label className={styles.confirmationLabel} htmlFor="team-remove-name">
               {selectedMember.full_name ? "Full name" : "Email address"}

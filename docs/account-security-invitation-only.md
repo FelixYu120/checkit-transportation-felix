@@ -98,3 +98,12 @@ Rolling back the website must not restore the detach-only RPC. Keep the new remo
 ## Account UI follow-up
 
 Revoked members return to the same platform's `/login` page after local session cleanup. Temporary verification outages retain the separate public-landing fallback to avoid repeatedly redirecting a still-valid session between login and the portal. All account-completion fields remain required and display a red asterisk. Removal confirmation remains explicit about permanent deletion; the success notice simply reads “Name was removed.” It includes a dismiss button and clears automatically after three seconds, with timer cleanup on dismissal or unmount.
+
+
+## Invited-profile completion repair
+
+Invitations already create a profile. Account completion now updates only `full_name`, scoped to the verified Auth user's ID, and confirms the returned ID and name before setting a password. It does not upsert the profile or request `UPDATE(id)`, which Occupancy correctly denies. Email, role, institution, assignments, and account identity remain untouched. Failed or unconfirmed saves cannot report completion or proceed to password setup.
+
+`supabase/tests/invitation_profile_completion.sql` exercises the actual installed profile grants, row policies and triggers in a single rolled-back transaction using synthetic accounts. It reproduces the legacy upsert denial where IDs are immutable, verifies the name-only update, and confirms cross-account edits and protected role changes remain blocked. Run the entire file in one connection; it creates no credentials, sends no emails and changes no existing account. This repair requires website deployment only; no database permissions are loosened.
+
+The removal dialog retains its permanent-deletion heading and exact-name confirmation, with the concise prompt “Type [name] to confirm.” The success message remains “Name was removed.” with a dismiss button and three-second timeout. Existing open tabs must reload to load updated application code.
