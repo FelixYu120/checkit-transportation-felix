@@ -102,7 +102,8 @@ const TeamPage = () => {
   const removalDialogRef = useRef(null);
   const [confirmationName, setConfirmationName] = useState("");
   const [actionError, setActionError] = useState("");
-  const [removalMessage, setRemovalMessage] = useState("");
+  const [removalMessage, setRemovalMessage] = useState(null);
+  const [isRemovalMessageClosing, setIsRemovalMessageClosing] = useState(false);
   const [savingAction, setSavingAction] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const inviteDialogRef = useRef(null);
@@ -145,9 +146,18 @@ const TeamPage = () => {
 
   useEffect(() => {
     if (!removalMessage) return undefined;
-    const timer = window.setTimeout(() => setRemovalMessage(""), 3000);
+    const timer = window.setTimeout(() => setIsRemovalMessageClosing(true), 3000);
     return () => window.clearTimeout(timer);
   }, [removalMessage]);
+
+  useEffect(() => {
+    if (!removalMessage || !isRemovalMessageClosing) return undefined;
+    const timer = window.setTimeout(() => {
+      setRemovalMessage(null);
+      setIsRemovalMessageClosing(false);
+    }, 240);
+    return () => window.clearTimeout(timer);
+  }, [removalMessage, isRemovalMessageClosing]);
 
   useEffect(() => {
     const updated = ({ detail }) => {
@@ -293,7 +303,8 @@ const TeamPage = () => {
     try {
       await removeTeamMember(supabase, selectedMember.id);
       setMembers((current) => current.filter((member) => member.id !== selectedMember.id));
-      setRemovalMessage(`${selectedMemberName} was removed.`);
+      setIsRemovalMessageClosing(false);
+      setRemovalMessage({ text: `${selectedMemberName} was removed.` });
       removalDialogRef.current?.close();
       setSelectedMember(null);
       setConfirmationName("");
@@ -370,11 +381,18 @@ const TeamPage = () => {
       </section>
 
       {removalMessage ? (
-        <div className={styles.removalSuccess}>
-          <p role="status">{removalMessage}</p>
-          <button type="button" className={styles.dismissMessageButton} aria-label="Dismiss removal message" onClick={() => setRemovalMessage("")}>
-            <X size={16} aria-hidden="true" />
-          </button>
+        <div
+          className={`${styles.removalNotice} ${isRemovalMessageClosing ? styles.removalNoticeClosing : ""}`}
+          aria-hidden={isRemovalMessageClosing || undefined}
+        >
+          <div className={styles.removalNoticeContent}>
+            <div className={styles.removalSuccess}>
+              <p role="status">{removalMessage.text}</p>
+              <button type="button" className={styles.dismissMessageButton} aria-label="Dismiss removal message" disabled={isRemovalMessageClosing} onClick={() => setIsRemovalMessageClosing(true)}>
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

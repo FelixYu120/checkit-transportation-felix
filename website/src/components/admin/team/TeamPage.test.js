@@ -92,7 +92,36 @@ const enterName = async value => act(async () => {
 });
 const submit = async () => act(async () => document.querySelector(".removalDialog form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
 
+const mockRemovalTimers = () => {
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  const scheduled = new Map();
+  let nextId = 0;
+  window.setTimeout = (callback, delay, ...args) => {
+    if (![3000, 240].includes(delay)) return originalSetTimeout.call(window, callback, delay, ...args);
+    const id = `removal-message-${++nextId}`;
+    scheduled.set(id, { callback, delay });
+    return id;
+  };
+  window.clearTimeout = id => {
+    if (scheduled.delete(id)) return;
+    originalClearTimeout.call(window, id);
+  };
+  return {
+    scheduled,
+    async advance(delay) {
+      const callbacks = [...scheduled].filter(([, timer]) => timer.delay === delay);
+      assert.ok(callbacks.length, `Expected a ${delay}ms timer`);
+      await act(async () => {
+        for (const [id, timer] of callbacks) { scheduled.delete(id); timer.callback(); }
+      });
+    },
+    restore() { window.setTimeout = originalSetTimeout; window.clearTimeout = originalClearTimeout; },
+  };
+};
+
 test("removal from member details waits for confirmation and updates the directory without a second fetch", async () => {
+  const timers = mockRemovalTimers();
   await mount();
   fixture.failRefresh = true;
   let release;
@@ -118,9 +147,12 @@ test("removal from member details waits for confirmation and updates the directo
     assert.deepEqual(fixture.removeCalls, ["member"]);
     assert.match(document.querySelector('[role="status"]').textContent, /Emily Thompson was removed\./);
     await click('[aria-label="Dismiss removal message"]');
+    assert.ok(document.querySelector('.removalNoticeClosing'), 'dismissal animates before removing the notice');
+    assert.ok(document.querySelector('.removalSuccess'));
+    await timers.advance(240);
     assert.equal(document.querySelector('.removalSuccess'), null);
     assert.equal(document.querySelectorAll('.memberCard').length, 2);
-  } finally { release(); }
+  } finally { release(); timers.restore(); }
 });
 
 test("a rejected removal keeps the member and shows the backend error", async () => {
@@ -398,35 +430,45 @@ test("uploaded photos appear on cards, member details, and removal confirmation 
 });
 
 
-test('the removal message clears after three seconds without changing the directory', async () => {
-  const originalSetTimeout = window.setTimeout;
-  const originalClearTimeout = window.clearTimeout;
-  const scheduled = new Map();
-  let nextId = 0;
-  window.setTimeout = (callback, delay, ...args) => {
-    if (delay !== 3000) return originalSetTimeout.call(window, callback, delay, ...args);
-    const id = `removal-message-${++nextId}`;
-    scheduled.set(id, callback);
-    return id;
-  };
-  window.clearTimeout = id => {
-    if (scheduled.delete(id)) return;
-    originalClearTimeout.call(window, id);
-  };
+test('the removal message fades and collapses after three seconds without changing the directory', async () => {
+  const timers = mockRemovalTimers();
   try {
     await mount();
     await click('[aria-label="Remove Emily Thompson from team"]');
     await enterName('Emily Thompson');
     await submit();
     await until(() => document.querySelector('.removalSuccess'));
-    assert.equal(scheduled.size, 1);
-    const expire = [...scheduled.values()][0];
-    await act(async () => expire());
-    assert.equal(document.querySelector('.removalSuccess'), null);
+    assert.equal(timers.scheduled.size, 1);
+    await timers.advance(3000);
+    assert.ok(document.querySelector('.removalNoticeClosing'));
+    assert.equal(document.querySelector('.removalNoticeClosing').getAttribute('aria-hidden'), 'true');
+    assert.ok(document.querySelector('.removalSuccess'), 'the notice stays mounted during its exit');
+    await timers.advance(240);
+    assert.equal(document.querySelector('.removalNotice'), null);
     assert.equal(document.querySelectorAll('.memberCard').length, 2);
-    assert.equal(scheduled.size, 0, 'the expired timer is cleaned up');
-  } finally {
-    window.setTimeout = originalSetTimeout;
-    window.clearTimeout = originalClearTimeout;
-  }
+    assert.equal(timers.scheduled.size, 0, 'both timers are cleaned up');
+  } finally { timers.restore(); }
+});
+
+test('a new removal replaces a closing notice without being cleared by its old exit timer', async () => {
+  const timers = mockRemovalTimers();
+  fixture.currentUserRole = 'checkit_admin';
+  try {
+    await mount();
+    await click('[aria-label="Remove Emily Thompson from team"]');
+    await enterName('Emily Thompson');
+    await submit();
+    await click('[aria-label="Dismiss removal message"]');
+    assert.ok(document.querySelector('.removalNoticeClosing'));
+    await click('[aria-label="Remove Another Admin from team"]');
+    await enterName('Another Admin');
+    await submit();
+    assert.equal(document.querySelector('.removalNoticeClosing'), null);
+    assert.match(document.querySelector('[role="status"]').textContent, /Another Admin was removed\./);
+    assert.equal([...timers.scheduled.values()].some(timer => timer.delay === 240), false);
+    await timers.advance(3000);
+    await timers.advance(240);
+    assert.equal(document.querySelector('.removalNotice'), null);
+    assert.equal(document.querySelectorAll('.memberCard').length, 1);
+  } finally { timers.restore(); }
 });
