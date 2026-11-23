@@ -10,6 +10,9 @@
     padding: 0 24px;
     gap: clamp(24px, 3vw, 48px);
     font-family: var(--checkit-font);
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: normal;
     line-height: 1.5;
     background: var(--checkit-nav, #2f4641);
     border-bottom: 1px solid rgba(213, 225, 217, 0.1);
@@ -36,7 +39,7 @@
     border-left: 1px solid rgba(213, 225, 217, 0.18);
     color: #bacbc2;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: var(--checkit-nav-font-weight);
     letter-spacing: 0.02em;
 }
 
@@ -58,9 +61,10 @@
     margin: 12px 0;
     padding: 0 15px;
     color: #c6d3cb;
-    font-size: 14px;
+    font-family: var(--checkit-font);
+    font-size: var(--checkit-nav-font-size);
     line-height: 1.25;
-    font-weight: 650;
+    font-weight: var(--checkit-nav-font-weight);
     white-space: nowrap;
     text-decoration: none;
     border-radius: 8px;
@@ -113,12 +117,13 @@
 
 @media (max-width: 768px) {
     .headerBar {
+        --checkit-nav-font-size: .75rem;
         height: 66px;
         padding: 0 16px;
         gap: 16px;
     }
     .checkitLogo { height: 36px; }
-    .tabLink { padding: 0 10px; font-size: 12px; gap: 6px; }
+    .tabLink { padding: 0 10px; gap: 6px; }
 }
 
 @media (max-width: 600px) {

@@ -23,6 +23,8 @@ html,
     --checkit-ink: #15201f;
     --checkit-muted: #63756b;
     --checkit-nav: #2f4641;
+    --checkit-nav-font-size: .875rem;
+    --checkit-nav-font-weight: 600;
     --checkit-surface-muted: #e3e9e4;
     --checkit-sidebar: #e3e9e4;
     --checkit-shadow: 0 2px 8px rgba(35, 55, 45, 0.04);
