@@ -28,6 +28,7 @@ def main():
     sql = sql.replace('\\i :workflow_file', without_transaction(workflow))
     sql = sql.replace('\\i :migration_file', without_transaction(migrations / '20261123010000_permanent_team_account_removal.sql'))
     sql = sql.replace('\\i :retirement_file', without_transaction(migrations / '20261123010100_retire_membership_only_removal.sql'))
+    sql = sql.replace('\\i :cleanup_repair_file', without_transaction(migrations / '20261123020000_fix_account_cleanup_report_guard.sql'))
     subprocess.run([args.psql, '--host', args.host, '--port', args.port,
                     '--username', args.username, '--dbname', 'checkit_permanent_removal_test',
                     '--no-psqlrc', '--set', 'ON_ERROR_STOP=on'], input=sql, text=True, check=True)

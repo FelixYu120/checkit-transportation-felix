@@ -69,7 +69,7 @@ test('permanent removal sends the signed-in token and requires server confirmati
 for (const payload of [{}, {ok:true}, {ok:true,removed:false,memberId:'member'}, {ok:true,removed:true,memberId:'other'}]) {
   test(`a partial removal response never claims permanent deletion: ${JSON.stringify(payload)}`, async () => {
     globalThis.fetch = async () => new Response(JSON.stringify(payload));
-    await assert.rejects(removeTeamMember(inviteClient, 'member'), /deletion could not be confirmed/);
+    await assert.rejects(removeTeamMember(inviteClient, 'member'), /Removal could not be confirmed/);
   });
 }
 

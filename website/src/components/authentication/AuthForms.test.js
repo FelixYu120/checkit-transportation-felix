@@ -10,9 +10,10 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:3600}, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
+  rpc: async name => { assert.equal(name, 'invitation_setup_status'); return {data:fixture.setupStatus,error:null}; },
   auth: {
     getSession: async () => {
       if (fixture.gate) await fixture.gate;
@@ -48,9 +49,10 @@ async function loadComponent(name) {
     if (specifier === 'react') target = reactUrl;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, key)=>String(key)});');
     else if (specifier.includes('portalAccess')) target = new URL('../../lib/portalAccess.js', import.meta.url).href;
+    else if (specifier === './portalExit.js') target = asModule('export const leavePortal=async()=>globalThis.__authFormTest.navigations.push("/login");');
     else if (specifier === './signOut.js') target = new URL('./signOut.js', import.meta.url).href;
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__authFormTest.client;');
-    else if (specifier === 'react-router-dom') target = asModule(`import React from ${JSON.stringify(reactUrl)}; export const useNavigate=()=>path=>globalThis.__authFormTest.navigations.push(path); export const Link=props=>React.createElement('a',props);`);
+    else if (specifier === 'react-router-dom') target = asModule(`import React from ${JSON.stringify(reactUrl)}; const navigate=path=>globalThis.__authFormTest.navigations.push(path); export const useNavigate=()=>navigate; export const Link=props=>React.createElement('a',props);`);
     else if (specifier === 'lucide-react') target = asModule(`import React from ${JSON.stringify(reactUrl)};` + clause.match(/\{([\s\S]*?)\}/)[1].split(',').map(name => `export const ${name.trim()}=()=>React.createElement('span',{'aria-hidden':true});`).join('\n'));
     else throw new Error(`Unexpected import ${specifier}`);
     return prefix + JSON.stringify(target);
@@ -122,8 +124,7 @@ test('signup waits for invitation verification instead of accidentally registeri
   let release;
   fixture.gate = new Promise(resolve => { release = resolve; });
   await mount(CreateAccount);
-  assert.equal(document.querySelector('button[type="submit"]').disabled, true);
-  await submit();
+  assert.equal(document.querySelector('form'), null);
   assert.deepEqual(fixture.calls, []);
   await act(async () => release());
   assert.equal(document.querySelector('button[type="submit"]').disabled, false);
@@ -313,3 +314,51 @@ for (const profileResult of [{id:'wrong-user',full_name:'Example User'},{id:acco
     assert.deepEqual(fixture.logins, []);
   });
 }
+
+
+for (const reason of ['completed','expired','invitation_required','open_latest_invitation','revoked']) {
+  test(`signup URL denies ${reason} sessions and returns to login`, async () => {
+    fixture.setupStatus = {eligible:false,reason,user_id:account.id};
+    await mount(CreateAccount);
+    assert.equal(document.querySelector('form'), null);
+    assert.ok(fixture.navigations.includes('/login'));
+  });
+}
+
+test('typing the signup URL without an invitation session never renders the form', async () => {
+  fixture.initialSession = null;
+  await mount(CreateAccount);
+  assert.equal(document.querySelector('form'), null);
+  assert.ok(fixture.navigations.includes('/login'));
+});
+
+test('an invitation that expires before submission cannot save a profile or password', async () => {
+  await mount(CreateAccount);
+  await enter('#signup-first-name', 'Example');
+  await enter('#signup-last-name', 'User');
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  fixture.setupStatus = {eligible:false,reason:'expired',user_id:account.id};
+  await submit();
+  assert.equal(fixture.calls.some(call => ['profile','password'].includes(call.action)), false);
+  assert.equal(document.querySelector('form'), null);
+  assert.ok(fixture.navigations.includes('/login'));
+});
+
+
+test('an open signup form closes when its invitation deadline arrives', async () => {
+  const original = window.setTimeout;
+  let expire;
+  fixture.setupStatus = {eligible:true,user_id:account.id,remaining_seconds:1};
+  window.setTimeout = (callback, delay, ...args) => {
+    if (delay === 1000) { expire=callback; return 12345; }
+    return original.call(window, callback, delay, ...args);
+  };
+  try {
+    await mount(CreateAccount);
+    assert.ok(document.querySelector('form'));
+    assert.equal(typeof expire,'function');
+    await act(async () => expire());
+    assert.equal(document.querySelector('form'),null);
+    assert.ok(fixture.navigations.includes('/login'));
+  } finally { window.setTimeout=original; }
+});

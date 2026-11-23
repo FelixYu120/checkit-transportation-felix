@@ -55,12 +55,12 @@ export function createTeamRemovalHandler(callSupabase) {
       const removed = await callSupabase('/rest/v1/rpc/finish_team_account_removal', {
         method: 'POST', body: { actor_profile_id: user.id, target_profile_id: memberId },
       });
-      if (removed !== true) throw new Error('Account deletion could not be confirmed.');
+      if (removed !== true) throw new Error('Removal could not be confirmed.');
       return res.status(200).json({ ok: true, removed: true, memberId: memberId });
     } catch (error) {
       const status = error instanceof SyntaxError ? 400 : [400, 401, 403, 404, 409, 413, 429, 503].includes(error?.status) ? error.status : 500;
       return res.status(status).json({
-        error: started ? 'Access is revoked, but permanent cleanup is incomplete. Retry removal to finish.'
+        error: started ? 'Could not remove user. Try again.'
           : error instanceof SyntaxError ? 'Send a valid JSON request.' : error.message || 'Account removal failed.',
         ...(started ? { retryable: true } : {}),
       });

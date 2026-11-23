@@ -418,7 +418,7 @@ const TeamPage = () => {
                     <span className={styles.memberName} title={member.full_name || "Unnamed member"}>{member.full_name || "Unnamed member"}</span>
                     {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
                   </span>
-                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={member.removal_pending ? "Removal pending" : getRoleLabel(member.role)}>{member.removal_pending ? "Removal pending" : getRoleLabel(member.role)}</span>
+                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={getRoleLabel(member.role)}>{getRoleLabel(member.role)}</span>
                   <span className={styles.memberEmail}>{member.email || "No email available"}</span>
                 </span>
                 <ChevronRight className={styles.memberDetailsArrow} size={16} aria-hidden="true" />
@@ -429,7 +429,7 @@ const TeamPage = () => {
                   type="button"
                   onClick={() => openRemoveConfirmation(member)}
                   aria-label={`Remove ${member.full_name || member.email || "member"} from team`}
-                  title="Remove from team"
+                  title="Remove"
                 >
                   <X size={18} aria-hidden="true" />
                 </button>
@@ -491,7 +491,7 @@ const TeamPage = () => {
             <div className={styles.memberDetailsFooter}>
               <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)}>
                 <X size={16} aria-hidden="true" />
-                Remove from team
+                Remove
               </button>
             </div>
           ) : null}
@@ -512,7 +512,7 @@ const TeamPage = () => {
         >
           <form onSubmit={removeMember}>
             <div className={styles.modalHeader}>
-              <h2 id="team-remove-title">Permanently remove account?</h2>
+              <h2 id="team-remove-title">Remove user?</h2>
               <button
                 className={styles.iconButton}
                 type="button"
@@ -567,7 +567,7 @@ const TeamPage = () => {
                 disabled={Boolean(savingAction) || !canEditSelectedMember || !removalNameMatches}
               >
                 <Trash2 size={16} aria-hidden="true" />
-                {savingAction === "remove" ? "Removing..." : "Permanently remove"}
+                {savingAction === "remove" ? "Removing..." : "Remove"}
               </button>
             </div>
           </form>

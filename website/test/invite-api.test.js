@@ -5,7 +5,7 @@ process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.APP_PUBLIC_URL = "https://transportation.example";
 
-const { default: handler } = await import("../api/team/invite.js");
+const { default: rawHandler } = await import("../api/team/invite.js");
 const originalFetch = global.fetch;
 
 afterEach(() => {
@@ -44,6 +44,37 @@ const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payl
   status,
   headers: { "Content-Type": "application/json" },
 });
+
+let setupRequiredOverride = null;
+let deliveryFailure = false;
+let invitationRpcCalls = [];
+afterEach(() => { setupRequiredOverride = null; deliveryFailure = false; invitationRpcCalls = []; });
+// Fake the new service-only RPC boundary while retaining the existing HTTP
+// scenarios. The actual permissions and ticket state are exercised in SQL.
+const handler = async (...args) => {
+  const downstream = global.fetch;
+  let confirmed = false;
+  global.fetch = async (url, options = {}) => {
+    const path = new URL(url).pathname;
+    if (path.endsWith('/authorize_invitation_delivery')) {
+      const body = JSON.parse(options.body);
+      invitationRpcCalls.push({path,body});
+      return jsonResponse({setup_required:body.target_profile_id ? (setupRequiredOverride ?? !confirmed) : false,delivery_started_at:'2026-11-23T00:00:00Z'});
+    }
+    if (path.endsWith('/record_invitation_delivery')) {
+      invitationRpcCalls.push({path,body:JSON.parse(options.body)});
+      if (deliveryFailure) return jsonResponse({message:'Invitation delivery could not be recorded'},503);
+      return jsonResponse({setup_required:true,expires_at:'2026-11-23T01:00:00Z'});
+    }
+    const response = await downstream(url,options);
+    if (/\/auth\/v1\/admin\/users\//.test(path) && response?.ok) {
+      const payload = await response.clone().json();
+      confirmed = Boolean((payload.user || payload).email_confirmed_at);
+    }
+    return response;
+  };
+  try { return await rawHandler(...args); } finally { global.fetch = downstream; }
+};
 
 test("rejects unauthenticated invitations", async () => {
   const response = createResponse();
@@ -438,4 +469,33 @@ test('email underscores and percent signs are literal, rather than profile searc
   await handler(createRequest({ token: 'admin-access-token', body: { email: 'Member_100%@Example.com', role: 'viewer' } }), response);
   assert.equal(response.statusCode, 409);
   assert.equal(lookup, String.raw`ilike.member\_100\%@example.com`);
+});
+
+
+test('a confirmed but unfinished account receives a fresh setup link and delivery window', async () => {
+  setupRequiredOverride = true;
+  const requests=[];
+  const responses=[
+    jsonResponse({id:'admin-user'}),
+    jsonResponse([{id:'admin-user',role:'admin',assigned_institute:'institute-1'}]),
+    jsonResponse([{id:'unfinished-user',email:'new@example.com',role:'viewer',assigned_institute:'institute-1'}]),
+    jsonResponse({id:'unfinished-user',email:'new@example.com',email_confirmed_at:'2026-11-20T00:00:00Z'}),
+    jsonResponse({}),
+  ];
+  global.fetch=async(url,options={})=>{requests.push({url:String(url),options});return responses.shift();};
+  const res=createResponse();
+  await handler(createRequest({token:'admin-access-token',body:{email:'new@example.com',role:'viewer'}}),res);
+  assert.equal(res.statusCode,200);
+  const sent=requests.find(r=>r.url.includes('/auth/v1/otp'));
+  assert.equal(new URL(sent.url).searchParams.get('redirect_to').endsWith('/create-account'),true);
+  assert.equal(invitationRpcCalls.filter(r=>r.path.endsWith('/record_invitation_delivery')).length,1);
+});
+
+test('email delivery failure never records a new setup window', async () => {
+  const responses=[jsonResponse({id:'admin-user'}),jsonResponse([{id:'admin-user',role:'admin',assigned_institute:'institute-1'}]),jsonResponse([]),jsonResponse({message:'SMTP unavailable'},503)];
+  global.fetch=async()=>responses.shift();
+  const res=createResponse();
+  await handler(createRequest({token:'admin-access-token',body:{email:'new@example.com',role:'viewer'}}),res);
+  assert.equal(res.statusCode,503);
+  assert.equal(invitationRpcCalls.some(r=>r.path.endsWith('/record_invitation_delivery')),false);
 });

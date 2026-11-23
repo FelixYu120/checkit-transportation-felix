@@ -48,7 +48,7 @@ test('personal photos are physically removed in bounded batches before account d
 test('a storage failure leaves cleanup retryable and never reports account deletion',async()=>{
   const {handler,calls}=setup({files:[{bucket_id:'profile-photos',name:`${member}/photo.webp`}],failAt:'/storage/v1/object/profile-photos'});
   const res=response();await handler(request(),res);
-  assert.equal(res.payload.retryable,true);assert.match(res.payload.error,/Access is revoked/);
+  assert.equal(res.payload.retryable,true);assert.match(res.payload.error,/Could not remove user/);
   assert.equal(calls.some(c=>c.path.endsWith('finish_team_account_removal')),false);
 });
 test('permission rejection cannot delete files or finalize',async()=>{

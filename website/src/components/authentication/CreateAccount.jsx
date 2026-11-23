@@ -4,6 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './LoginPage.module.css';
 import { hasPortalAccess } from '../../lib/portalAccess.js';
+import { leavePortal } from './portalExit.js';
 
 function CreateAccount({ setIsLoggedIn }) {
     const navigate = useNavigate();
@@ -20,29 +21,80 @@ function CreateAccount({ setIsLoggedIn }) {
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const redirectTimerRef = useRef(null);
+    const setupFinishedRef = useRef(false);
     const [hasInviteSession, setHasInviteSession] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
 
     useEffect(() => {
-        let mounted = true;
-        if (!supabase) return undefined;
-        supabase.auth.getSession().then(({ data, error }) => {
-            if (!mounted) return;
-            if (error) throw error;
-            setHasInviteSession(Boolean(data?.session));
-            setEmail(data?.session?.user?.email || '');
+        let active = true;
+        let version = 0;
+        let exiting = false;
+        let deadlineTimer;
+        const queued = new Set();
+        const closeSetup = (reason) => {
+            if (exiting || setupFinishedRef.current) return;
+            exiting = true;
+            setHasInviteSession(false);
             setAuthReady(true);
-        }).catch(error => {
-            if (mounted) setErrorMessage(error.message || 'Your account could not be verified. Reopen the invitation to retry.');
+            if (reason === 'completed') navigate('/login', { replace: true });
+            else void leavePortal(supabase);
+        };
+        const verify = async (session, request) => {
+            if (!active || exiting || setupFinishedRef.current || request !== version) return;
+            if (!session?.user?.id) { closeSetup('invitation_required'); return; }
+            setAuthReady(false);
+            try {
+                const identity = await supabase.auth.getUser();
+                if (identity.error) throw identity.error;
+                if (identity.data?.user?.id !== session.user.id) throw new Error('Account changed.');
+                const result = await supabase.rpc('invitation_setup_status');
+                if (result.error) throw result.error;
+                if (!active || request !== version || exiting || setupFinishedRef.current) return;
+                if (result.data?.eligible !== true || result.data.user_id !== session.user.id) {
+                    closeSetup(result.data?.reason);
+                    return;
+                }
+                const remaining = Number(result.data.remaining_seconds);
+                if (!Number.isFinite(remaining) || remaining <= 0) { closeSetup('expired'); return; }
+                window.clearTimeout(deadlineTimer);
+                setEmail(identity.data.user.email || '');
+                setHasInviteSession(true);
+                setAuthReady(true);
+                deadlineTimer = window.setTimeout(() => closeSetup('expired'), remaining * 1000);
+            } catch {
+                if (active && request === version) closeSetup('invitation_required');
+            }
+        };
+        const refresh = () => {
+            if (!active || exiting || setupFinishedRef.current) return;
+            const request = ++version;
+            setAuthReady(false);
+            if (!supabase) { closeSetup('invitation_required'); return; }
+            supabase.auth.getSession().then(({ data, error }) => {
+                if (error) throw error;
+                return verify(data?.session, request);
+            }).catch(() => { if (active && request === version) closeSetup('invitation_required'); });
+        };
+        refresh();
+        if (!supabase) return () => { active = false; };
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+            const request = ++version;
+            const timer = window.setTimeout(() => { queued.delete(timer); void verify(session, request); }, 0);
+            queued.add(timer);
         });
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!mounted) return;
-            setHasInviteSession(Boolean(session));
-            if (session?.user?.email) setEmail(session.user.email);
-            setAuthReady(true);
-        });
-        return () => { mounted = false; clearTimeout(redirectTimerRef.current); authListener.subscription.unsubscribe(); };
-    }, []);
+        const focus = () => { if (document.visibilityState !== 'hidden') refresh(); };
+        window.addEventListener('focus', focus);
+        document.addEventListener('visibilitychange', focus);
+        return () => {
+            active = false;
+            window.clearTimeout(deadlineTimer);
+            clearTimeout(redirectTimerRef.current);
+            queued.forEach(timer => window.clearTimeout(timer));
+            listener?.subscription?.unsubscribe();
+            window.removeEventListener('focus', focus);
+            document.removeEventListener('visibilitychange', focus);
+        };
+    }, [navigate]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -86,6 +138,13 @@ function CreateAccount({ setIsLoggedIn }) {
             if (identity.error) throw identity.error;
             const user = identity.data?.user;
             if (!user?.id) throw new Error('Your invitation session has expired. Reopen the invitation to retry.');
+            const invitation = await supabase.rpc('invitation_setup_status');
+            if (invitation.error) throw invitation.error;
+            if (invitation.data?.eligible !== true || invitation.data.user_id !== user.id) {
+                setHasInviteSession(false);
+                await leavePortal(supabase);
+                return;
+            }
             const { data: membership, error: membershipError } = await supabase.from('profile')
                 .select('role,assigned_institute').eq('id', user.id).maybeSingle();
             if (membershipError) throw membershipError;
@@ -104,6 +163,7 @@ function CreateAccount({ setIsLoggedIn }) {
             const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
             if (error) throw error;
             if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
+            setupFinishedRef.current = true;
             setSuccessMessage('Account ready. Redirecting to your dashboard…');
             setIsLoggedIn?.(true);
             redirectTimerRef.current = setTimeout(() => navigate('/map'), 900);
@@ -131,7 +191,7 @@ function CreateAccount({ setIsLoggedIn }) {
                 {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
                 {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
 
-                {(!authReady || hasInviteSession) && <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
+                {hasInviteSession && authReady && <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
                     <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
                             <label htmlFor="signup-first-name">First name<span className={styles.requiredMark} aria-hidden="true"> *</span></label>

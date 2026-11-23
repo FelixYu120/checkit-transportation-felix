@@ -25,9 +25,42 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
 alter table storage.objects enable row level security;
 create table public.saved_reports(id uuid primary key default gen_random_uuid(),title text,author text,date text,period text,layout_data jsonb,
  owner_id uuid references auth.users on delete set null,assigned_institute varchar,shared_with_emails text[] default '{}',shared_access jsonb default '{}',updated_at timestamptz default now());
+create function public.current_profile_is_admin() returns boolean language sql stable security definer set search_path='' as $$ select exists(select 1 from public.profile where id=auth.uid() and role in ('admin','checkit_admin')) $$;
+create function public.current_assigned_institute() returns text language sql stable security definer set search_path='' as $$ select assigned_institute::text from public.profile where id=auth.uid() $$;
+create function public.current_user_owns_saved_report(owner_id uuid,layout_data jsonb,author text) returns boolean language sql stable security definer set search_path='' as $$ select owner_id=auth.uid() $$;
+CREATE OR REPLACE FUNCTION public.set_saved_report_simple_security_fields()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'INSERT' then
+    new.owner_id := coalesce(new.owner_id, auth.uid());
+    new.assigned_institute := coalesce(new.assigned_institute, public.current_assigned_institute());
+    new.updated_at := coalesce(new.updated_at, now());
+  else
+    if not public.current_profile_is_admin() then
+      if public.current_user_owns_saved_report(old.owner_id, old.layout_data, old.author) then
+        new.owner_id := coalesce(old.owner_id, new.owner_id, auth.uid());
+      else
+        new.owner_id := old.owner_id;
+        new.shared_with_emails := old.shared_with_emails;
+        new.shared_access := old.shared_access;
+      end if;
+      new.assigned_institute := old.assigned_institute;
+    end if;
+    new.updated_at := now();
+  end if;
+  return new;
+end;
+$function$;
+
+create trigger legacy_report_security before insert or update on public.saved_reports for each row execute function public.set_saved_report_simple_security_fields();
 \i :workflow_file
 \i :migration_file
 \i :retirement_file
+\i :cleanup_repair_file
 create function pg_temp.assert_true(value boolean,message text) returns void language plpgsql as $$
 begin if value is distinct from true then raise exception '%',message; end if; end $$;
 create function pg_temp.denied(statement text) returns void language plpgsql as $$
@@ -73,6 +106,17 @@ insert into insight_report_actions(report_id,title,assigned_to,created_by,due_da
  ('30000000-0000-0000-0000-000000000001','Follow up','00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003','2026-12-01');
 insert into insight_report_events(report_id,event,actor_id,actor_label,detail) values
  ('30000000-0000-0000-0000-000000000001','saved','00000000-0000-0000-0000-000000000003','Removed Person','{"email":"removed@example.test"}');
+
+grant usage on schema public to authenticated;
+grant select,update on public.saved_reports to authenticated;
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000003',true);
+select set_config('checkit.removal_target','00000000-0000-0000-0000-000000000003',true);
+update public.saved_reports set owner_id='00000000-0000-0000-0000-000000000002' where id='30000000-0000-0000-0000-000000000001';
+select pg_temp.assert_true((select owner_id='00000000-0000-0000-0000-000000000003' from public.saved_reports),'A client cannot bypass ownership checks by spoofing the cleanup marker');
+select set_config('checkit.removal_target','',true);
+select set_config('request.jwt.claim.sub','',true);
+reset role;
 
 -- A missing receiving institution administrator fails before revocation.
 update profile set assigned_institute='sole-institution' where id='00000000-0000-0000-0000-000000000003';

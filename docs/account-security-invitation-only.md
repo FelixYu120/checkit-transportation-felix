@@ -59,7 +59,7 @@ This uses the existing 30-second membership recheck plus focus and authenticatio
 
 ## Permanent account removal release — November 22, 2026
 
-The team confirmation now explicitly describes permanent deletion **from the selected platform**. Occupancy and Transportation have independent identity stores; removing a person from one does not silently delete the other account. No existing member is removed merely by applying this release. Previously detached accounts are not bulk-deleted, and Felix's restored account is not targeted.
+The team action removes the account **from the selected platform**. Occupancy and Transportation have independent identity stores; removing a person from one does not silently delete the other account. No existing member is removed merely by applying this release. Previously detached accounts are not bulk-deleted, and Felix's restored account is not targeted.
 
 An authenticated administrator calls `POST /api/team/remove` with a member UUID. Supabase verifies the caller, and the database independently rechecks current role, institution, target role, and self-removal protection. Institution administrators can remove their own viewers/field operators; CheckIt administrators can remove other elevated accounts across institutions. Finalization is executable only by the server service role.
 
@@ -97,7 +97,7 @@ Rolling back the website must not restore the detach-only RPC. Keep the new remo
 
 ## Account UI follow-up
 
-Revoked members return to the same platform's `/login` page after local session cleanup. Temporary verification outages retain the separate public-landing fallback to avoid repeatedly redirecting a still-valid session between login and the portal. All account-completion fields remain required and display a red asterisk. Removal confirmation remains explicit about permanent deletion; the success notice simply reads “Name was removed.” It includes a dismiss button and clears automatically after three seconds, with timer cleanup on dismissal or unmount.
+Revoked members return to the same platform's `/login` page after local session cleanup. Temporary verification outages retain the separate public-landing fallback to avoid repeatedly redirecting a still-valid session between login and the portal. All account-completion fields remain required and display a red asterisk. The removal dialog uses a short confirmation prompt; the success notice simply reads “Name was removed.” It includes a dismiss button and clears automatically after three seconds, with timer cleanup on dismissal or unmount.
 
 
 ## Invited-profile completion repair
@@ -106,4 +106,15 @@ Invitations already create a profile. Account completion now updates only `full_
 
 `supabase/tests/invitation_profile_completion.sql` exercises the actual installed profile grants, row policies and triggers in a single rolled-back transaction using synthetic accounts. It reproduces the legacy upsert denial where IDs are immutable, verifies the name-only update, and confirms cross-account edits and protected role changes remain blocked. Run the entire file in one connection; it creates no credentials, sends no emails and changes no existing account. This repair requires website deployment only; no database permissions are loosened.
 
-The removal dialog retains its permanent-deletion heading and exact-name confirmation, with the concise prompt “Type [name] to confirm.” The success message remains “Name was removed.” with a dismiss button and three-second timeout. Existing open tabs must reload to load updated application code.
+The removal dialog uses “Remove user?” and exact-name confirmation, with the concise prompt “Type [name] to confirm.” The success message remains “Name was removed.” with a dismiss button and three-second timeout. Existing open tabs must reload to load updated application code.
+
+
+## One-use invitation setup and cleanup repair
+
+Signup URLs render no form until `invitation_setup_status` confirms a valid, unused invitation and a session created after its issuance. A completed account, missing invite, expired window, revoked membership or older session returns to login. Setup expires one hour after issuance, including while the form is open. Refreshing a session does not extend it. Resending mail records a fresh window only after delivery is accepted; the recipient must open the latest invitation. Completed accounts receive sign-in links and cannot reopen signup. The first-password Auth trigger checks the deadline and consumes the ticket in the same database transaction; existing password changes continue to work. Both `/signup` and `/create-account` use this gate. No existing password is changed by deployment.
+
+Apply `20261123021000_single_use_invitation_setup.sql` alone, then deploy the invitation API and website. Occupancy needs both its API and website projects published. Transportation deploys them together. This supersedes the earlier session-only signup gate. Synthetic tests cover expiry, consumed tickets, older sessions, sender authorization and preservation of normal password changes.
+
+`20261123020000_fix_account_cleanup_report_guard.sql` repairs the legacy saved-report trigger, which was reverting ownership transfers made by server cleanup. The trusted removal transaction can transfer reports; normal client ownership checks remain intact. The actual legacy trigger is now included in cleanup regressions. This migration changes function definitions and processes no existing removal job by itself. Real-user cleanup is completed by the admin's Remove action.
+
+User-facing removal wording is “Remove”, with a short confirmation prompt, no pending-removal badge, and “Name was removed.” with dismiss and three-second expiry. Internal retry state remains private so a failed file operation cannot cause false success or reactivate access.

@@ -102,7 +102,7 @@ export const removeTeamMember = async (supabase, memberId) => {
   try { result = await response.json(); } catch { /* A missing endpoint may serve HTML. */ }
   if (!response.ok) throw new Error(result?.error || "Account removal is unavailable. Refresh and try again.");
   if (result?.ok !== true || result?.removed !== true || result?.memberId !== memberId) {
-    throw new Error("Permanent account deletion could not be confirmed. Refresh and try again.");
+    throw new Error("Removal could not be confirmed. Refresh and try again.");
   }
   return result;
 };

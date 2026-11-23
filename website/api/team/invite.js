@@ -147,11 +147,14 @@ async function getInviteAuthUser(profile, email) {
   return user;
 }
 
-async function sendExistingMemberEmail(user, email) {
+async function sendExistingMemberEmail(user, email, actorId) {
+  const delivery = await callSupabase('/rest/v1/rpc/authorize_invitation_delivery', {
+    method: 'POST', body: { actor_profile_id: actorId, target_profile_id: user.id },
+  });
   const confirmed = Boolean(user.email_confirmed_at);
   const sent = await callSupabase(confirmed ? "/auth/v1/otp" : "/auth/v1/invite", {
     method: "POST",
-    query: { redirect_to: `${APP_PUBLIC_URL}/${confirmed ? "login" : "create-account"}` },
+    query: { redirect_to: `${APP_PUBLIC_URL}/${delivery.setup_required ? "create-account" : "login"}` },
     body: confirmed ? { email, create_user: false } : { email },
   });
   if (!confirmed && (sent?.id || sent?.user?.id) !== user.id) {
@@ -159,6 +162,9 @@ async function sendExistingMemberEmail(user, email) {
     error.status = 502;
     throw error;
   }
+  await callSupabase('/rest/v1/rpc/record_invitation_delivery', {
+    method: 'POST', body: { actor_profile_id: actorId, target_profile_id: user.id, delivery_started_at: delivery.delivery_started_at },
+  });
 }
 
 async function findAuthUserByEmail(email) {
@@ -226,6 +232,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Your profile is not assigned to an institution." });
     }
 
+    const delivery = await callSupabase('/rest/v1/rpc/authorize_invitation_delivery', {
+      method: 'POST', body: { actor_profile_id: currentUser.id },
+    });
     const existingProfile = await getProfileByEmail(email);
     if (existingProfile?.id) {
       if (!assignedInstitute || (existingProfile.assigned_institute && existingProfile.assigned_institute !== assignedInstitute)) {
@@ -244,7 +253,7 @@ export default async function handler(req, res) {
         }
       }
       // Retry delivery for current members without changing their existing access.
-      await sendExistingMemberEmail(authUser, email);
+      await sendExistingMemberEmail(authUser, email, currentUser.id);
 
       return res.status(200).json({
         ok: true,
@@ -296,7 +305,10 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: "The account's team access changed. Refresh the team and try again." });
     }
 
-    if (reactivated) await sendExistingMemberEmail(invitedUser, email);
+    if (reactivated) await sendExistingMemberEmail(invitedUser, email, currentUser.id);
+    else await callSupabase('/rest/v1/rpc/record_invitation_delivery', {
+      method: 'POST', body: { actor_profile_id: currentUser.id, target_profile_id: invitedUserId, delivery_started_at: delivery.delivery_started_at },
+    });
     return res.status(200).json({ ok: true, email, role: requestedRole, redirectTo, ...(reactivated ? { restored: true } : {}) });
   } catch (err) {
     console.error("Transportation Invite Error:", err);
