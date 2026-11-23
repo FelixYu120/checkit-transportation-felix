@@ -1,44 +1,51 @@
 .headerBar {
     position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000; /* Ensure it stays above map widgets */
-
+    z-index: 1000;
     display: flex;
     justify-content: space-between;
     align-items: center;
-
-    background: #34524D;
+    flex-shrink: 0;
     box-sizing: border-box;
-    padding: 0 30px; /* Match the admin header spacing */
-    height: 80px; /* Match the admin header height */
+    height: 72px;
+    padding: 0 24px;
+    font-family: var(--checkit-font);
+    line-height: 1.5;
+    background: var(--checkit-nav, #2f4641);
+    border-bottom: 1px solid rgba(213, 225, 217, 0.1);
+    box-shadow: 0 2px 12px rgba(21, 32, 31, 0.06);
+}
+
+.brandLink {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-radius: 6px;
+}
+
+.brandLink:focus-visible {
+    outline: 2px solid #a9beb2;
+    outline-offset: 3px;
 }
 
 .checkitLogo {
-    /* Control ONLY the height to make it bigger without breaking layout */
-    height: 55px;   /* Increased from 40px */
-    width: auto;    /* Keeps proportions perfect */
-    transition: height 0.3s ease; /* Smooth transition when resizing window */
+    display: block;
+    height: 42px;
+    width: auto;
 }
 
 @media (max-width: 768px) {
     .headerBar {
-        height: 70px;
-        padding: 0 15px;
+        height: 66px;
+        padding: 0 16px;
     }
-    
-    .checkitLogo {
-        height: 45px;
-    }
+    .checkitLogo { height: 36px; }
 }
 
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-width: 600px) {
     .headerBar {
-        height: 55px; 
-    }
-    .checkitLogo {
-        height: 38px;
+        height: 58px;
+        padding: 0 12px;
     }
 }
 

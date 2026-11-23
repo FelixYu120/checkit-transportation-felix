@@ -4,7 +4,7 @@ import React from 'react'
 function Header() {
     return (
         <header className={styles.headerBar}>  
-            <a href="https://checkit.dev">
+            <a className={styles.brandLink} href="https://checkit.dev" aria-label="CheckIt home">
                 <img src="/checkit-logo.png" alt="CheckIt" className={styles.checkitLogo} />
             </a>
 

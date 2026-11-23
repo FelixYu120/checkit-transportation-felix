@@ -9,6 +9,8 @@
     height: 72px;
     padding: 0 24px;
     gap: clamp(24px, 3vw, 48px);
+    font-family: var(--checkit-font);
+    line-height: 1.5;
     background: var(--checkit-nav, #2f4641);
     border-bottom: 1px solid rgba(213, 225, 217, 0.1);
     box-shadow: 0 2px 12px rgba(21, 32, 31, 0.06);
@@ -18,7 +20,7 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    flex: 0 0 auto;
+    flex: 0 0 280px;
     text-decoration: none;
     border-radius: 6px;
 }
@@ -57,6 +59,7 @@
     padding: 0 15px;
     color: #c6d3cb;
     font-size: 14px;
+    line-height: 1.25;
     font-weight: 650;
     white-space: nowrap;
     text-decoration: none;
@@ -104,6 +107,7 @@
 }
 
 @media (max-width: 1100px) {
+    .brand { flex-basis: auto; }
     .productName { display: none; }
 }
 
