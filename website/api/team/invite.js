@@ -154,7 +154,7 @@ async function sendExistingMemberEmail(user, email, actorId) {
   const confirmed = Boolean(user.email_confirmed_at);
   const sent = await callSupabase(confirmed ? "/auth/v1/otp" : "/auth/v1/invite", {
     method: "POST",
-    query: { redirect_to: `${APP_PUBLIC_URL}/${delivery.setup_required ? "create-account" : "login"}` },
+    query: { redirect_to: `${APP_PUBLIC_URL}/create-account` },
     body: confirmed ? { email, create_user: false } : { email },
   });
   if (!confirmed && (sent?.id || sent?.user?.id) !== user.id) {
@@ -252,7 +252,7 @@ export default async function handler(req, res) {
           return res.status(409).json({ error: "Team access could not be restored. Refresh the team and try again." });
         }
       }
-      // Retry delivery for current members without changing their existing access.
+      // Every administrator-issued invitation requires account setup.
       await sendExistingMemberEmail(authUser, email, currentUser.id);
 
       return res.status(200).json({

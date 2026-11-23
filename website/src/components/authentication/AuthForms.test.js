@@ -75,6 +75,10 @@ ${sessionSource}
 export default AppSession;`;
 const sessionTransform = await transformWithEsbuild(sessionCode, 'AppSession.jsx', { loader:'jsx', jsx:'transform' });
 const { default: AppSession } = await import(asModule(sessionTransform.code));
+const callbackSource = sessionCode.replace('const supabaseAuthRedirectPath=null;', 'const supabaseAuthRedirectPath="/create-account";')
+  .replace('window.location.replace(supabaseAuthRedirectPath)', 'globalThis.__authFormTest.callbackRedirects.push(supabaseAuthRedirectPath)');
+const callbackTransform = await transformWithEsbuild(callbackSource, 'InviteCallbackSession.jsx', {loader:'jsx',jsx:'transform'});
+const {default: InviteCallbackSession} = await import(asModule(callbackTransform.code));
 const { createRoot } = await import('react-dom/client');
 let root;
 afterEach(async () => { if (root) await act(async () => root.unmount()); root = null; reset(); });
@@ -361,4 +365,22 @@ test('an open signup form closes when its invitation deadline arrives', async ()
     assert.equal(document.querySelector('form'),null);
     assert.ok(fixture.navigations.includes('/login'));
   } finally { window.setTimeout=original; }
+});
+
+
+test('an invite callback waits for SDK session persistence before redirecting and showing a shell', async () => {
+  let release;
+  fixture.gate = new Promise(resolve => {release = resolve;});
+  fixture.callbackRedirects = [];
+  window.history.replaceState(null, '', '/login');
+  try {
+    await mount(InviteCallbackSession);
+    assert.deepEqual(fixture.callbackRedirects, []);
+    await act(async () => fixture.sessionCallback('SIGNED_IN', {user:account}));
+    assert.equal(document.querySelector('[data-authenticated]'), null);
+    assert.deepEqual(fixture.callbackRedirects, []);
+    await act(async () => release());
+    assert.deepEqual(fixture.callbackRedirects, ['/create-account']);
+    assert.equal(document.querySelector('[data-authenticated]'), null);
+  } finally {window.history.replaceState(null, '', '/');}
 });

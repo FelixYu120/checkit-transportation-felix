@@ -36,3 +36,14 @@ test("ignores ordinary navigation", () => {
 for (const type of ['magiclink', 'signup', 'email_change', 'reauthentication']) test(`${type} emails sign in an existing account without restarting account setup`, () => {
   assert.equal(getSupabaseAuthRedirectPath({ pathname: '/login', hash: `#type=${type}&access_token=fixture` }), '/login');
 });
+
+for (const pathname of ['/create-account', '/signup', '/create-account/']) test(`resent invitation on ${pathname} keeps setup despite a magic-link token`, () => {
+  assert.equal(getSupabaseAuthRedirectPath({pathname,hash:'#type=magiclink&access_token=fixture&refresh_token=fixture'}), '/create-account');
+});
+
+test('callback classification survives Supabase clearing the fragment', () => {
+  const location = {pathname:'/', hash:'#type=invite&access_token=fixture'};
+  const captured = getSupabaseAuthRedirectPath(location);
+  location.hash = '';
+  assert.equal(captured, '/create-account');
+});

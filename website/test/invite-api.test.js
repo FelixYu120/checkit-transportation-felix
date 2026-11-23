@@ -163,7 +163,7 @@ test("institution admins cannot invite elevated roles", async () => {
   assert.match(response.payload.error, /cannot invite/i);
 });
 
-test("re-inviting a removed confirmed member restores access and sends a sign-in email", async () => {
+test("re-inviting a removed confirmed member sends an account-setup link", async () => {
   const requests = [];
   global.fetch = async (url, options = {}) => {
     requests.push({ url: String(url), options });
@@ -195,7 +195,7 @@ test("re-inviting a removed confirmed member restores access and sends a sign-in
   const emailRequest = requests.find(({ url }) => new URL(url).pathname === "/auth/v1/otp");
   assert.ok(emailRequest);
   assert.deepEqual(JSON.parse(emailRequest.options.body), { email: "removed@example.com", create_user: false });
-  assert.equal(new URL(emailRequest.url).searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + "/login");
+  assert.equal(new URL(emailRequest.url).searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + "/create-account");
   const restoreRequest = requests.find(({ options }) => options.method === "PATCH");
   assert.ok(restoreRequest);
   const restoreUrl = new URL(restoreRequest.url);
@@ -338,7 +338,7 @@ for (const confirmed of [true, false]) test(`re-inviting a current ${confirmed ?
   const mail = requests.filter(({ options }) => options.method === "POST");
   assert.equal(mail.length, 1);
   assert.equal(mail[0].url.pathname, confirmed ? "/auth/v1/otp" : "/auth/v1/invite");
-  assert.equal(mail[0].url.searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + (confirmed ? "/login" : "/create-account"));
+  assert.equal(mail[0].url.searchParams.get("redirect_to"), new URL(process.env.APP_PUBLIC_URL).origin + "/create-account");
   assert.deepEqual(JSON.parse(mail[0].options.body), confirmed ? { email: "member@example.com", create_user: false } : { email: "member@example.com" });
 });
 

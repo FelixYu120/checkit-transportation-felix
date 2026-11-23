@@ -27,6 +27,9 @@ import supabase from "./components/helper/SupabaseClients.jsx";
 import { hasPortalAccess } from './lib/portalAccess.js';
 import { leavePortal, redirectToLanding } from './components/authentication/portalExit.js';
 
+// Capture before detectSessionInUrl clears an invite/recovery fragment.
+const supabaseAuthRedirectPath = getSupabaseAuthRedirectPath(window.location);
+
 function AnalyticsAccessRoute({ isLoggedIn, children }) {
     const [access, setAccess] = useState('checking');
 
@@ -202,16 +205,18 @@ function AppSession() {
             return undefined;
         }
 
-        const authRedirectPath = getSupabaseAuthRedirectPath(window.location);
-        if (authRedirectPath && window.location.pathname !== authRedirectPath) {
-            window.location.replace(`${authRedirectPath}${window.location.search}${window.location.hash}`);
-            return undefined;
-        }
-
+        const callbackNeedsRedirect = Boolean(supabaseAuthRedirectPath && window.location.pathname !== supabaseAuthRedirectPath);
         let active = true;
         let authEventReceived = false;
         supabase.auth.getSession().then(({ data, error }) => {
-            if (!active || authEventReceived) return;
+            if (!active) return;
+            // getSession waits for URL parsing AND session persistence. Redirecting
+            // earlier can unload the page between hash clearing and storage.
+            if (callbackNeedsRedirect) {
+                window.location.replace(supabaseAuthRedirectPath);
+                return;
+            }
+            if (authEventReceived) return;
             setSessionIdentity(data?.session?.user?.id || null);
             setIsLoggedIn(!error && Boolean(data?.session));
             setAuthReady(true);
@@ -223,6 +228,8 @@ function AppSession() {
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!active) return;
+            // Keep the shell hidden until the callback has been persisted and routed.
+            if (callbackNeedsRedirect) return;
             authEventReceived = true;
             setSessionIdentity(session?.user?.id || null);
             setIsLoggedIn(Boolean(session));
