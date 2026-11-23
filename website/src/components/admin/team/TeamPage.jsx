@@ -144,6 +144,12 @@ const TeamPage = () => {
   }, []);
 
   useEffect(() => {
+    if (!removalMessage) return undefined;
+    const timer = window.setTimeout(() => setRemovalMessage(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [removalMessage]);
+
+  useEffect(() => {
     const updated = ({ detail }) => {
       if (!detail?.id) return;
       const photo = { avatar_path: detail.avatar_path, avatar_url: detail.avatar_url || '' };
@@ -287,7 +293,7 @@ const TeamPage = () => {
     try {
       await removeTeamMember(supabase, selectedMember.id);
       setMembers((current) => current.filter((member) => member.id !== selectedMember.id));
-      setRemovalMessage(`${selectedMemberName} was permanently removed from this platform.`);
+      setRemovalMessage(`${selectedMemberName} was removed.`);
       removalDialogRef.current?.close();
       setSelectedMember(null);
       setConfirmationName("");
@@ -363,7 +369,14 @@ const TeamPage = () => {
         </div>
       </section>
 
-      {removalMessage ? <p className={styles.removalSuccess} role="status">{removalMessage}</p> : null}
+      {removalMessage ? (
+        <div className={styles.removalSuccess}>
+          <p role="status">{removalMessage}</p>
+          <button type="button" className={styles.dismissMessageButton} aria-label="Dismiss removal message" onClick={() => setRemovalMessage("")}>
+            <X size={16} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
 
       {loading && <TeamSkeleton />}
 

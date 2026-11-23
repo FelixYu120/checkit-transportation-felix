@@ -298,3 +298,7 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.requiredMark {
+    color: #b91c1c;
+}

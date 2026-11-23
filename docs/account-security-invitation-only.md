@@ -18,7 +18,7 @@ Use dedicated test accounts in a test institution. Keep an administrator account
 2. Sign in with an existing authorized account on each website and Field Teams. Expect the correct platform, role, and institution.
 3. Invite a fresh test address with a viewer role. Confirm delivery, open the link, enter a name/password, and verify the selected role. The email delivery check is manual; automated tests do not send real invitations.
 4. Sign out and sign back in with the invited account. Try invitation acceptance again and an expired link; neither should create an extra account or grant a higher role.
-5. Remove the test member while their protected page is open in another browser. Expect the complete portal, including its header and navigation, to disappear on focus or within 30 seconds. The current platform session is signed out and the browser replaces the protected page with `https://checkit.dev/`. Reopening a protected URL must never show a portal header or private page before membership is verified. Direct data access is separately enforced by database/server permissions.
+5. Remove the test member while their protected page is open in another browser. Expect the complete portal, including its header and navigation, to disappear on focus or within 30 seconds. The current platform session is signed out and the browser replaces the protected page with `/login` on the current platform. Reopening a protected URL must never show a portal header or private page before membership is verified. Direct data access is separately enforced by database/server permissions.
 6. Reinvite the same address. Expect it to work without a duplicate-account error and preserve appropriate role boundaries.
 7. Sign out normally, reload, and reopen the site. Expect the session to stay signed out. Browser password-manager entries may remain saved.
 8. With the app loaded, interrupt connectivity and sign out. If local logout completes but remote revocation fails, expect the local-only sign-out notice. Reopen after restoring connectivity and verify the local session is absent.
@@ -52,7 +52,7 @@ Administrator MFA enrollment, recovery and enforcement across the websites and F
 
 ## Revoked-member exit behavior
 
-The access guard covers the complete portal shell rather than only the page content. Confirmed missing or revoked membership removes all portal UI before local session cleanup begins, clears the portal conversation cache, and sends the browser to the main CheckIt landing page using history replacement. Session-cleanup errors do not leave the portal visible. A temporary verification outage also removes the portal and returns to the landing page, while preserving a valid session for later retry.
+The access guard covers the complete portal shell rather than only the page content. Confirmed missing or revoked membership removes all portal UI before local session cleanup begins, clears the portal conversation cache, and sends the browser to the current platform’s login page using history replacement. Session-cleanup errors do not leave the portal visible. A temporary verification outage also removes the portal and returns to the landing page, while preserving a valid session for later retry.
 
 This uses the existing 30-second membership recheck plus focus and authentication events; it does not claim instantaneous delivery of a remote removal notification. Public pages retain their existing access rules. The original membership-only removal retained the Auth account. The permanent-removal release below replaces that behavior for future removals.
 
@@ -86,10 +86,15 @@ The runner inlines the actual workflow and removal migrations in one fixture tra
 After deployment, use a dedicated disposable account, not a real colleague:
 
 1. Keep an administrator signed in separately. Invite the disposable address with a viewer role and complete its account setup.
-2. Keep its private portal open in another browser, remove it as administrator, type its exact displayed name/email, and confirm permanent removal. The member should disappear, and its open portal should leave for CheckIt's landing page on focus or within 30 seconds.
+2. Keep its private portal open in another browser, remove it as administrator, type its exact displayed name/email, and confirm permanent removal. The member should disappear, and its open portal should return to the current platform’s login page on focus or within 30 seconds.
 3. Try the old password and old protected URLs. Private access must fail. Confirm profile photos are gone and company reports/firmware remain with transferred ownership and former-member attribution.
 4. Reinvite the same email. It must have a new UUID, require fresh password setup, and inherit no old email-based report shares. Delivery still requires working SMTP.
 5. With a disposable account, simulate a Storage/API outage. Expect no false success, a revoked account, a pending-removal row after reload, and a successful retry once connectivity is restored.
 6. Confirm viewers, field operators, another institution's administrator, and self-removal are denied; confirm authorized administration still works on both platforms.
 
 Rolling back the website must not restore the detach-only RPC. Keep the new removal protections in place; completed account deletions are irreversible and are not undone by a code rollback.
+
+
+## Account UI follow-up
+
+Revoked members return to the same platform's `/login` page after local session cleanup. Temporary verification outages retain the separate public-landing fallback to avoid repeatedly redirecting a still-valid session between login and the portal. All account-completion fields remain required and display a red asterisk. Removal confirmation remains explicit about permanent deletion; the success notice simply reads “Name was removed.” It includes a dismiss button and clears automatically after three seconds, with timer cleanup on dismissal or unmount.

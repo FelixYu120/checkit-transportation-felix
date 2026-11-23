@@ -1,4 +1,9 @@
 export const CHECKIT_LANDING_URL = 'https://checkit.dev/';
+export const CHECKIT_LOGIN_PATH = '/login';
+
+export function redirectToLogin(location = window.location) {
+  location.replace(CHECKIT_LOGIN_PATH);
+}
 
 export function redirectToLanding(location = window.location) {
   location.replace(CHECKIT_LANDING_URL);
@@ -14,7 +19,7 @@ export function clearPortalCache(storage) {
   } catch { /* A blocked browser cache must not prevent leaving the portal. */ }
 }
 
-export async function leavePortal(client, redirect = redirectToLanding) {
+export async function leavePortal(client, redirect = redirectToLogin) {
   clearPortalCache();
   try {
     await client?.auth.signOut({ scope: 'local' });

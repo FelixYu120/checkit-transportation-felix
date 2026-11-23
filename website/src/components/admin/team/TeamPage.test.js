@@ -116,7 +116,10 @@ test("removal from member details waits for confirmation and updates the directo
     assert.equal(document.querySelectorAll(".memberCard").length, 2);
     assert.equal(fixture.loads, 1, "a failed directory refresh cannot undo confirmed removal");
     assert.deepEqual(fixture.removeCalls, ["member"]);
-    assert.match(document.querySelector('[role="status"]').textContent, /Emily Thompson was permanently removed/);
+    assert.match(document.querySelector('[role="status"]').textContent, /Emily Thompson was removed\./);
+    await click('[aria-label="Dismiss removal message"]');
+    assert.equal(document.querySelector('.removalSuccess'), null);
+    assert.equal(document.querySelectorAll('.memberCard').length, 2);
   } finally { release(); }
 });
 
@@ -392,4 +395,38 @@ test("uploaded photos appear on cards, member details, and removal confirmation 
   assert.equal(document.querySelector('.memberDetailsFields .roleBadge').textContent, 'Viewer');
   await click('.removeFromProfileButton');
   assert.equal(document.querySelector('.removalDialog .avatar img').src, 'https://photos.example/new.webp');
+});
+
+
+test('the removal message clears after three seconds without changing the directory', async () => {
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  const scheduled = new Map();
+  let nextId = 0;
+  window.setTimeout = (callback, delay, ...args) => {
+    if (delay !== 3000) return originalSetTimeout.call(window, callback, delay, ...args);
+    const id = `removal-message-${++nextId}`;
+    scheduled.set(id, callback);
+    return id;
+  };
+  window.clearTimeout = id => {
+    if (scheduled.delete(id)) return;
+    originalClearTimeout.call(window, id);
+  };
+  try {
+    await mount();
+    await click('[aria-label="Remove Emily Thompson from team"]');
+    await enterName('Emily Thompson');
+    await submit();
+    await until(() => document.querySelector('.removalSuccess'));
+    assert.equal(scheduled.size, 1);
+    const expire = [...scheduled.values()][0];
+    await act(async () => expire());
+    assert.equal(document.querySelector('.removalSuccess'), null);
+    assert.equal(document.querySelectorAll('.memberCard').length, 2);
+    assert.equal(scheduled.size, 0, 'the expired timer is cleaned up');
+  } finally {
+    window.setTimeout = originalSetTimeout;
+    window.clearTimeout = originalClearTimeout;
+  }
 });

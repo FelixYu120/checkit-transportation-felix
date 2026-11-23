@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { createClient } from '@supabase/supabase-js';
 import { signOutAccount } from './signOut.js';
-import { leavePortal, redirectToLanding, clearPortalCache, CHECKIT_LANDING_URL } from './portalExit.js';
+import { leavePortal, redirectToLanding, clearPortalCache, CHECKIT_LANDING_URL, redirectToLogin, CHECKIT_LOGIN_PATH } from './portalExit.js';
 
 let nextFixture = 0;
 function fixture(fetcher) {
@@ -90,4 +90,25 @@ test('revocation clears portal conversation caches and preserves unrelated prefe
   const keys = ['promi:legacy', 'promi-v2:user:institution:room', 'theme'];
   clearPortalCache({ get length() { return keys.length; }, key: index => keys[index], removeItem: key => keys.splice(keys.indexOf(key), 1) });
   assert.deepEqual(keys, ['theme']);
+});
+
+
+test('revoked access returns to this platform login using history replacement', () => {
+  const targets = [];
+  redirectToLogin({ replace: target => targets.push(target) });
+  assert.equal(CHECKIT_LOGIN_PATH, '/login');
+  assert.deepEqual(targets, ['/login']);
+});
+
+test('the default removed-member exit clears the session before returning to login', async () => {
+  const previous = globalThis.window;
+  const events = [];
+  globalThis.window = { location: { replace: path => events.push(path) } };
+  try {
+    await leavePortal({ auth: { signOut: async () => { events.push('signed-out'); } } });
+    assert.deepEqual(events, ['signed-out', '/login']);
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
 });

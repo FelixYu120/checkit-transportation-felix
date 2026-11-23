@@ -859,6 +859,9 @@
 }
 
 .removalSuccess {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   box-sizing: border-box;
   max-width: 1120px;
   margin: 0 auto 20px;
@@ -1074,4 +1077,32 @@
   .skeletonLineSmall {
     animation: none;
   }
+}
+
+.removalSuccess p {
+  flex: 1;
+  margin: 0;
+}
+
+.dismissMessageButton {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dismissMessageButton:hover {
+  background: rgba(52, 82, 77, .08);
+}
+
+.dismissMessageButton:focus-visible {
+  outline: 2px solid #34524d;
+  outline-offset: 2px;
 }

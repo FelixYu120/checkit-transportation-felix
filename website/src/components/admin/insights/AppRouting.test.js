@@ -39,9 +39,9 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
         },rpc:async()=>({data:fixture().accountReady!==false,error:fixture().readinessError||null}),from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
     } else if (specifier.includes('portalExit')) {
       const target = new URL('../../authentication/portalExit.js', import.meta.url).href;
-      stub = `import {leavePortal as exit,CHECKIT_LANDING_URL} from ${JSON.stringify(target)};
+      stub = `import {leavePortal as exit,CHECKIT_LANDING_URL,CHECKIT_LOGIN_PATH} from ${JSON.stringify(target)};
         export const redirectToLanding=()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LANDING_URL);
-        export const leavePortal=client=>exit(client,redirectToLanding);`;
+        export const leavePortal=client=>exit(client,()=>globalThis.__checkitRoutingFixture.redirects.push(CHECKIT_LOGIN_PATH));`;
     } else if (specifier.includes('portalAccess')) {
       return prefix + JSON.stringify(new URL('../../../lib/portalAccess.js', import.meta.url).href);
     } else if (specifier.endsWith('.css')) {
@@ -109,7 +109,7 @@ test('nested analytics routes retain their route parameters and parent layout', 
 
 test('signed-out visitors cannot enter Insights Studio', async () => {
   await mount('/insights-studio/solo', false);
-  const page = isTransportation ? 'Login' : 'StudentMapPage';
+  const page = 'Login';
   await until(() => document.querySelector(`[data-page="${page}"]`));
   assert.equal(document.querySelector('[data-page="InsightBuilderPage"]'), null);
 });
@@ -120,7 +120,7 @@ for (const profile of [null, { role: 'viewer', assigned_institute: null }, { rol
     await mount('/team', true, profile);
     await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
     assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
-    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['/login']);
     assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   });
 }
@@ -139,7 +139,7 @@ test('returning to an open tab rechecks membership and removes revoked access', 
   await act(async () => document.dispatchEvent(new window.Event('visibilitychange')));
   await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
     assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
-    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['/login']);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
 
@@ -156,7 +156,7 @@ test('a delayed older membership response cannot restore access after removal', 
   await act(async () => document.dispatchEvent(new window.Event('visibilitychange')));
   await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
     assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
-    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['/login']);
   await act(async () => release({ data: { role: 'admin', assigned_institute: 'ucsd' }, error: null }));
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
@@ -173,7 +173,7 @@ test('an account switch cannot reuse the previous account’s protected page', a
   });
   await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
     assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
-    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['/login']);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });
 
@@ -193,7 +193,7 @@ test('membership is rechecked periodically while a protected page stays open', a
     await act(async () => recheck());
     await until(() => globalThis.__checkitRoutingFixture.redirects.length > 0);
     assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
-    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['https://checkit.dev/']);
+    assert.deepEqual(globalThis.__checkitRoutingFixture.redirects, ['/login']);
     assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   } finally {
     window.setInterval = original;
@@ -232,7 +232,7 @@ test('revocation removes the entire portal before waiting for logout', async () 
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
   await act(async () => release());
   await until(() => fixture.redirects.length > 0);
-  assert.deepEqual(fixture.redirects, ['https://checkit.dev/']);
+  assert.deepEqual(fixture.redirects, ['/login']);
 });
 
 test('a logout failure cannot leave a revoked member inside the portal', async () => {
@@ -249,6 +249,7 @@ test('temporary verification failures leave the portal without deleting a valid 
   const fixture = globalThis.__checkitRoutingFixture;
   await until(() => fixture.redirects.length > 0);
   assert.deepEqual(fixture.signOutCalls, []);
+  assert.deepEqual(fixture.redirects, ['https://checkit.dev/']);
   assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
   assert.equal(document.querySelector('[data-page="TeamPage"]'), null);
 });

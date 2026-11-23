@@ -131,7 +131,7 @@ function CreateAccount({ setIsLoggedIn }) {
                 {(!authReady || hasInviteSession) && <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
                     <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
-                            <label htmlFor="signup-first-name">First name</label>
+                            <label htmlFor="signup-first-name">First name<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
                             <input
                                 id="signup-first-name"
                                 name="new-admin-first-name"
@@ -146,7 +146,7 @@ function CreateAccount({ setIsLoggedIn }) {
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label htmlFor="signup-last-name">Last name</label>
+                            <label htmlFor="signup-last-name">Last name<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
                             <input
                                 id="signup-last-name"
                                 name="new-admin-last-name"
@@ -162,7 +162,7 @@ function CreateAccount({ setIsLoggedIn }) {
                     </div>
 
                     <div className={styles.fieldGroup}>
-                        <label htmlFor="transportation-signup-email">Email address</label>
+                        <label htmlFor="transportation-signup-email">Email address<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
                         <input
                             id="transportation-signup-email"
                             name="checkit-transportation-new-account-email"
@@ -178,7 +178,7 @@ function CreateAccount({ setIsLoggedIn }) {
                     </div>
 
                     <div className={styles.fieldGroup}>
-                        <label htmlFor="transportation-signup-password">Password</label>
+                        <label htmlFor="transportation-signup-password">Password<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
                         <div className={styles.passwordField}>
                             <input
                                 id="transportation-signup-password"
@@ -204,7 +204,7 @@ function CreateAccount({ setIsLoggedIn }) {
                     </div>
 
                     <div className={styles.fieldGroup}>
-                        <label htmlFor="transportation-signup-confirm-password">Confirm password</label>
+                        <label htmlFor="transportation-signup-confirm-password">Confirm password<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
                         <div className={styles.passwordField}>
                             <input
                                 id="transportation-signup-confirm-password"
