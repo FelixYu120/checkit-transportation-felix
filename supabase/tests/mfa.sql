@@ -1,0 +1,108 @@
+\set ON_ERROR_STOP on
+begin;
+do $$ begin if current_database()<>'checkit_mfa_test' then raise exception 'Use the isolated checkit_invitation_setup_test database.'; end if; end $$;
+do $$ begin if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if; if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin; end if; if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role nologin; end if; end $$;
+create schema auth;
+create schema checkit_accounts_private;
+revoke all on schema checkit_accounts_private from public,anon,authenticated;
+create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
+create function auth.uid() returns uuid language sql stable as $$ select (auth.jwt()->>'sub')::uuid $$;
+grant usage on schema auth to authenticated,service_role;
+grant execute on all functions in schema auth to authenticated,service_role;
+create table auth.users(id uuid primary key,email text,encrypted_password text,invited_at timestamptz,raw_user_meta_data jsonb default '{}');
+create table auth.sessions(id uuid primary key,user_id uuid references auth.users on delete cascade,created_at timestamptz default clock_timestamp(),not_after timestamptz);
+create table public.profile(id uuid primary key references auth.users on delete cascade,role text,assigned_institute text);
+create table checkit_accounts_private.removals(target_id uuid primary key references auth.users on delete cascade);
+alter table auth.users add column updated_at timestamptz;
+alter table auth.users add column email_confirmed_at timestamptz;
+alter table auth.users add column recovery_sent_at timestamptz;
+create table auth.mfa_amr_claims(session_id uuid references auth.sessions on delete cascade,authentication_method text);
+create table auth.refresh_tokens(user_id text,session_id uuid,created_at timestamptz default clock_timestamp());
+\i :migration_file
+\i :repair_file
+\i :protocol_file
+\i :provider_file
+create function pg_temp.assert_true(value boolean,message text) returns void language plpgsql as $$ begin if value is distinct from true then raise exception '%',message; end if; end $$;
+create function pg_temp.denied(statement text) returns void language plpgsql as $$ begin begin execute statement; exception when others then return; end; raise exception 'Unexpected success: %',statement; end $$;
+create function pg_temp.identify(subject_id uuid,session_id uuid) returns void language plpgsql as $$ begin perform set_config('request.jwt.claims',jsonb_build_object('sub',subject_id,'session_id',session_id,'role','authenticated')::text,true); end $$;
+
+alter table public.profile add column full_name text;
+create table auth.mfa_factors(id uuid primary key,user_id uuid references auth.users on delete cascade,factor_type text,status text);
+create table public.mfa_test_data(id int primary key,secret text);
+alter table public.mfa_test_data enable row level security;
+alter table public.profile enable row level security;
+create policy base_access on public.profile for all to authenticated using(true) with check(true);
+create policy base_access on public.mfa_test_data for all to authenticated using(true) with check(true);
+grant select,insert,update,delete on public.mfa_test_data,public.profile to authenticated;
+
+\i :mfa_file
+
+insert into auth.users(id,encrypted_password) values('00000000-0000-0000-0000-000000000001','admin-hash'),('00000000-0000-0000-0000-000000000002','viewer-hash');
+insert into public.profile(id,role,assigned_institute) values('00000000-0000-0000-0000-000000000001','checkit_admin','ucsd'),('00000000-0000-0000-0000-000000000002','viewer','ucsd');
+insert into auth.sessions(id,user_id) select id,id from auth.users;
+insert into auth.mfa_amr_claims select id,'password' from auth.sessions;
+insert into public.mfa_test_data values(1,'private');
+select pg_temp.identify('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001');
+set role authenticated;
+select pg_temp.assert_true(public.mfa_access_allowed(),'Staged policy preserves login before publication');
+reset role;
+update checkit_accounts_private.mfa_policy set enforce_admins=true where singleton;
+set role authenticated;
+select pg_temp.assert_true(not public.mfa_access_allowed(),'Password alone cannot satisfy admin MFA');
+select pg_temp.assert_true(not public.portal_account_ready(),'Portal readiness includes MFA');
+select pg_temp.assert_true((select count(*)=1 from public.profile),'Only own profile is visible during enrollment');
+select pg_temp.assert_true((select count(*)=0 from public.mfa_test_data),'Direct data reads cannot bypass MFA');
+select pg_temp.denied($q$insert into public.mfa_test_data values(2,'bypass')$q$);
+with changed as(update public.profile set role='viewer' where id=auth.uid() returning id) select pg_temp.assert_true((select count(*)=0 from changed),'Low-assurance users cannot demote themselves to bypass MFA');
+select pg_temp.denied($q$select public.confirm_my_mfa_enrollment()$q$);
+select set_config('request.path','/rpc/update_team_member_role',true);
+select pg_temp.denied($q$select public.checkit_mfa_pre_request()$q$);
+select set_config('request.path','/rpc/mfa_access_status',true);
+select public.checkit_mfa_pre_request();
+select set_config('request.path','/profile',true);
+select set_config('request.method','GET',true);
+select public.checkit_mfa_pre_request();
+reset role;
+insert into auth.mfa_factors values('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','totp','verified');
+select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0000-0000-000000000001','session_id','00000000-0000-0000-0000-000000000001','role','authenticated','aal','aal2')::text,true);
+set role authenticated;
+select pg_temp.assert_true(public.mfa_access_allowed(),'Verified MFA permits admin access');
+select pg_temp.assert_true((select count(*)=1 from public.mfa_test_data),'Verified MFA reaches private data');
+select public.confirm_my_mfa_enrollment();
+reset role;
+update checkit_accounts_private.mfa_policy set enforce_admins=false where singleton;
+select pg_temp.identify('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001');
+set role authenticated;
+select pg_temp.assert_true(not public.mfa_access_allowed(),'Enrolled account stays protected while general admin rollout is staged');
+reset role;
+select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0000-0000-000000000001','session_id','00000000-0000-0000-0000-000000000001','role','authenticated','aal','aal2')::text,true);
+delete from auth.mfa_factors;
+set role authenticated;
+select pg_temp.assert_true(not public.mfa_access_allowed(),'Removed factors cannot retain an earlier MFA session');
+select pg_temp.identify('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000002');
+select pg_temp.assert_true(public.mfa_access_allowed(),'Viewer accounts remain optional');
+reset role;
+select pg_temp.assert_true(not has_table_privilege('authenticated','checkit_accounts_private.mfa_members','insert'),'Clients cannot register themselves without verified MFA');
+reset role;
+delete from auth.users where id='00000000-0000-0000-0000-000000000001';
+select pg_temp.assert_true(not exists(select 1 from checkit_accounts_private.mfa_members),'Account deletion removes MFA enrollment policy state');
+
+-- Mandatory-MFA onboarding still permits the invited person to finish their name.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+update checkit_accounts_private.mfa_policy set enforce_admins=true where singleton;
+insert into auth.users(id,encrypted_password,invited_at) values('00000000-0000-0000-0000-000000000003','',clock_timestamp());
+insert into public.profile(id,role,assigned_institute) values('00000000-0000-0000-0000-000000000003','admin','ucsd');
+update auth.users set encrypted_password='provider-seed' where id='00000000-0000-0000-0000-000000000003';
+update auth.users set email_confirmed_at=clock_timestamp() where id='00000000-0000-0000-0000-000000000003';
+insert into auth.sessions(id,user_id) values('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003');
+insert into auth.mfa_amr_claims values('00000000-0000-0000-0000-000000000003','otp');
+select pg_temp.identify('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003');
+set role authenticated;
+select set_config('request.path','/profile',true);select set_config('request.method','PATCH',true);select public.checkit_mfa_pre_request();
+update public.profile set full_name='New Admin' where id=auth.uid();
+select pg_temp.assert_true((select full_name='New Admin' from public.profile where id=auth.uid()),'Invitation signup may update its own name before MFA');
+select pg_temp.denied($q$update public.profile set role='viewer' where id=auth.uid()$q$);
+select pg_temp.assert_true(not public.portal_account_ready(),'An invitation cannot enter the portal by configuring MFA first');
+reset role;
+rollback;
+\echo MFA security checks passed.

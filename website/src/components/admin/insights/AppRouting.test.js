@@ -37,7 +37,7 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
           verifyOtp:async input=>{fixture().verifyCalls.push(input);if(fixture().verifyError)return {data:{session:null},error:fixture().verifyError};fixture().signedIn=true;return {data:{session:{user:fixture().user,access_token:'fixture-callback-token'}}};},
           signOut:async options=>{fixture().signOutCalls.push(options);if(fixture().signOutGate)await fixture().signOutGate;if(fixture().signOutThrows)throw new Error('Logout unavailable');fixture().signedIn=false;return {error:fixture().signOutError||null};},
           onAuthStateChange:callback=>{const listeners=fixture().listeners;listeners.add(callback);return {data:{subscription:{unsubscribe(){listeners.delete(callback)}}}}}
-        },rpc:async()=>({data:fixture().accountReady!==false,error:fixture().readinessError||null}),from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
+        },rpc:async name=>({data:name==='mfa_access_status'?{user_id:fixture().user.id,ready:fixture().accountReady!==false,required:false,verified:false,enrolled:false,...fixture().mfaStatus}:fixture().accountReady!==false,error:fixture().readinessError||null}),from:()=>({select(){return this},eq(){return this},maybeSingle:async()=>fixture().profileLookup?fixture().profileLookup():({data:fixture().profile,error:fixture().profileError||null})})};`;
     } else if (specifier.includes('portalExit')) {
       const target = new URL('../../authentication/portalExit.js', import.meta.url).href;
       stub = `import {leavePortal as exit,CHECKIT_LANDING_URL,CHECKIT_LOGIN_PATH} from ${JSON.stringify(target)};
@@ -47,6 +47,8 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
       return prefix + JSON.stringify(new URL('../../../lib/portalAccess.js', import.meta.url).href);
     } else if (specifier.endsWith('.css')) {
       stub = 'export default {};';
+    } else if (specifier.endsWith('/mfa.js')) {
+      return prefix + JSON.stringify(new URL('../../authentication/mfa.js', import.meta.url).href);
     } else if (specifier.includes('authRedirect')) {
       return prefix + JSON.stringify(new URL('../../authentication/authRedirect.js', import.meta.url).href);
     } else if (specifier.includes('AdminRouteUtils')) {
@@ -294,4 +296,12 @@ test('an expired invitation routes to login with an explicit error and no portal
   await mount('/signup#token_hash=expired-fixture&type=invite',false,undefined,{verifyError:{code:'otp_expired'}});
   await until(()=>globalThis.__checkitRoutingFixture.redirects.includes('/login?notice=invite_expired'));
   assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
+});
+
+
+test('password-only admin sessions reach MFA before any portal content or navigation', async()=>{
+ await mount('/team',true,{role:'admin',assigned_institute:'ucsd'},{mfaStatus:{required:true,verified:false}});
+ await until(()=>document.querySelector('[data-page="MfaPage"]'));
+ assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
+ assert.equal(document.querySelector('[data-page="TeamPage"]'),null);
 });

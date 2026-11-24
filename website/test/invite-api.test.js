@@ -14,6 +14,7 @@ function setup(options={}) {
     const url=new URL(input);const path=url.pathname;
     const body=options.body?JSON.parse(options.body):null;
     state.requests.push({url,path,body,options});
+    if(path==='/rest/v1/rpc/require_mfa') { assert.equal(options.headers.Authorization,'Bearer caller-token'); return state.mfaError?json({message:'Authenticator verification required.'},403):json(null); }
     if(path==='/auth/v1/user') {
       assert.equal(options.headers.Authorization,'Bearer caller-token');
       return json({id:'verified-actor'});
@@ -46,7 +47,7 @@ async function invoke(body={email:'new@example.test',role:'viewer'},token='calle
   await handler({method:'POST',headers:token?{authorization:`Bearer ${token}`}:{},body},res);
   return res;
 }
-const writes=()=>state.requests.filter(r=>['POST','PATCH','DELETE'].includes(r.options.method)&&!r.path.startsWith('/rest/v1/rpc/authorize'));
+const writes=()=>state.requests.filter(r=>['POST','PATCH','DELETE'].includes(r.options.method)&&!r.path.startsWith('/rest/v1/rpc/authorize')&&r.path!=='/rest/v1/rpc/require_mfa');
 const emails=()=>state.requests.filter(r=>['/auth/v1/invite','/auth/v1/otp'].includes(r.path));
 
 test('invites require a verified authenticated administrator',async()=>{
@@ -145,4 +146,9 @@ test('delivery authorization failures stop resend before any email',async()=>{
     return baseFetch(input,options);
   };
   const res=await invoke();assert.equal(res.statusCode,409);assert.equal(emails().length,0);assert.equal(writes().length,0);
+});
+
+
+test('a password-only MFA-required session cannot send an invitation',async()=>{
+ setup({mfaError:true});const res=await invoke();assert.equal(res.statusCode,403);assert.equal(emails().length,0);assert.equal(writes().length,0);
 });

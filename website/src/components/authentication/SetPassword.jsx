@@ -15,6 +15,9 @@ function SetPassword() {
     const [loading, setLoading] = useState(false);
     const completedRef = useRef(false);
     const [hasSession, setHasSession] = useState(false);
+    const [resetFactors,setResetFactors]=useState([]);
+    const [resetFactorId,setResetFactorId]=useState('');
+    const [authenticatorCode,setAuthenticatorCode]=useState('');
 
     useEffect(() => {
         let active = true;
@@ -38,6 +41,11 @@ function SetPassword() {
                     return;
                 }
                 window.clearTimeout(deadlineTimer);
+                const factors=await supabase.auth.mfa.listFactors();
+                if(factors.error) throw factors.error;
+                if(!active || request!==version || completedRef.current)return;
+                const devices=(factors.data?.totp||[]).filter(f=>f.status==='verified');
+                setResetFactors(devices);setResetFactorId(current=>devices.some(f=>f.id===current)?current:devices[0]?.id||'');
                 setHasSession(true);
                 setErrorMessage('');
                 deadlineTimer = window.setTimeout(() => {
@@ -109,6 +117,14 @@ function SetPassword() {
             if (reset.data?.eligible !== true || reset.data.user_id !== identity.data?.user?.id) {
                 setHasSession(false);
                 throw new Error('Reset link is invalid or expired.');
+            }
+            if(resetFactors.length) {
+                if(!/^\d{6}$/.test(authenticatorCode))throw new Error('Enter the 6-digit authenticator code.');
+                const verified=await supabase.auth.mfa.challengeAndVerify({factorId:resetFactorId,code:authenticatorCode});
+                if(verified.error)throw verified.error;
+                setAuthenticatorCode('');
+                const latest=await supabase.rpc('password_reset_status');
+                if(latest.error || latest.data?.eligible!==true || latest.data.user_id!==identity.data?.user?.id)throw new Error('Reset link is invalid or expired.');
             }
             const { data, error } = await supabase.auth.updateUser({ password });
             if (error) throw error;
@@ -189,6 +205,10 @@ function SetPassword() {
                                 </button>
                             </div>
                         </div>
+                        {resetFactors.length>0&&<div className={styles.fieldGroup}>
+                            {resetFactors.length>1&&<><label htmlFor="reset-authenticator">Authenticator</label><select id="reset-authenticator" className={styles.input} value={resetFactorId} onChange={e=>setResetFactorId(e.target.value)}>{resetFactors.map(f=><option key={f.id} value={f.id}>{f.friendly_name||'Authenticator'}</option>)}</select></>}
+                            <label htmlFor="reset-authenticator-code">Authenticator code</label><input id="reset-authenticator-code" className={styles.input} value={authenticatorCode} onChange={e=>setAuthenticatorCode(e.target.value.replace(/\D/g,'').slice(0,6))} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required/>
+                        </div>}
                         <button type="submit" className={styles.submitButton} disabled={loading || Boolean(message)}>
                             {loading ? 'Saving…' : 'Save password'}
                         </button>

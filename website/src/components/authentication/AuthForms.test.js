@@ -10,7 +10,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, logoutError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, logoutError: null, calls: [], sessionCallback: null, navigations: [], logins: [], resetMfaFactors: [], mfaFailure:null, initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
   rpc: async name => { assert.ok(['invitation_setup_status','password_reset_status'].includes(name)); return {data:name==='password_reset_status'?fixture.resetStatus:fixture.setupStatus,error:null}; },
@@ -26,6 +26,7 @@ fixture.client = {
     async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
     async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
     async resetPasswordForEmail(email, options) { fixture.calls.push({ action: 'reset', email, options }); if (fixture.failure) throw fixture.failure; return { error: null }; },
+    mfa:{listFactors:async()=>({data:{totp:fixture.resetMfaFactors}}),challengeAndVerify:async input=>{fixture.calls.push({action:'mfa',input});return {error:fixture.mfaFailure};}},
     async signUp() { throw new Error('An invited account must not register again'); },
   },
   from() {
@@ -533,4 +534,15 @@ test('normal page display and focus preserve optional password-manager autofill'
   assert.equal(username.closest('form').getAttribute('autocomplete'), 'on');
   await submit();
   assert.deepEqual(fixture.calls.find(call=>call.action==='login').input, {email:'saved@example.test',password:'saved-password-fixture'});
+});
+
+
+test('password recovery requires an enrolled authenticator code before changing the password',async()=>{
+ fixture.resetMfaFactors=[{id:'factor',status:'verified'}];fixture.mfaFailure=new Error('Invalid code');
+ await mount(SetPassword);
+ for(const input of document.querySelectorAll('input[type="password"]'))await enter(`#${input.id}`,'valid-password-123');
+ await enter('#reset-authenticator-code','123456');await submit();
+ assert.equal(fixture.calls.some(c=>c.action==='password'),false);assert.match(document.querySelector('[role="alert"]').textContent,/Invalid code/);
+ fixture.mfaFailure=null;await enter('#reset-authenticator-code','654321');await submit();
+ assert.equal(fixture.calls.some(c=>c.action==='password'),true);assert.deepEqual(fixture.navigations,['/login']);
 });

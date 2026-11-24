@@ -181,6 +181,7 @@ export default async function handler(req, res) {
     }
 
     const currentUser = await callSupabase("/auth/v1/user", { token: accessToken });
+    await callSupabase("/rest/v1/rpc/require_mfa", {method:"POST", token:accessToken, body:{}});
     const currentProfile = currentUser?.id ? await getProfileById(currentUser.id) : null;
     const currentRole = normalizeRole(currentProfile?.role);
     const isCheckItAdmin = currentRole === "checkit_admin";

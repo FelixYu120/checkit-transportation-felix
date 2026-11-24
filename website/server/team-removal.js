@@ -35,6 +35,7 @@ export function createTeamRemovalHandler(callSupabase) {
       if (!UUID.test(memberId)) return res.status(400).json({ error: 'Choose a valid member to remove.' });
       const user = await callSupabase('/auth/v1/user', { token });
       if (!UUID.test(user?.id || '')) return res.status(401).json({ error: 'Your session could not be verified.' });
+      await callSupabase('/rest/v1/rpc/require_mfa', {method:'POST',token,body:{}});
       const prepared = await callSupabase('/rest/v1/rpc/prepare_team_account_removal', {
         method: 'POST', token, body: { target_profile_id: memberId },
       });

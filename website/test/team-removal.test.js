@@ -32,8 +32,9 @@ test('actor identity comes from verified Auth, preparation uses caller authority
   assert.deepEqual(res.payload,{ok:true,removed:true,memberId:member});
   assert.equal(calls[0].token,'verified-token');
   assert.equal(calls[1].token,'verified-token');
-  assert.equal(calls[2].token,undefined);
-  assert.deepEqual(calls[2].body,{actor_profile_id:actor,target_profile_id:member});
+  assert.equal(calls[2].token,'verified-token');
+  assert.equal(calls[3].token,undefined);
+  assert.deepEqual(calls[3].body,{actor_profile_id:actor,target_profile_id:member});
   assert.equal(res.headers['Cache-Control'],'no-store');
 });
 test('personal photos are physically removed in bounded batches before account deletion',async()=>{
@@ -54,7 +55,7 @@ test('a storage failure leaves cleanup retryable and never reports account delet
 test('permission rejection cannot delete files or finalize',async()=>{
   const {handler,calls}=setup({failAt:'/rest/v1/rpc/prepare_team_account_removal'});
   const res=response();await handler(request(),res);
-  assert.equal(res.statusCode,403);assert.equal(calls.length,2);
+  assert.equal(res.statusCode,403);assert.equal(calls.length,3);
 });
 test('an unconfirmed finalization or unexpected company file cannot report success',async()=>{
   for(const config of [{confirmation:false},{files:[{bucket_id:'firmware',name:'company.bin'}]}]) {
@@ -62,4 +63,10 @@ test('an unconfirmed finalization or unexpected company file cannot report succe
     assert.equal(res.payload.ok,undefined);assert.equal(res.payload.retryable,true);
     assert.equal(calls.some(c=>c.path==='/storage/v1/object/firmware'),false);
   }
+});
+
+
+test('MFA failure cannot start removal or delete personal files',async()=>{
+ const {handler,calls}=setup({failAt:'/rest/v1/rpc/require_mfa'});const res=response();await handler(request(),res);
+ assert.equal(res.statusCode,403);assert.equal(calls.length,2);assert.equal(calls.some(c=>c.path.includes('prepare_team')||c.path.includes('/storage/')),false);
 });

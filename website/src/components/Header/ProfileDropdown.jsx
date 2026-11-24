@@ -52,6 +52,8 @@ const ProfileDropdown = () => {
 
     if (action === 'Profile') {
       setModalState({ isOpen: true, mode: 'edit' });
+    } else if (action === 'Security') {
+      window.location.assign('/security');
     } else if (action === 'Change Password') {
       setModalState({ isOpen: true, mode: 'password' });
     } else if (action === 'Log Out') {
@@ -91,6 +93,7 @@ const ProfileDropdown = () => {
             <button onClick={() => handleAction('Change Password')} className={styles.menuItem}>
               <KeyRound size={16} /> Change password
             </button>
+            <button onClick={() => handleAction('Security')} className={styles.menuItem}><KeyRound size={16} /> Security</button>
             <hr className={styles.divider} />
             {signOutError && <p className={styles.signOutError} role="alert">{signOutError}</p>}
             <button onClick={() => handleAction('Log Out')} className={`${styles.menuItem} ${styles.dangerItem}`} disabled={signingOut}>

@@ -1,3 +1,5 @@
+import MfaPage from './components/authentication/MfaPage.jsx';
+import {readMfaStatus,needsMfa} from './components/authentication/mfa.js';
 import React, { useState, useEffect } from 'react';
 import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
@@ -67,6 +69,12 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
                 if (error) throw error;
                 let accountReady = false;
                 if (hasPortalAccess(data)) {
+                    const mfa = await readMfaStatus(supabase);
+                    if (mfa.user_id !== userId) throw new Error('Account changed.');
+                    if (mfa.ready && needsMfa(mfa)) {
+                        if (active && request === latestRequest) setAccess('mfa');
+                        return;
+                    }
                     const readiness = await supabase.rpc('portal_account_ready');
                     if (readiness.error) throw readiness.error;
                     accountReady = readiness.data === true;
@@ -109,6 +117,7 @@ function AnalyticsAccessRoute({ isLoggedIn, children }) {
     }, [access]);
 
     if (!isLoggedIn) return <Navigate to="/login" replace />;
+    if (access === 'mfa') return <Navigate to="/mfa" replace />;
     if (access === 'onboarding') return <Navigate to="/create-account" replace />;
     return access === 'allowed' ? children : null;
 }
@@ -183,6 +192,8 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
                     <Route path="/signup" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
                     <Route path="/create-account" element={<CreateAccount setIsLoggedIn={setIsLoggedIn} />} />
                     <Route path="/verify" element={<Login page="verify" setIsLoggedIn={setIsLoggedIn} />} />
+                    <Route path="/mfa" element={<MfaPage />} />
+                    <Route path="/security" element={<MfaPage />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/set-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />
                     <Route path="/reset-password" element={<SetPassword setIsLoggedIn={setIsLoggedIn} />} />

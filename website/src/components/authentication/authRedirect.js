@@ -2,7 +2,7 @@ const callbacks = new WeakMap();
 const setupPaths = new Set(['/signup', '/create-account']);
 const resetPaths = new Set(['/reset-password', '/set-password', '/forgot-password']);
 
-const authenticationPaths = new Set([...setupPaths, ...resetPaths, '/login', '/verify']);
+const authenticationPaths = new Set([...setupPaths, ...resetPaths, '/login', '/verify', '/mfa', '/security']);
 
 export const isAuthenticationPath = pathname => authenticationPaths.has(String(pathname || '').replace(/\/+$/, '').toLowerCase());
 
