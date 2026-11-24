@@ -165,3 +165,10 @@ Explicit Sign out replaces the current page with the same platform’s `/login`,
 Request-reset and set-password screens now use the same card, colors, typography, fields, buttons and platform branding as login and invitation signup. Authentication routes, including signup/reset aliases, have no portal navigation. Signup has no back-to-sign-in link; successful signup and password reset still clear the email session and redirect to login for a fresh password sign-in.
 
 After Felix publishes, check Sign out on each platform lands on `/login`, both reset screens match login, signup has no back link, and showing/hiding an autofilled password preserves the email and font. Browser-managed autofill may fill a saved account on the fresh login page; that is separate from CheckIt retaining the form contents.
+
+
+## Login field cleanup after sign-out
+
+The login form explicitly clears the email and password and conceals any revealed password when the platform broadcasts `SIGNED_OUT`. It also clears fields before the document is cached and when a cached document is restored, including values restored directly into the DOM while React state is already empty. This covers another open login tab and browser Back/Forward restoration after logout. Event subscriptions are removed on unmount.
+
+Normal page loads and focus do not clear browser-managed autofill. Existing per-platform field names, `autocomplete` sections and form behavior remain intact. This change writes no login input to browser storage, does not remove saved password-manager entries, and makes no change to account MFA policy. Automated regressions cover explicit sign-out, cached-page restoration, remasked passwords, and optional autofill submission. Manually verify logout/Back and selected password-manager autofill on both published websites.

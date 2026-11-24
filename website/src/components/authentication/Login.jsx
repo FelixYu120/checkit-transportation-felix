@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import styles from './LoginPage.module.css';
@@ -16,6 +16,7 @@ const parseAutofillUsername = (value) => {
 
 function Login({ setIsLoggedIn }) {
     const navigate = useNavigate();
+    const formRef = useRef(null);
     
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -23,6 +24,36 @@ function Login({ setIsLoggedIn }) {
     const [errorMessage, setErrorMessage] = useState(() => EMAIL_LINK_MESSAGES[new URLSearchParams(window.location.search).get('notice')] || '');
     const [loading, setLoading] = useState(false);
     const locallySignedOut = new URLSearchParams(window.location.search).get('signedOut') === 'local';
+
+    useEffect(() => {
+        const clearForm = () => {
+            const fields = formRef.current?.elements;
+            const username = fields?.namedItem(`${AUTOFILL_PREFIX}-username`);
+            const passwordInput = fields?.namedItem(`${AUTOFILL_PREFIX}-password`);
+            // Browser history can restore DOM values without changing React state.
+            if (username) username.value = '';
+            if (passwordInput) {
+                passwordInput.value = '';
+                passwordInput.type = 'password';
+            }
+            setEmail('');
+            setPassword('');
+            setShowPassword(false);
+        };
+        const restorePage = event => {
+            if (event.persisted) clearForm();
+        };
+        const listener = supabase?.auth.onAuthStateChange(event => {
+            if (event === 'SIGNED_OUT') clearForm();
+        });
+        window.addEventListener('pagehide', clearForm);
+        window.addEventListener('pageshow', restorePage);
+        return () => {
+            window.removeEventListener('pagehide', clearForm);
+            window.removeEventListener('pageshow', restorePage);
+            listener?.data?.subscription?.unsubscribe();
+        };
+    }, []);
 
     const togglePasswordVisibility = (event) => {
         // Preserve values filled by a password manager without React input events.
@@ -95,6 +126,7 @@ function Login({ setIsLoggedIn }) {
                 {errorMessage && <div id="login-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
 
                 <form
+                    ref={formRef}
                     id="checkit-transportation-login-form"
                     name="checkit-transportation-login-form"
                     action="/transportation-login"

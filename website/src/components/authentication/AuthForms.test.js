@@ -480,3 +480,57 @@ test('reset request reads an email filled by a password manager without input ev
   assert.equal(fixture.calls.find(call=>call.action==='reset').email, 'saved@example.test');
   assert.match(document.querySelector('[role="status"]').textContent, /Check your email/);
 });
+
+
+test('logout clears an already-open login form and hides its revealed password', async () => {
+  await mount(Login);
+  await enter('input[type="email"]', 'previous@example.test');
+  await enter('input[type="password"]', 'previous-password-fixture');
+  await act(async () => document.querySelector('[aria-label="Show password"]').click());
+  await act(async () => fixture.sessionCallback?.('SIGNED_OUT', null));
+  assert.equal(document.querySelector('input[type="email"]').value, '');
+  const password = document.querySelector('input[autocomplete$=" current-password"]');
+  assert.equal(password.value, '');
+  assert.equal(password.type, 'password');
+  assert.equal(document.querySelector('[aria-label="Show password"]').getAttribute('aria-pressed'), 'false');
+});
+
+test('leaving and restoring a cached login page cannot restore old form values', async () => {
+  await mount(Login);
+  await enter('input[type="email"]', 'previous@example.test');
+  await enter('input[type="password"]', 'previous-password-fixture');
+  await act(async () => document.querySelector('[aria-label="Show password"]').click());
+  await act(async () => window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide', {persisted:true})));
+  const username = document.querySelector('input[type="email"]');
+  const password = document.querySelector('input[autocomplete$=" current-password"]');
+  assert.equal(username.value, '');
+  assert.equal(password.value, '');
+  assert.equal(password.type, 'password');
+  // Simulate native restoration without React input events, even with blank state.
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  setValue.call(username, 'restored@example.test');
+  setValue.call(password, 'restored-password-fixture');
+  password.type = 'text';
+  await act(async () => window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow', {persisted:true})));
+  assert.equal(username.value, '');
+  assert.equal(password.value, '');
+  assert.equal(password.type, 'password');
+});
+
+test('normal page display and focus preserve optional password-manager autofill', async () => {
+  await mount(Login);
+  const username = document.querySelector('input[type="email"]');
+  const password = document.querySelector('input[type="password"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  setValue.call(username, 'saved@example.test');
+  setValue.call(password, 'saved-password-fixture');
+  await act(async () => {
+    window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow', {persisted:false}));
+    window.dispatchEvent(new dom.window.Event('focus'));
+  });
+  assert.equal(username.value, 'saved@example.test');
+  assert.equal(password.value, 'saved-password-fixture');
+  assert.equal(username.closest('form').getAttribute('autocomplete'), 'on');
+  await submit();
+  assert.deepEqual(fixture.calls.find(call=>call.action==='login').input, {email:'saved@example.test',password:'saved-password-fixture'});
+});
