@@ -62,19 +62,6 @@
   overflow-y: auto;
 }
 
-.adminBadge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: var(--checkit-bg-soft);
-  color: #ef4444;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
 .errorMessage {
   color: #ffffff;
   background-color: #ef4444;
@@ -209,3 +196,11 @@
 .photoButton:disabled, .photoRemove:disabled, .closeBtn:disabled { opacity: .6; cursor: not-allowed; }
 .photoHint { margin: 7px 0 0; color: var(--checkit-muted, #63756b); font-size: .6875rem; line-height: 1.5; }
 .photoStatus { margin: 0 0 6px; color: var(--checkit-green, #34524d); font-size: .8125rem; }
+
+.securitySection { display: grid; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--checkit-border, #c7d1cb); }
+.sectionTitle { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--checkit-ink, #15201f); }
+.settingsButton, .backButton { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--checkit-border, #c7d1cb); border-radius: 6px; padding: 10px 12px; background: transparent; color: var(--checkit-green, #34524d); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.backButton { align-self: flex-start; border: 0; padding: 0 0 12px; }
+.settingsButton:hover, .backButton:hover { color: var(--checkit-ink, #15201f); }
+.settingsButton:focus-visible, .backButton:focus-visible { outline: 2px solid var(--checkit-green, #34524d); outline-offset: 2px; }
+.settingsButton:disabled, .backButton:disabled { opacity: .6; cursor: not-allowed; }

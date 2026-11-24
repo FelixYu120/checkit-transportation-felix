@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, ShieldAlert, MapPin, KeyRound, Eye, EyeOff, Camera } from 'lucide-react';
+import { X, Save, MapPin, KeyRound, Eye, EyeOff, Camera, ShieldCheck, ChevronLeft } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
+import MfaPage from '../authentication/MfaPage.jsx';
 import { createProfileView, fetchCurrentProfile } from './ProfileData.js';
 import ProfileAvatar from './ProfileAvatar';
 import { PROFILE_PHOTO_ACCEPT, uploadProfilePhoto, removeProfilePhoto, notifyProfileUpdated } from './ProfilePhoto.js';
@@ -24,6 +25,8 @@ const formatRoleLabel = (role) => {
 const hasGlobalAccess = (role) => normalizeRole(role) === 'checkit_admin';
 
 const ProfileModal = ({ isOpen, onClose, mode }) => {
+  const [panel, setPanel] = useState(mode === 'password' ? 'password' : 'profile');
+  const [mfaBusy, setMfaBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -46,9 +49,6 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    setPhotoError('');
-    setPhotoMessage('');
-
     const fetchUserProfile = async () => {
       setLoading(true);
       try {
@@ -71,7 +71,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   }, [isOpen]);
 
   const handleClose = () => {
-    if (!saving && !photoSaving) onClose();
+    if (!saving && !photoSaving && !mfaBusy) onClose();
   };
 
   const changePhoto = async (file) => {
@@ -164,19 +164,23 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
 
   return createPortal(
     <div className={styles.modalOverlay} onClick={handleClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modalContent} role="dialog" aria-modal="true" aria-labelledby="profile-settings-title" onClick={(e) => e.stopPropagation()}>
         
         <div className={styles.modalHeader}>
-          <h2>{mode === 'password' ? 'Change password' : 'Profile'}</h2>
-          <button className={styles.closeBtn} onClick={handleClose} disabled={saving || photoSaving} aria-label="Close profile"><X size={20} /></button>
+          <h2 id="profile-settings-title">Profile &amp; security</h2>
+          <button className={styles.closeBtn} onClick={handleClose} disabled={saving || photoSaving || mfaBusy} aria-label="Close profile"><X size={20} /></button>
         </div>
 
         {loading ? (
           <div className={styles.loading}>Loading profile…</div>
         ) : (
           <div className={styles.modalBody}>
-            {mode === 'password' ? (
+            {panel !== 'profile' && <button type="button" className={styles.backButton} disabled={saving || mfaBusy} onClick={() => { setPanel('profile'); setPasswordState({ password: '', confirmPassword: '', message: '', error: '' }); }}>
+              <ChevronLeft size={16} aria-hidden="true" /> Back
+            </button>}
+            {panel === 'authenticator' ? <MfaPage embedded onVerified={onClose} onBusyChange={setMfaBusy} /> : panel === 'password' ? (
               <>
+                <h3 className={styles.sectionTitle}>Change password</h3>
                 {passwordState.error && <div className={styles.errorMessage}>{passwordState.error}</div>}
                 {passwordState.message && <div className={styles.successMessage}>{passwordState.message}</div>}
 
@@ -226,12 +230,6 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
               <>
             {profileError && <div className={styles.errorMessage} role="status">{profileError}</div>}
             
-            {!profileError && hasGlobalAccess(profile.role) && (
-               <div className={styles.adminBadge}>
-                 <ShieldAlert size={16} /> System Admin Override Active
-               </div>
-            )}
-
             <section className={styles.photoSection} aria-label="Profile photo">
               <ProfileAvatar profile={profile} className={styles.photoPreview} />
               <div className={styles.photoContent}>
@@ -293,6 +291,15 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 <Save size={16} /> {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}
+            <section className={styles.securitySection} aria-labelledby="profile-security-title">
+              <h3 id="profile-security-title" className={styles.sectionTitle}>Security</h3>
+              <button type="button" className={styles.settingsButton} disabled={saving || photoSaving} onClick={() => setPanel('password')}>
+                <KeyRound size={16} aria-hidden="true" /> Change password
+              </button>
+              <button type="button" className={styles.settingsButton} disabled={saving || photoSaving} onClick={() => setPanel('authenticator')}>
+                <ShieldCheck size={16} aria-hidden="true" /> Authenticator
+              </button>
+            </section>
               </>
             )}
           </div>

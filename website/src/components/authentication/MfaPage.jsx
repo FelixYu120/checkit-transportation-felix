@@ -6,7 +6,7 @@ import {readMfaStatus,verifyAuthenticator,qrImage} from './mfa.js';
 import {leavePortal} from './portalExit.js';
 import styles from './LoginPage.module.css';
 
-export default function MfaPage() {
+export default function MfaPage({embedded=false,onVerified,onBusyChange}) {
   const navigate=useNavigate();
   const [status,setStatus]=useState(null);
   const [factors,setFactors]=useState([]);
@@ -17,6 +17,7 @@ export default function MfaPage() {
   const [error,setError]=useState('');
   const request=useRef(false);
   const subject=useRef(null);
+  useEffect(()=>{onBusyChange?.(busy);},[busy,onBusyChange]);
   useEffect(()=>{
     let active=true;
     const load=async()=>{
@@ -80,13 +81,15 @@ export default function MfaPage() {
     request.current=true;setBusy(true);setError('');
     try {
       await verifyAuthenticator(supabase,factorId,code.trim(),subject.current);
-      setSetup(null);setCode('');navigate(DEFAULT_ADMIN_ROUTE,{replace:true});
+      setSetup(null);setCode('');
+      if(embedded)onVerified?.();else navigate(DEFAULT_ADMIN_ROUTE,{replace:true});
     } catch(e){setCode('');setError(e.message||'Code could not be verified. Try again.');}
     finally {request.current=false;setBusy(false);}
   };
-  return <main className={styles.page} aria-labelledby="mfa-title"><div className={styles.card}>
-    <div className={styles.brandRow}><a href="https://checkit.dev" className={styles.logoLink} aria-label="CheckIt home"><img src="/checkit-logo.png" className={styles.logo} alt="CheckIt" /></a><span className={styles.productName}>Transportation</span></div>
-    <h1 id="mfa-title" className={styles.title}>{status?.verified&&!setup?'Security':setup||!factors.length?'Set up authenticator':'Authenticator code'}</h1>
+  const Title=embedded?'h3':'h1';
+  const content=<>
+    {!embedded&&<div className={styles.brandRow}><a href="https://checkit.dev" className={styles.logoLink} aria-label="CheckIt home"><img src="/checkit-logo.png" className={styles.logo} alt="CheckIt" /></a><span className={styles.productName}>Transportation</span></div>}
+    <Title id="mfa-title" className={embedded?styles.embeddedTitle:styles.title}>{status?.verified&&!setup?'Security':setup||!factors.length?'Set up authenticator':'Authenticator code'}</Title>
     {error&&<p className={styles.errorMessage} role="alert">{error}</p>}
     {!status&&!error&&<p role="status">Checking account…</p>}
     {status&&<>
@@ -99,9 +102,10 @@ export default function MfaPage() {
       </form>}
       {status.verified&&!setup&&factors.map(f=><div className={styles.mfaDevice} key={f.id}><span>{f.friendly_name||'Authenticator'}</span><button type="button" className={styles.textLink} disabled={busy||factors.length<2} onClick={()=>void remove(f.id)}>Remove</button></div>)}
       {status.verified&&!setup&&<button className={styles.backLink} type="button" onClick={enroll} disabled={busy}>Add backup authenticator</button>}
-      {status.verified&&!setup&&<button className={styles.backLink} type="button" onClick={()=>navigate(DEFAULT_ADMIN_ROUTE,{replace:true})}>Continue to portal</button>}
+      {!embedded&&status.verified&&!setup&&<button className={styles.backLink} type="button" onClick={()=>navigate(DEFAULT_ADMIN_ROUTE,{replace:true})}>Continue to portal</button>}
       <p className={styles.mfaHelp}>Lost access? Contact your CheckIt administrator.</p>
     </>}
-    <button className={styles.backLink} type="button" onClick={()=>void leavePortal(supabase)} disabled={busy}>Sign out</button>
-  </div></main>;
+    {!embedded&&<button className={styles.backLink} type="button" onClick={()=>void leavePortal(supabase)} disabled={busy}>Sign out</button>}
+  </>;
+  return embedded?<section className={styles.embeddedSecurity} aria-labelledby="mfa-title">{content}</section>:<main className={styles.page} aria-labelledby="mfa-title"><div className={styles.card}>{content}</div></main>;
 }

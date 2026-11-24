@@ -35,7 +35,7 @@ const code=source.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^"']+)\3/gm,(
 fixture.navigate=path=>fixture.navigations.push(path);
 const {default:MfaPage}=await import(mod(code));const {createRoot}=await import('react-dom/client');let root;
 afterEach(async()=>{if(root)await act(async()=>root.unmount());root=null;reset();});after(()=>dom.window.close());
-const mount=async()=>{document.body.innerHTML='<div id="root"></div>';root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(MfaPage)));};
+const mount=async(props={})=>{document.body.innerHTML='<div id="root"></div>';root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(MfaPage,props)));};
 const clickText=async text=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent===text).click());
 const enter=async code=>act(async()=>{const input=document.getElementById('mfa-code');Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(input,code);input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
 const submit=async()=>act(async()=>document.querySelector('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true})));
@@ -73,4 +73,26 @@ test('an already-verified session can manage security and return without another
  fixture.status.verified=true;fixture.status.enrolled=true;fixture.factors=[{id:'factor',status:'verified',friendly_name:'Primary'}];
  await mount();assert.equal(document.querySelector('form'),null);assert.equal(document.getElementById('mfa-title').textContent,'Security');
  await clickText('Continue to portal');assert.deepEqual(fixture.navigations,['/dashboard/ucsd']);
+});
+
+
+test('embedded enrollment verifies with Auth then completes in the profile dialog',async()=>{
+ let completed=0;const busy=[];
+ await mount({embedded:true,onVerified:()=>completed++,onBusyChange:value=>busy.push(value)});
+ assert.equal(document.querySelector('main'),null);
+ await clickText('Set up authenticator');await enter('123456');await submit();
+ assert.equal(completed,1);assert.deepEqual(fixture.navigations,[]);
+ assert.ok(fixture.calls.includes('confirm_my_mfa_enrollment'));
+ assert.ok(busy.includes(true));assert.equal(busy.at(-1),false);
+});
+
+test('embedded security retains backup setup and keeps incorrect codes outside the portal',async()=>{
+ fixture.status.verified=true;fixture.status.enrolled=true;fixture.factors=[{id:'primary',status:'verified',friendly_name:'Primary'}];
+ let completed=0;
+ await mount({embedded:true,onVerified:()=>completed++});
+ await clickText('Add backup authenticator');fixture.codeError=true;
+ await enter('123456');await submit();
+ assert.equal(completed,0);assert.equal(fixture.navigations.length,0);
+ assert.match(document.querySelector('[role="alert"]').textContent,/Invalid code/);
+ assert.ok(document.querySelector('.mfaQr'));
 });

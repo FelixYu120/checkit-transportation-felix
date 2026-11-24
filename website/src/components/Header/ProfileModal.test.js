@@ -19,6 +19,7 @@ const transformed = await transformWithEsbuild(source, 'ProfileModal.jsx', { loa
 const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^"']+)\3/gm, (_match, prefix, clause, _quote, specifier) => {
   let target;
   if (specifier === 'react' || specifier === 'react-dom') target = import.meta.resolve(specifier);
+  else if (specifier === '../authentication/MfaPage.jsx') target = asModule(`import React, {useEffect} from ${JSON.stringify(reactUrl)}; export default function MfaFixture(props) { useEffect(()=>{globalThis.__profilePhotoTest.mfa=props;},[props]); return React.createElement('section', {'data-mfa-embedded':String(props.embedded)}, 'Authenticator settings'); }`);
   else if (specifier === './ProfileAvatar') target = avatarUrl;
   else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, key)=>String(key)});');
   else if (specifier.includes('SupabaseClients')) target = asModule(`export default { auth: { updateUser: async () => { const fixture=globalThis.__profilePhotoTest; fixture.passwordCalls++; if(fixture.passwordError) throw fixture.passwordError; return {error:null}; } } };`);
@@ -141,4 +142,34 @@ test('a thrown password request shows an error, unlocks the editor, and permits 
   await act(async () => document.querySelector('.saveBtn').click());
   assert.equal(fixture.passwordCalls, 2);
   assert.match(document.querySelector('.successMessage').textContent, /updated successfully/);
+});
+
+
+test('authenticator settings stay in the profile dialog and prevent closing while verifying', async () => {
+  await mount();
+  await act(async () => [...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Authenticator').click());
+  assert.equal(document.querySelector('[data-mfa-embedded="true"]').closest('[role="dialog"]')!==null, true);
+  await act(async () => fixture.mfa.onBusyChange(true));
+  assert.equal(document.querySelector('[aria-label="Close profile"]').disabled,true);
+  await act(async () => document.querySelector('.modalOverlay').click());
+  assert.equal(closed,0);
+  await act(async () => fixture.mfa.onBusyChange(false));
+  await act(async () => document.querySelector('.backButton').click());
+  assert.ok(document.querySelector('[aria-label="Choose profile photo"]'));
+  await act(async () => document.querySelector('.modalOverlay').click());
+  assert.equal(closed,1);
+});
+
+test('leaving password settings clears unsaved credentials within the unified dialog', async () => {
+  await mount();
+  const changePassword=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Change password').click();
+  await act(async () => changePassword());
+  await act(async () => {
+    const input=document.querySelector('input[type="password"]');
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(input,'unsaved-secret');
+    input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  });
+  await act(async () => document.querySelector('.backButton').click());
+  await act(async () => changePassword());
+  assert.equal(document.querySelector('input[type="password"]').value,'');
 });

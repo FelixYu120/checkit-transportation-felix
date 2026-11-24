@@ -324,3 +324,6 @@ button.backLink { border:0; background:transparent; padding:0; font-family:inher
 .mfaDevice {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;font-size:.8125rem;overflow-wrap:anywhere;}
 .mfaDevice button {background:transparent;border:0;font-family:inherit;cursor:pointer;}
 .mfaDevice button:disabled {opacity:.5;cursor:not-allowed;}
+
+.embeddedSecurity { min-width: 0; font-family: inherit; }
+.embeddedTitle { margin: 0 0 20px; color: var(--checkit-ink, #15201f); font-size: 15px; font-weight: 600; line-height: 1.5; }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { KeyRound, User, LogOut } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
 import styles from './ProfileDropdown.module.css';
 import supabase from '../helper/SupabaseClients';
 
@@ -52,10 +52,6 @@ const ProfileDropdown = () => {
 
     if (action === 'Profile') {
       setModalState({ isOpen: true, mode: 'edit' });
-    } else if (action === 'Security') {
-      window.location.assign('/security');
-    } else if (action === 'Change Password') {
-      setModalState({ isOpen: true, mode: 'password' });
     } else if (action === 'Log Out') {
       signOutPending.current = true;
       setSigningOut(true);
@@ -88,12 +84,8 @@ const ProfileDropdown = () => {
             </div>
             <hr className={styles.divider} />
             <button onClick={() => handleAction('Profile')} className={styles.menuItem}>
-              <User size={16} /> Profile
+              <User size={16} /> Profile &amp; security
             </button>
-            <button onClick={() => handleAction('Change Password')} className={styles.menuItem}>
-              <KeyRound size={16} /> Change password
-            </button>
-            <button onClick={() => handleAction('Security')} className={styles.menuItem}><KeyRound size={16} /> Security</button>
             <hr className={styles.divider} />
             {signOutError && <p className={styles.signOutError} role="alert">{signOutError}</p>}
             <button onClick={() => handleAction('Log Out')} className={`${styles.menuItem} ${styles.dangerItem}`} disabled={signingOut}>
@@ -104,11 +96,11 @@ const ProfileDropdown = () => {
       </div>
 
       {/* 3. RENDER THE MODAL COMPONENT */}
-      <ProfileModal 
+      {modalState.isOpen && <ProfileModal
         isOpen={modalState.isOpen} 
         mode={modalState.mode} 
         onClose={() => setModalState({ isOpen: false, mode: 'view' })} 
-      />
+      />}
     </>
   );
 };
