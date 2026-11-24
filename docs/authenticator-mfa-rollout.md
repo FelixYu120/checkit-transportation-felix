@@ -25,6 +25,26 @@ This requires MFA for `admin` and `checkit_admin` accounts and users who have en
 
 The switch cannot be changed from the browser. Verify API/website/build versions before enabling it. Until then, administrators who have not enrolled retain their existing login so a publication delay cannot lock the team out.
 
+## Optional setup during invited signup
+
+The invited person can choose **Set up authenticator (optional)**, scan the QR code, and verify a current code before saving their password. They may cancel unfinished setup; only that unverified factor is removed. A verified factor remains enabled. Resuming an invitation with an already verified factor requires its code. An invitation is still required and still expires after 15 minutes. Completing signup returns to login; the user then signs in with their password and, if enrolled, their authenticator. Setup does not grant portal readiness or bypass the separate password-login step. No new database migration or environment variable is required for this addition. A future mandatory-admin policy still applies at login.
+
+## Owner-assisted recovery
+
+1. For a code that simply expired, have the person open their authenticator app and enter its current code. For a lost phone/app with no working backup, verify their identity in person or through an established contact channel before approving a reset.
+2. Open the correct platform's Supabase project. In **Authentication → Users**, find their account by exact email and confirm its user ID. Occupancy and Transportation are separate accounts; only reset the requested platform.
+3. A Supabase project administrator removes the lost verified TOTP factor using the available user MFA controls or the trusted server-side [Auth Admin deleteFactor API](https://supabase.com/docs/reference/javascript/auth-admin-deletefactor). Removing a verified factor signs that user out of all active sessions. Keep the account's `checkit_accounts_private.mfa_members` record; it requires replacement enrollment rather than leaving password-only access.
+4. Have them sign in with their existing password. CheckIt will require **Set up authenticator** before the portal opens. They scan a new QR code and verify a fresh code themselves. If a working backup remains, they can use it and manage factors in **Profile & security → Authenticator**.
+5. Record the person approving recovery, the platform/user ID, the identity-verification method, and the time; notify the account holder through their established contact channel. Never request or log a password, QR seed or current code.
+
+A CheckIt system-admin role alone does not grant Supabase project administration. The current release has no in-portal owner reset button; the reset uses Supabase owner/admin access. No recovery or factor removal was performed on real users while developing this change.
+
+## Password-manager verification after publication
+
+Signup explicitly allows autocomplete and includes its invited email as a read-only username field. Signup and reset use `new-password`; login uses `current-password`, with stable platform-specific form/input names. Password fields preserve DOM values filled without React input events, including through visibility changes and authenticator setup. Logout/history cleanup still clears the login fields, and neither platform stores plaintext passwords in application storage.
+
+After Felix publishes both websites, test saving a generated password on invitation signup and then filling it on the matching platform's login page. Test password reset and accepting the browser's update-password prompt too. Browser/extension settings control save prompts and the final autofill behavior, which isolated DOM tests cannot certify. If an old saved item contains only an email, add/update its password for the exact site using the browser/password-manager controls; an email suggestion alone may be address autofill rather than a saved login. [Browser guidance](https://web.dev/articles/sign-in-form-best-practices)
+
 ## Lost device and recovery
 
 Use the backup authenticator first. If every factor is lost, a trusted owner must verify the person's identity through an established channel, use Supabase's administrator MFA factor-management tools for the correct project and user, remove only that person's lost factors, and record the recovery action. Keep the server-owned MFA requirement in `mfa_members`; after the user signs in with their password, the app will require fresh authenticator setup. A password-reset email does not turn MFA off. Do not add an email-only MFA bypass or expose service-role keys in a browser. Keep at least two owners with independently working authenticators and protect the Supabase/GitHub/Vercel owner accounts with MFA.

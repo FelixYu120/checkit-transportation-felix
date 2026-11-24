@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import SignupAuthenticator from './SignupAuthenticator.jsx';
 import supabase from '../helper/SupabaseClients';
 import styles from './LoginPage.module.css';
 import { hasPortalAccess } from '../../lib/portalAccess.js';
 import { leavePortal, finishPasswordSetup } from './portalExit.js';
 
 function CreateAccount() {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState(() => (
@@ -20,6 +17,8 @@ function CreateAccount() {
     const [loading, setLoading] = useState(false);
     const setupFinishedRef = useRef(false);
     const [hasInviteSession, setHasInviteSession] = useState(false);
+    const [inviteUserId, setInviteUserId] = useState('');
+    const [mfaStatus, setMfaStatus] = useState({ busy: true, pending: true, verified: false });
     const [authReady, setAuthReady] = useState(() => !supabase);
 
     useEffect(() => {
@@ -58,6 +57,7 @@ function CreateAccount() {
                 if (!Number.isFinite(remaining) || remaining <= 0) { closeSetup('expired'); return; }
                 window.clearTimeout(deadlineTimer);
                 setEmail(identity.data.user.email || '');
+                setInviteUserId(session.user.id);
                 setHasInviteSession(true);
                 setAuthReady(true);
                 deadlineTimer = window.setTimeout(() => closeSetup('expired'), remaining * 1000);
@@ -111,8 +111,15 @@ function CreateAccount() {
             return;
         }
 
-        const trimmedFirstName = firstName.trim();
-        const trimmedLastName = lastName.trim();
+        if (mfaStatus.busy || mfaStatus.pending) {
+            setErrorMessage('Finish the authenticator step or cancel setup.');
+            return;
+        }
+        const fields = event.currentTarget.elements;
+        const trimmedFirstName = String(fields.namedItem('new-admin-first-name')?.value || '').trim();
+        const trimmedLastName = String(fields.namedItem('new-admin-last-name')?.value || '').trim();
+        const password = fields.namedItem('checkit-transportation-new-account-password')?.value || '';
+        const confirmPassword = fields.namedItem('checkit-transportation-new-account-confirm-password')?.value || '';
         const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
 
         if (!trimmedFirstName || !trimmedLastName) {
@@ -189,7 +196,7 @@ function CreateAccount() {
                 {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
                 {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
 
-                {hasInviteSession && authReady && <form className={styles.form} onSubmit={handleSubmit} autoComplete="off" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
+                {hasInviteSession && <form id="checkit-transportation-signup-form" name="checkit-transportation-signup-form" method="post" className={styles.form} onSubmit={handleSubmit} autoComplete="on" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
                     <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
                             <label htmlFor="signup-first-name">First name<span className={styles.requiredMark} aria-hidden="true"> *</span></label>
@@ -198,11 +205,10 @@ function CreateAccount() {
                                 name="new-admin-first-name"
                                 className={styles.input}
                                 type="text"
-                                value={firstName}
+                                defaultValue=""
                                 placeholder="First name"
                                 autoComplete="given-name"
                                 required
-                                onChange={(event) => setFirstName(event.target.value)}
                             />
                         </div>
 
@@ -213,11 +219,10 @@ function CreateAccount() {
                                 name="new-admin-last-name"
                                 className={styles.input}
                                 type="text"
-                                value={lastName}
+                                defaultValue=""
                                 placeholder="Last name"
                                 autoComplete="family-name"
                                 required
-                                onChange={(event) => setLastName(event.target.value)}
                             />
                         </div>
                     </div>
@@ -232,7 +237,7 @@ function CreateAccount() {
                             value={email}
                             placeholder="name@organization.com"
                             autoComplete="section-checkit-transportation username"
-                            disabled={hasInviteSession}
+                            readOnly
                             required
                             onChange={(event) => setEmail(event.target.value)}
                         />
@@ -246,11 +251,10 @@ function CreateAccount() {
                                 name="checkit-transportation-new-account-password"
                                 className={`${styles.input} ${styles.passwordInput}`}
                                 type={showPassword ? 'text' : 'password'}
-                                value={password}
+                                defaultValue=""
                                 placeholder="Use at least 8 characters"
                                 autoComplete="section-checkit-transportation new-password"
                                 required
-                                onChange={(event) => setPassword(event.target.value)}
                             />
                             <button
                                 type="button"
@@ -272,11 +276,10 @@ function CreateAccount() {
                                 name="checkit-transportation-new-account-confirm-password"
                                 className={`${styles.input} ${styles.passwordInput}`}
                                 type={showConfirmPassword ? 'text' : 'password'}
-                                value={confirmPassword}
+                                defaultValue=""
                                 placeholder="Re-enter your password"
                                 autoComplete="section-checkit-transportation new-password"
                                 required
-                                onChange={(event) => setConfirmPassword(event.target.value)}
                             />
                             <button
                                 type="button"
@@ -290,7 +293,9 @@ function CreateAccount() {
                         </div>
                     </div>
 
-                    <button type="submit" className={styles.submitButton} disabled={loading || !authReady || !supabase || (hasInviteSession && Boolean(successMessage))}>
+                    <SignupAuthenticator key={inviteUserId} userId={inviteUserId} onStatusChange={setMfaStatus} disabled={loading || !authReady} />
+
+                    <button type="submit" className={styles.submitButton} disabled={loading || mfaStatus.busy || mfaStatus.pending || !authReady || !supabase || (hasInviteSession && Boolean(successMessage))}>
                         {!authReady ? 'Checking invite…' : loading ? 'Saving…' : 'Save password'}
                     </button>
                 </form>}

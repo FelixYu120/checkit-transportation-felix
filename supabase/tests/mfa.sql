@@ -104,5 +104,31 @@ select pg_temp.assert_true((select full_name='New Admin' from public.profile whe
 select pg_temp.denied($q$update public.profile set role='viewer' where id=auth.uid()$q$);
 select pg_temp.assert_true(not public.portal_account_ready(),'An invitation cannot enter the portal by configuring MFA first');
 reset role;
+-- Optional enrollment during invitation setup never grants password-login readiness.
+update checkit_accounts_private.mfa_policy set enforce_admins=false where singleton;
+insert into auth.mfa_factors values('10000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000003','totp','verified');
+select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0000-0000-000000000003','session_id','00000000-0000-0000-0000-000000000003','role','authenticated','aal','aal2')::text,true);
+set role authenticated;
+select pg_temp.assert_true((public.invitation_setup_status()->>'eligible')::boolean,'A verified authenticator preserves the original unused invite');
+select pg_temp.assert_true((public.mfa_access_status()->>'enrolled')::boolean,'Optional signup enrollment is recorded');
+select pg_temp.assert_true(not public.portal_account_ready(),'An MFA-verified invite still cannot enter the portal');
+select pg_temp.assert_true((select count(*)=0 from public.mfa_test_data),'MFA before signup cannot read private data');
+update public.profile set full_name='Optional MFA Admin' where id=auth.uid();
+reset role;
+update auth.users set encrypted_password='human-password' where id='00000000-0000-0000-0000-000000000003';
+set role authenticated;
+select pg_temp.assert_true(not (public.invitation_setup_status()->>'eligible')::boolean,'Saving a password consumes the original invitation');
+select pg_temp.assert_true(not public.portal_account_ready(),'Completed signup with MFA still requires a new password login');
+reset role;
+insert into auth.sessions(id,user_id) values('00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000003');
+insert into auth.mfa_amr_claims values('00000000-0000-0000-0000-000000000004','password');
+select pg_temp.identify('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000004');
+set role authenticated;
+select pg_temp.assert_true(not public.portal_account_ready(),'A new password session requires the chosen authenticator');
+reset role;
+select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0000-0000-000000000003','session_id','00000000-0000-0000-0000-000000000004','role','authenticated','aal','aal2')::text,true);
+set role authenticated;
+select pg_temp.assert_true(public.portal_account_ready(),'Password login plus authenticator opens the portal after optional signup enrollment');
+reset role;
 rollback;
 \echo MFA security checks passed.

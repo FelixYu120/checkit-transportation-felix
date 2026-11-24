@@ -6,8 +6,6 @@ import styles from './LoginPage.module.css';
 import { finishPasswordSetup, leavePortal } from './portalExit.js';
 
 function SetPassword() {
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [message, setMessage] = useState('');
@@ -15,6 +13,7 @@ function SetPassword() {
     const [loading, setLoading] = useState(false);
     const completedRef = useRef(false);
     const [hasSession, setHasSession] = useState(false);
+    const [accountEmail, setAccountEmail] = useState('');
     const [resetFactors,setResetFactors]=useState([]);
     const [resetFactorId,setResetFactorId]=useState('');
     const [authenticatorCode,setAuthenticatorCode]=useState('');
@@ -46,6 +45,7 @@ function SetPassword() {
                 if(!active || request!==version || completedRef.current)return;
                 const devices=(factors.data?.totp||[]).filter(f=>f.status==='verified');
                 setResetFactors(devices);setResetFactorId(current=>devices.some(f=>f.id===current)?current:devices[0]?.id||'');
+                setAccountEmail(identity.data?.user?.email || '');
                 setHasSession(true);
                 setErrorMessage('');
                 deadlineTimer = window.setTimeout(() => {
@@ -98,6 +98,9 @@ function SetPassword() {
             return;
         }
 
+        const fields = event.currentTarget.elements;
+        const password = fields.namedItem('checkit-transportation-set-password')?.value || '';
+        const confirmPassword = fields.namedItem('checkit-transportation-set-confirm-password')?.value || '';
         if (password.length < 8) {
             setErrorMessage('Use at least 8 characters for your password.');
             return;
@@ -154,7 +157,8 @@ function SetPassword() {
                 {message && <div className={styles.successMessage} role="status">{message}</div>}
 
                 {hasSession ? (
-                    <form className={styles.form} onSubmit={handleSubmit} aria-label="Set Transportation password" aria-busy={loading}>
+                    <form id="checkit-transportation-reset-form" name="checkit-transportation-reset-form" method="post" autoComplete="on" className={styles.form} onSubmit={handleSubmit} aria-label="Set Transportation password" aria-busy={loading}>
+                        <div className={styles.fieldGroup}><label htmlFor="transportation-reset-email">Email address</label><input id="transportation-reset-email" name="checkit-transportation-reset-username" className={styles.input} type="email" value={accountEmail} readOnly autoComplete="section-checkit-transportation username" /></div>
                         <div className={styles.fieldGroup}>
                             <label htmlFor="transportation-new-password">New password</label>
                             <div className={styles.passwordField}>
@@ -163,11 +167,10 @@ function SetPassword() {
                                     name="checkit-transportation-set-password"
                                     className={`${styles.input} ${styles.passwordInput}`}
                                     type={showPassword ? 'text' : 'password'}
-                                    value={password}
+                                    defaultValue=""
                                     placeholder="Use at least 8 characters"
                                     autoComplete="section-checkit-transportation new-password"
                                     required
-                                    onChange={event => setPassword(event.target.value)}
                                 />
                                 <button
                                     type="button"
@@ -188,11 +191,10 @@ function SetPassword() {
                                     name="checkit-transportation-set-confirm-password"
                                     className={`${styles.input} ${styles.passwordInput}`}
                                     type={showConfirmPassword ? 'text' : 'password'}
-                                    value={confirmPassword}
+                                    defaultValue=""
                                     placeholder="Re-enter your password"
                                     autoComplete="section-checkit-transportation new-password"
                                     required
-                                    onChange={event => setConfirmPassword(event.target.value)}
                                 />
                                 <button
                                     type="button"

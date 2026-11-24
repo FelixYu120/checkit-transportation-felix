@@ -10,10 +10,10 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, logoutError: null, calls: [], sessionCallback: null, navigations: [], logins: [], resetMfaFactors: [], mfaFailure:null, initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, logoutError: null, calls: [], sessionCallback: null, navigations: [], logins: [], resetMfaFactors: [], signupMfaFactors: [], signupEnrollError:null, signupEnrollGate:null, mfaFailure:null, initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
-  rpc: async name => { assert.ok(['invitation_setup_status','password_reset_status'].includes(name)); return {data:name==='password_reset_status'?fixture.resetStatus:fixture.setupStatus,error:null}; },
+  rpc: async name => { assert.ok(['invitation_setup_status','password_reset_status','mfa_access_status'].includes(name)); return {data:name==='mfa_access_status'?{user_id:account.id,ready:false,required:fixture.signupMfaFactors.some(f=>f.status==='verified'),enrolled:fixture.signupMfaFactors.some(f=>f.status==='verified'),verified:false}:name==='password_reset_status'?fixture.resetStatus:fixture.setupStatus,error:null}; },
   auth: {
     getSession: async () => {
       if (fixture.gate) await fixture.gate;
@@ -26,7 +26,10 @@ fixture.client = {
     async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
     async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
     async resetPasswordForEmail(email, options) { fixture.calls.push({ action: 'reset', email, options }); if (fixture.failure) throw fixture.failure; return { error: null }; },
-    mfa:{listFactors:async()=>({data:{totp:fixture.resetMfaFactors}}),challengeAndVerify:async input=>{fixture.calls.push({action:'mfa',input});return {error:fixture.mfaFailure};}},
+    mfa:{listFactors:async()=>({data:{totp:[...fixture.resetMfaFactors,...fixture.signupMfaFactors],all:[...fixture.resetMfaFactors,...fixture.signupMfaFactors]}}),
+      enroll:async()=>{fixture.calls.push({action:'enroll'});if(fixture.signupEnrollGate)await fixture.signupEnrollGate;if(fixture.signupEnrollError)return {error:fixture.signupEnrollError};const factor={id:'signup-factor',status:'unverified',factor_type:'totp'};fixture.signupMfaFactors.push(factor);return {data:{...factor,totp:{qr_code:'<svg xmlns="http://www.w3.org/2000/svg"></svg>',secret:'SYNTHETICSEED'}}};},
+      unenroll:async({factorId})=>{fixture.calls.push({action:'unenroll',factorId});fixture.signupMfaFactors=fixture.signupMfaFactors.filter(f=>f.id!==factorId);return {error:null};},
+      challengeAndVerify:async input=>{fixture.calls.push({action:'mfa',input});if(fixture.mfaFailure)return {error:fixture.mfaFailure};const factor=fixture.signupMfaFactors.find(f=>f.id===input.factorId);if(factor)factor.status='verified';if(factor)fixture.sessionCallback?.('MFA_CHALLENGE_VERIFIED',fixture.initialSession);return {error:null};}},
     async signUp() { throw new Error('An invited account must not register again'); },
   },
   from() {
@@ -42,6 +45,7 @@ fixture.client = {
   },
 };
 const reactUrl = import.meta.resolve('react');
+let signupAuthenticatorModule;
 const asModule = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 async function loadComponent(name) {
   const source = await readFile(new URL(`./${name}.jsx`, import.meta.url), 'utf8');
@@ -49,6 +53,8 @@ async function loadComponent(name) {
   const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^"']+)\3/gm, (_match, prefix, clause, _quote, specifier) => {
     let target;
     if (specifier === 'react') target = reactUrl;
+    else if (specifier === './SignupAuthenticator.jsx') target = signupAuthenticatorModule;
+    else if (specifier === './signupMfa.js') target = new URL('./signupMfa.js', import.meta.url).href;
     else if (specifier.endsWith('.css')) target = asModule('export default new Proxy({}, {get: (_, key)=>String(key)});');
     else if (specifier.includes('portalAccess')) target = new URL('../../lib/portalAccess.js', import.meta.url).href;
     else if (specifier === './portalExit.js') target = asModule(`import {finishPasswordSetup as finish, leavePortal as leave} from ${JSON.stringify(new URL('./portalExit.js', import.meta.url).href)};
@@ -66,11 +72,14 @@ async function loadComponent(name) {
     else throw new Error(`Unexpected import ${specifier}`);
     return prefix + JSON.stringify(target);
   });
-  return (await import(asModule(code.replaceAll('window.location.replace(', 'globalThis.__authFormTest.navigations.push(')))).default;
+  const url=asModule(code.replaceAll('window.location.replace(', 'globalThis.__authFormTest.navigations.push('));
+  if(name==='SignupAuthenticator')signupAuthenticatorModule=url;
+  return (await import(url)).default;
 }
 const Login = await loadComponent('Login');
 const ForgotPassword = await loadComponent('ForgotPassword');
 const SetPassword = await loadComponent('SetPassword');
+await loadComponent('SignupAuthenticator');
 const CreateAccount = await loadComponent('CreateAccount');
 const ProfileDropdown = await loadComponent('../Header/ProfileDropdown');
 const appSource = await readFile(new URL('../../App.jsx', import.meta.url), 'utf8');
@@ -545,4 +554,94 @@ test('password recovery requires an enrolled authenticator code before changing 
  assert.equal(fixture.calls.some(c=>c.action==='password'),false);assert.match(document.querySelector('[role="alert"]').textContent,/Invalid code/);
  fixture.mfaFailure=null;await enter('#reset-authenticator-code','654321');await submit();
  assert.equal(fixture.calls.some(c=>c.action==='password'),true);assert.deepEqual(fixture.navigations,['/login']);
+});
+
+
+const clickButton=async text=>act(async()=>[...document.querySelectorAll('button')].find(button=>button.textContent===text).click());
+const fillSignup=async()=>{
+  await enter('#signup-first-name','Example');await enter('#signup-last-name','User');
+  for(const input of document.querySelectorAll('input[type="password"]'))await enter(`#${input.id}`,'valid-password-123');
+};
+
+test('invited signup offers optional MFA without enrolling when skipped',async()=>{
+ await mount(CreateAccount);await fillSignup();
+ assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Set up authenticator (optional)'));
+ await submit();assert.equal(fixture.calls.some(call=>call.action==='enroll'),false);
+ assert.deepEqual(fixture.navigations,['/login']);
+});
+
+test('signup verifies optional MFA without losing credentials or skipping password login',async()=>{
+ await mount(CreateAccount);await fillSignup();
+ const password=document.querySelector('input[autocomplete$=" new-password"]');
+ await clickButton('Set up authenticator (optional)');
+ assert.ok(document.querySelector('.mfaQr'));assert.equal(document.querySelector('[type="submit"]').disabled,true);
+ fixture.mfaFailure=new Error('Invalid code.');await enter('#signup-authenticator-code','123456');await clickButton('Verify');
+ assert.match(document.querySelector('[role="alert"]').textContent,/Invalid code/);assert.equal(fixture.calls.some(call=>call.action==='password'),false);
+ fixture.mfaFailure=null;await enter('#signup-authenticator-code','123456');await clickButton('Verify');
+ await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
+ assert.match(document.body.textContent,/Authenticator enabled/);
+ assert.equal(document.querySelector('input[autocomplete$=" new-password"]'),password);assert.equal(password.value,'valid-password-123');
+ assert.equal(document.querySelector('.mfaQr'),null);assert.equal(fixture.logins.length,0);
+ await submit();assert.deepEqual(fixture.navigations,['/login']);assert.equal(fixture.logins.length,0);
+});
+
+test('canceling unfinished signup MFA removes only the unverified factor and allows signup',async()=>{
+ await mount(CreateAccount);await fillSignup();await clickButton('Set up authenticator (optional)');await clickButton('Cancel');
+ assert.equal(fixture.signupMfaFactors.length,0);assert.ok(fixture.calls.some(call=>call.action==='unenroll'));
+ assert.equal(document.querySelector('.mfaQr'),null);await submit();assert.deepEqual(fixture.navigations,['/login']);
+});
+
+test('expired invitations cannot begin authenticator enrollment',async()=>{
+ await mount(CreateAccount);fixture.setupStatus={eligible:false,user_id:account.id,reason:'expired'};
+ await clickButton('Set up authenticator (optional)');
+ assert.equal(fixture.calls.some(call=>call.action==='enroll'),false);assert.ok(document.querySelector('[role="alert"]'));
+});
+
+test('an invitation with an already verified factor must verify it before password setup',async()=>{
+ fixture.signupMfaFactors=[{id:'existing',factor_type:'totp',status:'verified'}];
+ await mount(CreateAccount);await fillSignup();assert.equal(document.querySelector('[type="submit"]').disabled,true);
+ await enter('#signup-authenticator-code','123456');await clickButton('Verify');
+ await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
+ await submit();assert.deepEqual(fixture.navigations,['/login']);assert.equal(fixture.calls.some(call=>call.action==='enroll'),false);
+});
+
+test('signup preserves password-manager values through rerenders and submits the visible generated password',async()=>{
+ await mount(CreateAccount);
+ const setValue=Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set;
+ for(const input of document.querySelectorAll('input')) {
+  if(input.id==='signup-first-name')setValue.call(input,'Example');
+  if(input.id==='signup-last-name')setValue.call(input,'User');
+  if(input.type==='password')setValue.call(input,'manager-generated-password');
+ }
+ const username=document.querySelector('input[autocomplete$=" username"]');
+ assert.equal(username.readOnly,true);assert.equal(username.disabled,false);assert.equal(username.form.getAttribute('autocomplete'),'on');
+ await clickButton('Set up authenticator (optional)');await clickButton('Cancel');
+ await submit();assert.equal(fixture.calls.find(call=>call.action==='password').input.password,'manager-generated-password');
+});
+
+test('password reset accepts generated passwords without input events and exposes the account username',async()=>{
+ await mount(SetPassword);
+ const setValue=Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set;
+ for(const input of document.querySelectorAll('input[type="password"]'))setValue.call(input,'manager-reset-password');
+ assert.equal(document.querySelector('input[autocomplete$=" username"]').value,account.email);
+ await act(async()=>document.querySelector('[aria-label="Show password"]').click());
+ await submit();assert.equal(fixture.calls.find(call=>call.action==='password').input.password,'manager-reset-password');
+});
+
+test('an email input rerender never erases a password-manager filled password',async()=>{
+ await mount(Login);
+ const password=document.querySelector('input[type="password"]');
+ Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(password,'manager-filled-password');
+ await enter('input[type="email"]','saved@example.test');
+ assert.equal(password.value,'manager-filled-password');await submit();
+ assert.equal(fixture.calls.find(call=>call.action==='login').input.password,'manager-filled-password');
+});
+
+
+test('leaving signup clears QR secrets and permits canceling unfinished setup after returning',async()=>{
+ await mount(CreateAccount);await fillSignup();await clickButton('Set up authenticator (optional)');
+ assert.ok(document.body.textContent.includes('SYNTHETICSEED'));
+ await act(async()=>window.dispatchEvent(new window.PageTransitionEvent('pagehide',{persisted:true})));
+ assert.equal(document.querySelector('.mfaQr'),null);assert.equal(document.body.textContent.includes('SYNTHETICSEED'),false);
+ await clickButton('Cancel');await submit();assert.deepEqual(fixture.navigations,['/login']);
 });

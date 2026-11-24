@@ -19,7 +19,6 @@ function Login({ setIsLoggedIn }) {
     const formRef = useRef(null);
     
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState(() => EMAIL_LINK_MESSAGES[new URLSearchParams(window.location.search).get('notice')] || '');
     const [loading, setLoading] = useState(false);
@@ -37,7 +36,6 @@ function Login({ setIsLoggedIn }) {
                 passwordInput.type = 'password';
             }
             setEmail('');
-            setPassword('');
             setShowPassword(false);
         };
         const restorePage = event => {
@@ -59,7 +57,6 @@ function Login({ setIsLoggedIn }) {
         // Preserve values filled by a password manager without React input events.
         const fields = event.currentTarget.form?.elements;
         setEmail(parseAutofillUsername(fields?.namedItem('checkit-transportation-username')?.value ?? email));
-        setPassword(fields?.namedItem('checkit-transportation-password')?.value ?? password);
         setShowPassword(current => !current);
     };
 
@@ -76,13 +73,12 @@ function Login({ setIsLoggedIn }) {
         // Some password managers fill the DOM without dispatching React input events.
         const form = e.currentTarget;
         const loginEmail = parseAutofillUsername(form.elements.namedItem('checkit-transportation-username')?.value ?? email);
-        const loginPassword = form.elements.namedItem('checkit-transportation-password')?.value ?? password;
+        const loginPassword = form.elements.namedItem('checkit-transportation-password')?.value ?? '';
         if (!loginEmail || !loginPassword) {
             setErrorMessage('Enter your email address and password.');
             return;
         }
         setEmail(loginEmail);
-        setPassword(loginPassword);
 
         setLoading(true);
 
@@ -130,6 +126,7 @@ function Login({ setIsLoggedIn }) {
                     id="checkit-transportation-login-form"
                     name="checkit-transportation-login-form"
                     action="/transportation-login"
+                    method="post"
                     className={styles.form}
                     autoComplete="on"
                     aria-label="Sign in to Transportation"
@@ -164,11 +161,10 @@ function Login({ setIsLoggedIn }) {
                                 name="checkit-transportation-password"
                                 className={`${styles.input} ${styles.passwordInput}`}
                                 type={showPassword ? 'text' : 'password'}
-                                value={password}
+                                defaultValue=""
                                 placeholder="Enter your password"
                                 autoComplete="section-checkit-transportation current-password"
                                 required
-                                onChange={(event) => setPassword(event.target.value)}
                             />
                             <button
                                 type="button"
