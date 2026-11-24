@@ -61,24 +61,31 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   );
 
   if (membersResponse.error) throw membersResponse.error;
-  const [pending, invitations] = await Promise.all([
+  const [pending, invitations, access] = await Promise.all([
     supabase.rpc("pending_team_account_removals"),
     ["admin", "checkit_admin"].includes(currentRole)
       ? supabase.rpc("pending_team_invitations")
       : Promise.resolve({ data: [], error: null }),
+    ["admin", "checkit_admin"].includes(currentRole)
+      ? supabase.rpc("team_member_access_status")
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (pending.error) throw pending.error;
   if (invitations.error) throw invitations.error;
+  if (access.error) throw access.error;
   const members = [...(membersResponse.data || [])];
   for (const member of pending.data || []) {
     if (!members.some(existing => existing.id === member.id)) members.push({ ...member, removal_pending: true });
   }
 
   const pendingInvitations = new Map((invitations.data || []).map(invitation => [invitation.id, invitation]));
+  const accessByMember = new Map((access.data || []).map(item => [item.id, item]));
   const directory = members.map(member => {
     const invitation = pendingInvitations.get(member.id);
     return {
       ...member,
+      access_status: member.removal_pending ? null : accessByMember.get(member.id)?.access_status || (invitation ? "pending_invite" : null),
+      first_signed_in_at: accessByMember.get(member.id)?.first_signed_in_at || null,
       invitation_pending: Boolean(invitation && !member.removal_pending),
       invitation_sent_at: invitation?.invitation_sent_at || null,
       invitation_expires_at: invitation?.invitation_expires_at || null,

@@ -36,6 +36,7 @@ create policy base_access on public.mfa_test_data for all to authenticated using
 grant select,insert,update,delete on public.mfa_test_data,public.profile to authenticated;
 
 \i :mfa_file
+\i :team_access_file
 
 insert into auth.users(id,encrypted_password) values('00000000-0000-0000-0000-000000000001','admin-hash'),('00000000-0000-0000-0000-000000000002','viewer-hash');
 insert into public.profile(id,role,assigned_institute) values('00000000-0000-0000-0000-000000000001','checkit_admin','ucsd'),('00000000-0000-0000-0000-000000000002','viewer','ucsd');
@@ -130,5 +131,39 @@ select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0
 set role authenticated;
 select pg_temp.assert_true(public.portal_account_ready(),'Password login plus authenticator opens the portal after optional signup enrollment');
 reset role;
+-- Invitation acceptance and the first password login are separate server-owned facts.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+insert into auth.users(id,encrypted_password,invited_at) values('00000000-0000-0000-0000-000000000005','',clock_timestamp());
+insert into public.profile(id,role,assigned_institute) values('00000000-0000-0000-0000-000000000005','viewer','ucsd');
+update auth.users set encrypted_password='provider-seed' where id='00000000-0000-0000-0000-000000000005';
+update auth.users set email_confirmed_at=clock_timestamp() where id='00000000-0000-0000-0000-000000000005';
+insert into auth.sessions(id,user_id) values('00000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000005');
+insert into auth.mfa_amr_claims values('00000000-0000-0000-0000-000000000005','otp');
+select set_config('request.jwt.claims',jsonb_build_object('sub','00000000-0000-0000-0000-000000000003','session_id','00000000-0000-0000-0000-000000000004','role','authenticated','aal','aal2')::text,true);
+set role authenticated;
+select pg_temp.assert_true((select access_status='pending_invite' from public.team_member_access_status() where id='00000000-0000-0000-0000-000000000005'),'Opening an invite still shows Pending invite');
+reset role;
+update auth.users set encrypted_password='chosen-password' where id='00000000-0000-0000-0000-000000000005';
+set role authenticated;
+select pg_temp.assert_true((select access_status='awaiting_sign_in' from public.team_member_access_status() where id='00000000-0000-0000-0000-000000000005'),'Finished signup awaits the first password login');
+reset role;
+insert into auth.sessions(id,user_id) values('00000000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000005');
+insert into auth.mfa_amr_claims values('00000000-0000-0000-0000-000000000006','password');
+delete from auth.sessions where user_id='00000000-0000-0000-0000-000000000005';
+set role authenticated;
+select pg_temp.assert_true((select access_status='joined' from public.team_member_access_status() where id='00000000-0000-0000-0000-000000000005'),'First sign-in stays recorded after logout');
+reset role;
+update public.profile set assigned_institute='another' where id='00000000-0000-0000-0000-000000000005';
+set role authenticated;
+select pg_temp.assert_true(not exists(select 1 from public.team_member_access_status() where id='00000000-0000-0000-0000-000000000005'),'Institution admins cannot read another institution status');
+reset role;
+select pg_temp.identify('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000002');
+set role authenticated;
+select pg_temp.denied($q$select public.team_member_access_status()$q$);
+reset role;
+select pg_temp.assert_true(not has_table_privilege('authenticated','checkit_accounts_private.member_password_signins','insert'),'Clients cannot forge a first login');
+reset role;
+delete from auth.users where id='00000000-0000-0000-0000-000000000005';
+select pg_temp.assert_true(not exists(select 1 from checkit_accounts_private.member_password_signins where user_id='00000000-0000-0000-0000-000000000005'),'Account removal clears first-login records');
 rollback;
 \echo MFA security checks passed.

@@ -1,3 +1,4 @@
+import EmailLinkConfirmation from './components/authentication/EmailLinkConfirmation.jsx';
 import MfaPage from './components/authentication/MfaPage.jsx';
 import {readMfaStatus,needsMfa} from './components/authentication/mfa.js';
 import React, { useState, useEffect } from 'react';
@@ -212,12 +213,14 @@ function AppSession() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
     const [sessionIdentity, setSessionIdentity] = useState(null);
+    const [callbackApproved, setCallbackApproved] = useState(() => !supabaseEmailCallback.tokenHash || supabaseEmailCallback.error);
 
     useEffect(() => {
         if (!supabase) {
             return undefined;
         }
 
+        if (!callbackApproved) return;
         const callbackNeedsRedirect = Boolean(supabaseAuthRedirectPath && window.location.pathname !== supabaseAuthRedirectPath);
         let active = true;
         let authEventReceived = false;
@@ -262,8 +265,9 @@ function AppSession() {
             active = false;
             authListener.subscription.unsubscribe();
         };
-    }, []);
+    }, [callbackApproved]);
 
+    if (!callbackApproved) return <EmailLinkConfirmation callback={supabaseEmailCallback} onContinue={() => setCallbackApproved(true)} />;
     if (!authReady) {
         return <div className={styles.appLayout} />;
     }

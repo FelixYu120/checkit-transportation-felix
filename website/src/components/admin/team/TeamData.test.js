@@ -2,7 +2,7 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { fetchInstitutionTeamMembers, removeTeamMember, inviteTeamMember } from "./TeamData.js";
 
-const createTeam = ({ role = "checkit_admin", invitations = [] } = {}) => {
+const createTeam = ({ role = "checkit_admin", invitations = [], access = [] } = {}) => {
   const profiles = new Map([
     ["manager", { id: "manager", role, assigned_institute: "institute-a", full_name: "Manager" }],
     ["member", { id: "member", role: "viewer", assigned_institute: "institute-a", full_name: "Team Member" }],
@@ -32,8 +32,8 @@ const createTeam = ({ role = "checkit_admin", invitations = [] } = {}) => {
     },
     async rpc(name) {
       calls.push({ name });
-      assert.ok(['pending_team_account_removals', 'pending_team_invitations'].includes(name));
-      return { data: name === 'pending_team_invitations' ? invitations : [], error: null };
+      assert.ok(['pending_team_account_removals', 'pending_team_invitations', 'team_member_access_status'].includes(name));
+      return { data: name === 'pending_team_invitations' ? invitations : name === 'team_member_access_status' ? access : [], error: null };
     },
   };
   return { supabase, calls };
@@ -47,7 +47,7 @@ test("institution admins only load members assigned to their own institution", a
 test("pending cleanups remain visible after reloading so an administrator can retry", async () => {
   const { supabase } = createTeam({ role: "admin" });
   supabase.rpc = async name => {
-    if (name === 'pending_team_invitations') return { data: [], error: null };
+    if (['pending_team_invitations','team_member_access_status'].includes(name)) return { data: [], error: null };
     assert.equal(name, 'pending_team_account_removals');
     return { data: [{ id: 'pending', role: 'viewer', assigned_institute: null }], error: null };
   };
@@ -186,4 +186,13 @@ test('an invitation status failure never guesses that a completed account needs 
     ? { error: new Error('Invitation status unavailable') }
     : { data: [], error: null };
   await assert.rejects(fetchInstitutionTeamMembers(supabase), /Invitation status unavailable/);
+});
+
+
+test('team access status annotates only visible members without changing resend eligibility',async()=>{
+ const {supabase}=createTeam({role:'admin',access:[{id:'member',access_status:'awaiting_sign_in'},{id:'other-institute',access_status:'pending_invite'}]});
+ const result=await fetchInstitutionTeamMembers(supabase);
+ assert.equal(result.members.find(member=>member.id==='member').access_status,'awaiting_sign_in');
+ assert.equal(result.members.find(member=>member.id==='member').invitation_pending,false);
+ assert.equal(result.members.some(member=>member.id==='other-institute'),false);
 });

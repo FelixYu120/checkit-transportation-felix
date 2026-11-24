@@ -29,7 +29,9 @@ async function mount(path, signedIn = true, profile = { role: 'admin', assigned_
     if (specifier === 'react') return prefix + JSON.stringify(reactUrl);
     if (specifier === 'react-router-dom') return prefix + JSON.stringify(routerUrl);
     let stub;
-    if (specifier.includes('SupabaseClients')) {
+    if (specifier.includes('EmailLinkConfirmation')) {
+      stub = `import React from ${JSON.stringify(reactUrl)};export default function EmailLinkConfirmation({onContinue}){return React.createElement('button',{'data-page':'EmailLinkConfirmation',onClick:onContinue},'Accept invite');}`;
+    } else if (specifier.includes('SupabaseClients')) {
       stub = `const fixture=()=>globalThis.__checkitRoutingFixture;
         export default { auth:{
           getSession:async()=>({data:{session:fixture().signedIn?{user:fixture().user}:null}}),
@@ -287,6 +289,8 @@ test('account setup verification fails closed without rendering the portal', asy
 
 for (const [path,type,target] of [['/signup','invite','/create-account'],['/signup','magiclink','/create-account'],['/reset-password','recovery','/set-password']])test(`${type} email callback verifies once and routes to ${target}`,async()=>{
   await mount(`${path}#token_hash=fixture-hash&type=${type}`,false);
+  assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[]);
+  await act(async()=>document.querySelector('[data-page="EmailLinkConfirmation"]').click());
   await until(()=>globalThis.__checkitRoutingFixture.redirects.includes(target));
   assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[{token_hash:'fixture-hash',type}]);
   assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
@@ -294,6 +298,7 @@ for (const [path,type,target] of [['/signup','invite','/create-account'],['/sign
 
 test('an expired invitation routes to login with an explicit error and no portal content',async()=>{
   await mount('/signup#token_hash=expired-fixture&type=invite',false,undefined,{verifyError:{code:'otp_expired'}});
+  await act(async()=>document.querySelector('[data-page="EmailLinkConfirmation"]').click());
   await until(()=>globalThis.__checkitRoutingFixture.redirects.includes('/login?notice=invite_expired'));
   assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
 });

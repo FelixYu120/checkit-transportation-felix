@@ -6,6 +6,13 @@ import {readMfaStatus,verifyAuthenticator,qrImage} from './mfa.js';
 import {leavePortal} from './portalExit.js';
 import styles from './LoginPage.module.css';
 
+const factorLabel=(factor,index=0)=>/^CheckIt (Occupancy|Transportation) \d{4}-/.test(factor.friendly_name||'')?`Authenticator${index?` ${index+1}`:''}`:factor.friendly_name||'Authenticator';
+const factorDate=factor=>{
+  const value=factor.created_at||/ (\d{4}-\d{2}-\d{2}T[^ ]+)$/.exec(factor.friendly_name||'')?.[1];
+  const date=value?new Date(value):null;
+  return date&&!Number.isNaN(date.getTime())?date.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'';
+};
+
 export default function MfaPage({embedded=false,onVerified,onBusyChange}) {
   const navigate=useNavigate();
   const [status,setStatus]=useState(null);
@@ -89,18 +96,19 @@ export default function MfaPage({embedded=false,onVerified,onBusyChange}) {
   const Title=embedded?'h3':'h1';
   const content=<>
     {!embedded&&<div className={styles.brandRow}><a href="https://checkit.dev" className={styles.logoLink} aria-label="CheckIt home"><img src="/checkit-logo.png" className={styles.logo} alt="CheckIt" /></a><span className={styles.productName}>Transportation</span></div>}
-    <Title id="mfa-title" className={embedded?styles.embeddedTitle:styles.title}>{status?.verified&&!setup?'Security':setup||!factors.length?'Set up authenticator':'Authenticator code'}</Title>
+    <Title id="mfa-title" className={embedded?styles.embeddedTitle:styles.title}>{status?.verified&&!setup?'Two-step verification':setup||!factors.length?'Set up two-step verification':'Authenticator code'}</Title>
     {error&&<p className={styles.errorMessage} role="alert">{error}</p>}
     {!status&&!error&&<p role="status">Checking account…</p>}
     {status&&<>
-      {!factorId&&<><p className={styles.intro}>Use Google Authenticator or Microsoft Authenticator.</p><button className={styles.submitButton} type="button" disabled={busy} onClick={enroll}>Set up authenticator</button></>}
+      {!factorId&&<><p className={styles.intro}>Use Google Authenticator or Microsoft Authenticator.</p><button className={styles.submitButton} type="button" disabled={busy} onClick={enroll}>Set up two-step verification</button></>}
       {setup&&<div className={styles.mfaSetup}><p>Scan this code in your authenticator app.</p><img className={styles.mfaQr} src={setup.image} alt="Authenticator setup QR code" /><details><summary>Can’t scan?</summary><code className={styles.mfaSecret} data-mfa-secret>{setup.secret}</code></details></div>}
       {factorId&&(!status.verified||setup)&&<form className={styles.form} onSubmit={verify} aria-busy={busy}>
-        {!setup&&factors.length>1&&<div className={styles.fieldGroup}><label htmlFor="mfa-device">Authenticator</label><select id="mfa-device" className={styles.input} value={factorId} onChange={e=>setFactorId(e.target.value)}>{factors.map(f=><option key={f.id} value={f.id}>{f.friendly_name||'Authenticator'}</option>)}</select></div>}
+        {!setup&&factors.length>1&&<div className={styles.fieldGroup}><label htmlFor="mfa-device">Authenticator</label><select id="mfa-device" className={styles.input} value={factorId} onChange={e=>setFactorId(e.target.value)}>{factors.map((f,index)=><option key={f.id} value={f.id}>{factorLabel(f,index)}</option>)}</select></div>}
         <div className={styles.fieldGroup}><label htmlFor="mfa-code">6-digit code</label><input id="mfa-code" className={styles.input} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus disabled={busy}/></div>
         <button className={styles.submitButton} type="submit" disabled={busy||code.length!==6}>{busy?'Verifying…':'Verify'}</button>
       </form>}
-      {status.verified&&!setup&&factors.map(f=><div className={styles.mfaDevice} key={f.id}><span>{f.friendly_name||'Authenticator'}</span><button type="button" className={styles.textLink} disabled={busy||factors.length<2} onClick={()=>void remove(f.id)}>Remove</button></div>)}
+      {status.verified&&!setup&&<p className={styles.mfaEnabled}>Enabled</p>}
+      {status.verified&&!setup&&factors.map((f,index)=><div className={styles.mfaDevice} key={f.id}><span className={styles.mfaDeviceInfo}><strong>{factorLabel(f,index)}</strong>{factorDate(f)&&<span>Added {factorDate(f)}</span>}</span><button type="button" className={styles.textLink} disabled={busy||factors.length<2} onClick={()=>void remove(f.id)}>Remove</button></div>)}
       {status.verified&&!setup&&<button className={styles.backLink} type="button" onClick={enroll} disabled={busy}>Add backup authenticator</button>}
       {!embedded&&status.verified&&!setup&&<button className={styles.backLink} type="button" onClick={()=>navigate(DEFAULT_ADMIN_ROUTE,{replace:true})}>Continue to portal</button>}
       <p className={styles.mfaHelp}>Lost access? Contact your CheckIt administrator.</p>

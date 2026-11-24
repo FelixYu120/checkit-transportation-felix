@@ -561,3 +561,19 @@ test('closing a pending resend cannot show its result on a different profile', a
   assert.equal(document.querySelector('.memberDetailsDialog [role="status"]'), null);
   assert.equal(document.querySelector('.memberDetailsDialog [role="alert"]'), null);
 });
+
+
+test('pending signup and awaiting first sign-in have distinct card and member statuses',async()=>{
+ fixture.members[1].invitation_pending=true;
+ await mount();
+ const card=[...document.querySelectorAll('.memberCard')].find(item=>item.textContent.includes('Emily Thompson'));
+ assert.equal(card.querySelector('.invitationBadge').textContent,'Pending invite');
+ await click('[aria-label="View details for Emily Thompson"]');
+ assert.equal(document.querySelector('.memberInvitationStatus').textContent,'Pending invite');
+ assert.ok(document.querySelector('.resendInviteButton'));
+ fixture.members[1].invitation_pending=false;fixture.members[1].access_status='awaiting_sign_in';
+ await act(async()=>window.dispatchEvent(new window.Event('focus')));
+ await until(()=>document.querySelector('.invitationBadge')?.textContent==='Awaiting sign-in');
+ assert.equal(document.querySelector('.memberInvitationStatus').textContent,'Awaiting sign-in');
+ assert.equal(document.querySelector('.resendInviteButton'),null);
+});

@@ -293,7 +293,7 @@
   text-align: left;
 }
 
-.memberText > .roleBadge {
+.memberText > .memberBadges {
   justify-self: start;
   min-width: 0;
   overflow: hidden;
@@ -1171,3 +1171,8 @@
   outline: 2px solid #34524d;
   outline-offset: 2px;
 }
+
+.memberBadges { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.memberBadges > .roleBadge { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invitationBadge { flex-shrink: 0; padding: 2px 6px; border: 1px solid #d8cfb7; border-radius: 5px; background: #f3efe4; color: #75603b; font-size: .625rem; font-weight: 500; line-height: 1.4; white-space: nowrap; }
+.memberInvitationStatus { margin: 0 0 16px; }

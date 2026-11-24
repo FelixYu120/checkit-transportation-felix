@@ -141,20 +141,20 @@ test('a thrown password request shows an error, unlocks the editor, and permits 
   fixture.passwordError = null;
   await act(async () => document.querySelector('.saveBtn').click());
   assert.equal(fixture.passwordCalls, 2);
-  assert.match(document.querySelector('.successMessage').textContent, /updated successfully/);
+  assert.match(document.querySelector('.successMessage').textContent, /Password updated/);
 });
 
 
 test('authenticator settings stay in the profile dialog and prevent closing while verifying', async () => {
   await mount();
-  await act(async () => [...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Authenticator').click());
+  await act(async () => [...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Two-step').click());
   assert.equal(document.querySelector('[data-mfa-embedded="true"]').closest('[role="dialog"]')!==null, true);
   await act(async () => fixture.mfa.onBusyChange(true));
   assert.equal(document.querySelector('[aria-label="Close profile"]').disabled,true);
   await act(async () => document.querySelector('.modalOverlay').click());
   assert.equal(closed,0);
   await act(async () => fixture.mfa.onBusyChange(false));
-  await act(async () => document.querySelector('.backButton').click());
+  await act(async () => document.querySelector('.settingsNav [aria-label="Profile"]').click());
   assert.ok(document.querySelector('[aria-label="Choose profile photo"]'));
   await act(async () => document.querySelector('.modalOverlay').click());
   assert.equal(closed,1);
@@ -162,14 +162,14 @@ test('authenticator settings stay in the profile dialog and prevent closing whil
 
 test('leaving password settings clears unsaved credentials within the unified dialog', async () => {
   await mount();
-  const changePassword=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Change password').click();
+  const changePassword=()=>[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Password').click();
   await act(async () => changePassword());
   await act(async () => {
     const input=document.querySelector('input[type="password"]');
     Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(input,'unsaved-secret');
     input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
   });
-  await act(async () => document.querySelector('.backButton').click());
+  await act(async () => document.querySelector('.settingsNav [aria-label="Profile"]').click());
   await act(async () => changePassword());
   assert.equal(document.querySelector('input[type="password"]').value,'');
 });

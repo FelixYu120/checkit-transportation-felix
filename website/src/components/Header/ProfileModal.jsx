@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, MapPin, KeyRound, Eye, EyeOff, Camera, ShieldCheck, ChevronLeft } from 'lucide-react';
+import { X, Save, MapPin, KeyRound, Eye, EyeOff, Camera, UserRound } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './ProfileModal.module.css';
 import MfaPage from '../authentication/MfaPage.jsx';
@@ -36,8 +36,6 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [photoMessage, setPhotoMessage] = useState('');
   const photoSaving = Boolean(photoAction);
   const [passwordState, setPasswordState] = useState({
-    password: '',
-    confirmPassword: '',
     message: '',
     error: ''
   });
@@ -121,15 +119,19 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     }
   };
 
-  const handlePasswordSave = async () => {
+  const handlePasswordSave = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const password = form.elements.namedItem("checkit-transportation-profile-password")?.value || "";
+    const confirmation = form.elements.namedItem("checkit-transportation-profile-confirm-password")?.value || "";
     setPasswordState((current) => ({ ...current, message: '', error: '' }));
 
-    if (passwordState.password.length < 8) {
+    if (password.length < 8) {
       setPasswordState((current) => ({ ...current, error: 'Use at least 8 characters for your password.' }));
       return;
     }
 
-    if (passwordState.password !== passwordState.confirmPassword) {
+    if (password !== confirmation) {
       setPasswordState((current) => ({ ...current, error: 'Passwords do not match.' }));
       return;
     }
@@ -137,14 +139,24 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     if (saving || photoSaving || !supabase) return;
     setSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: passwordState.password });
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      setPasswordState({ password: '', confirmPassword: '', message: 'Password updated successfully.', error: '' });
+      form.reset();
+      setShowPassword(false); setShowConfirmPassword(false);
+      setPasswordState({ message: 'Password updated.', error: '' });
     } catch (error) {
       setPasswordState(current => ({ ...current, error: error.message || 'Your password could not be updated. Please try again.' }));
     } finally {
       setSaving(false);
     }
+  };
+
+  const changePanel = next => {
+    if (saving || photoSaving || mfaBusy) return;
+    setPanel(next);
+    setPasswordState({ message: '', error: '' });
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   // Helper function to determine the user's primary access level
@@ -167,30 +179,33 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
       <div className={styles.modalContent} role="dialog" aria-modal="true" aria-labelledby="profile-settings-title" onClick={(e) => e.stopPropagation()}>
         
         <div className={styles.modalHeader}>
-          <h2 id="profile-settings-title">Profile &amp; security</h2>
+          <div className={styles.headerTitle}><span className={styles.headerMark}><UserRound size={20} aria-hidden="true" /></span><h2 id="profile-settings-title">Profile &amp; security</h2></div>
           <button className={styles.closeBtn} onClick={handleClose} disabled={saving || photoSaving || mfaBusy} aria-label="Close profile"><X size={20} /></button>
         </div>
 
+        <nav className={styles.settingsNav} aria-label="Account settings">
+          {[['profile','Profile'],['password','Password'],['authenticator','Two-step']].map(([key,label]) => <button key={key} type="button" aria-label={key==='authenticator'?'Two-step verification':label} aria-current={panel===key?'page':undefined} className={panel===key?styles.activePanel:undefined} disabled={saving || photoSaving || mfaBusy} onClick={()=>changePanel(key)}>{label}</button>)}
+        </nav>
         {loading ? (
           <div className={styles.loading}>Loading profile…</div>
         ) : (
           <div className={styles.modalBody}>
-            {panel !== 'profile' && <button type="button" className={styles.backButton} disabled={saving || mfaBusy} onClick={() => { setPanel('profile'); setPasswordState({ password: '', confirmPassword: '', message: '', error: '' }); }}>
-              <ChevronLeft size={16} aria-hidden="true" /> Back
-            </button>}
             {panel === 'authenticator' ? <MfaPage embedded onVerified={onClose} onBusyChange={setMfaBusy} /> : panel === 'password' ? (
               <>
                 <h3 className={styles.sectionTitle}>Change password</h3>
-                {passwordState.error && <div className={styles.errorMessage}>{passwordState.error}</div>}
-                {passwordState.message && <div className={styles.successMessage}>{passwordState.message}</div>}
+                <form className={styles.passwordForm} method="post" autoComplete="on" aria-label="Change Transportation password" onSubmit={handlePasswordSave}>
+                <label className={styles.label} htmlFor="profile-password-email">Email address</label>
+                <input id="profile-password-email" name="checkit-transportation-profile-username" className={styles.input} type="email" value={profile.email} readOnly autoComplete="section-checkit-transportation username" />
+                {passwordState.error && <div className={styles.errorMessage} role="alert">{passwordState.error}</div>}
+                {passwordState.message && <div className={styles.successMessage} role="status">{passwordState.message}</div>}
 
-                <label className={styles.label}>New password</label>
+                <label className={styles.label} htmlFor="profile-new-password">New password</label>
                 <div className={styles.passwordField}>
                   <input
+                    id="profile-new-password" name="checkit-transportation-profile-password" autoComplete="section-checkit-transportation new-password" required minLength={8}
                     type={showPassword ? 'text' : 'password'}
                     className={`${styles.input} ${styles.passwordInput}`}
-                    value={passwordState.password}
-                    onChange={(e) => setPasswordState({...passwordState, password: e.target.value})}
+                    defaultValue=""
                     placeholder="Use at least 8 characters"
                   />
                   <button
@@ -203,13 +218,13 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                   </button>
                 </div>
 
-                <label className={styles.label}>Confirm password</label>
+                <label className={styles.label} htmlFor="profile-confirm-password">Confirm password</label>
                 <div className={styles.passwordField}>
                   <input
+                    id="profile-confirm-password" name="checkit-transportation-profile-confirm-password" autoComplete="section-checkit-transportation new-password" required minLength={8}
                     type={showConfirmPassword ? 'text' : 'password'}
                     className={`${styles.input} ${styles.passwordInput}`}
-                    value={passwordState.confirmPassword}
-                    onChange={(e) => setPasswordState({...passwordState, confirmPassword: e.target.value})}
+                    defaultValue=""
                     placeholder="Re-enter your password"
                   />
                   <button
@@ -222,9 +237,10 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                   </button>
                 </div>
 
-                <button className={styles.saveBtn} onClick={handlePasswordSave} disabled={saving}>
+                <button type="submit" className={styles.saveBtn} disabled={saving || !profile.id}>
                   <KeyRound size={16} /> {saving ? 'Saving…' : 'Update password'}
                 </button>
+                </form>
               </>
             ) : (
               <>
@@ -260,18 +276,9 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             {photoError && <div className={styles.errorMessage} role="alert">{photoError}</div>}
             {photoMessage && <p className={styles.photoStatus} role="status">{photoMessage}</p>}
 
-            {/* Access Level Display Area */}
-            {!profileError && <div className={styles.accessBadge}>
-                <MapPin size={16} />
-                <div>
-                    <strong>{access.level}</strong>
-                    <div style={{ fontSize: '12px', opacity: 0.8 }}>{access.detail}</div>
-                </div>
-            </div>}
-
-            <label className={styles.label}>Full name</label>
+            <label className={styles.label} htmlFor="profile-full-name">Full name</label>
             <input 
-              type="text" 
+              id="profile-full-name" type="text"
               className={styles.input} 
               value={profile.full_name}
               onChange={(e) => setProfile({...profile, full_name: e.target.value})}
@@ -283,23 +290,24 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             <input id="profile-email" type="email" className={styles.input} value={profile.email}
               readOnly placeholder="Email unavailable" title={profile.email} />
 
-            <label className={styles.label}>Role</label>
-            <input type="text" className={styles.input} value={profileError ? 'Unavailable' : formatRoleLabel(profile.role)} disabled />
+            <label className={styles.label} htmlFor="profile-role">Role</label>
+            <input id="profile-role" type="text" className={styles.input} value={profileError ? 'Unavailable' : formatRoleLabel(profile.role)} disabled />
+
+            {/* Access Level Display Area */}
+            {!profileError && <div className={styles.accessBadge}>
+                <MapPin size={16} />
+                <div>
+                    <strong>{access.level}</strong>
+                    <div style={{ fontSize: '12px', opacity: 0.8 }}>{access.detail}</div>
+                </div>
+            </div>}
 
             {mode === 'edit' && (
               <button className={styles.saveBtn} onClick={handleSave} disabled={saving || photoSaving || Boolean(profileError) || !profile.id}>
                 <Save size={16} /> {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}
-            <section className={styles.securitySection} aria-labelledby="profile-security-title">
-              <h3 id="profile-security-title" className={styles.sectionTitle}>Security</h3>
-              <button type="button" className={styles.settingsButton} disabled={saving || photoSaving} onClick={() => setPanel('password')}>
-                <KeyRound size={16} aria-hidden="true" /> Change password
-              </button>
-              <button type="button" className={styles.settingsButton} disabled={saving || photoSaving} onClick={() => setPanel('authenticator')}>
-                <ShieldCheck size={16} aria-hidden="true" /> Authenticator
-              </button>
-            </section>
+
               </>
             )}
           </div>

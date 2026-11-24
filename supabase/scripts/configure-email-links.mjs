@@ -1,14 +1,20 @@
 import {pathToFileURL} from 'node:url';
 
-// Branch on the new callback paths so older deployments keep their existing
-// confirmation URLs until the corresponding frontend/API release is published.
-const marker = '<!-- checkit-email-flow-v2 -->';
+// Authentication email links always enter our confirmation page; GET never exchanges a token.
+const marker = '<!-- checkit-email-flow-v3 -->';
+const oldMarker = '<!-- checkit-email-flow-v2 -->';
 function upgradeTemplate(content, target, type) {
   if (content?.includes(marker)) return content;
+  let original = String(content || '');
+  if (original.includes(oldMarker)) {
+    const previous = `{{ if eq .RedirectTo "${target}" }}${target}#token_hash={{ .TokenHash }}&amp;type=${type}{{ else }}{{ .ConfirmationURL }}{{ end }}`;
+    if (!original.includes(previous)) throw new Error('Email template needs review: previous callback branch differs.');
+    original = original.replaceAll(previous, '{{ .ConfirmationURL }}').replace(oldMarker, '').trimStart();
+  }
   let changed = false;
-  const next = String(content || '').replace(/(href=["']){{\s*\.ConfirmationURL\s*}}(["'])/g, (_match, before, after) => {
+  const next = original.replace(/(href=["']){{\s*\.ConfirmationURL\s*}}(["'])/g, (_match, before, after) => {
     changed = true;
-    return `${before}{{ if eq .RedirectTo "${target}" }}${target}#token_hash={{ .TokenHash }}&amp;type=${type}{{ else }}{{ .ConfirmationURL }}{{ end }}${after}`;
+    return `${before}${target}#token_hash={{ .TokenHash }}&amp;type=${type}${after}`;
   });
   if (!changed) throw new Error('Email template needs review: standard confirmation link not found.');
   return marker + '\n' + next;
@@ -17,8 +23,10 @@ function upgradeTemplate(content, target, type) {
 export function buildEmailConfiguration(config) {
   const signup = new URL('/signup', config.site_url).href;
   const reset = new URL('/reset-password', config.site_url).href;
+  const signupAliases = ['/signup','/create-account'].map(path => new URL(path,config.site_url).href);
+  const resetAliases = ['/reset-password','/set-password'].map(path => new URL(path,config.site_url).href);
   const allowed = new Set(String(config.uri_allow_list || '').split(',').map(value => value.trim()).filter(Boolean));
-  allowed.add(signup); allowed.add(reset);
+  for (const path of [...signupAliases,...resetAliases]) allowed.add(path);
   return {
     disable_signup: true,
     mailer_otp_exp: 900,

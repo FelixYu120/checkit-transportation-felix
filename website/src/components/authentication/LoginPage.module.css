@@ -335,3 +335,16 @@ button.backLink { border:0; background:transparent; padding:0; font-family:inher
 .authenticatorActions { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
 .authenticatorActions .textLink, .signupAuthenticator > .textLink { background: transparent; border: 0; padding: 0; font-family: inherit; cursor: pointer; }
 .authenticatorStatus { margin: 0; color: var(--checkit-green, #34524d); font-size: .8125rem; }
+
+.embeddedSecurity .input { height: 44px; border-radius: 7px; font-family: inherit; font-size: 14px; }
+.embeddedSecurity .form { gap: 16px; }
+.embeddedSecurity .fieldGroup label { color: #63756b; font-size: 12px; font-weight: 500; }
+.embeddedSecurity .submitButton { min-height: 42px; border-radius: 7px; font-size: 13px; }
+.mfaEnabled { display: inline-flex; align-items: center; margin: 0 0 4px; padding: 4px 8px; border: 1px solid #c6d9cb; border-radius: 5px; background: #e6efe8; color: #34524d; font-size: 11px; font-weight: 500; }
+.mfaDevice { padding: 12px; border: 1px solid #d0ddd3; border-radius: 8px; background: #eef3ef; }
+.mfaDeviceInfo { display: grid; gap: 4px; min-width: 0; }
+.mfaDeviceInfo strong { font-weight: 500; color: #253c31; font-size: 13px; }
+.mfaDeviceInfo > span { font-size: 11px; color: #63756b; }
+.embeddedSecurity button { font-family: inherit; }
+
+.embeddedTitle { margin: 0 0 12px; color: #253c31; font-size: 16px; font-weight: 600; letter-spacing: -.015em; }

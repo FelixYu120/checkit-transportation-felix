@@ -70,6 +70,13 @@ const canManageMember = (currentUserRole, currentUserId, member) => {
   );
 };
 
+const memberAccessLabel = member => {
+  if (member?.removal_pending) return '';
+  if (member?.invitation_pending || member?.access_status === 'pending_invite') return 'Pending invite';
+  if (member?.access_status === 'awaiting_sign_in') return 'Awaiting sign-in';
+  return '';
+};
+
 const canResendInvitation = (currentUserRole, currentUserId, member) => Boolean(
   member?.invitation_pending && member.email && !member.removal_pending &&
   MEMBER_ROLES.some(option => option.value === normalizeRole(member.role)) &&
@@ -123,33 +130,41 @@ const TeamPage = () => {
   const [inviteMessage, setInviteMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const teamRequest = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadTeam = async () => {
-      setLoading(true);
-      setError("");
+    const loadTeam = async (background = false) => {
+      const request = ++teamRequest.current;
+      if (!background) { setLoading(true); setError(""); }
 
       try {
         const result = await fetchInstitutionTeamMembers(supabase);
-        if (!isMounted) return;
+        if (!isMounted || request !== teamRequest.current) return;
         setMembers(result.members);
+        setActiveMember(current => current ? result.members.find(member => member.id === current.id) || null : null);
         setInstitutionId(result.institutionId);
         setCurrentUserId(result.currentUserId || "");
         setCurrentUserRole(result.currentUserRole || "viewer");
       } catch (err) {
-        if (!isMounted) return;
+        if (!isMounted || request !== teamRequest.current || background) return;
         setError(err.message || "Team members could not be loaded.");
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted && request === teamRequest.current) setLoading(false);
       }
     };
 
     loadTeam();
-
+    const refresh = () => { if (document.visibilityState !== "hidden") void loadTeam(true); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 30000);
     return () => {
       isMounted = false;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -292,7 +307,9 @@ const TeamPage = () => {
   };
 
   const refreshMembers = async () => {
+    const request = ++teamRequest.current;
     const result = await fetchInstitutionTeamMembers(supabase);
+    if (request !== teamRequest.current) return;
     setMembers(result.members);
     setInstitutionId(result.institutionId);
     setCurrentUserId(result.currentUserId || "");
@@ -468,7 +485,10 @@ const TeamPage = () => {
                     <span className={styles.memberName} title={member.full_name || "Unnamed member"}>{member.full_name || "Unnamed member"}</span>
                     {member.id === currentUserId ? <span className={styles.youBadge}>You</span> : null}
                   </span>
-                  <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={getRoleLabel(member.role)}>{getRoleLabel(member.role)}</span>
+                  <span className={styles.memberBadges}>
+                    <span className={styles.roleBadge} data-role={normalizeRole(member.role)} title={getRoleLabel(member.role)}>{getRoleLabel(member.role)}</span>
+                    {memberAccessLabel(member) && <span className={styles.invitationBadge}>{memberAccessLabel(member)}</span>}
+                  </span>
                   <span className={styles.memberEmail}>{member.email || "No email available"}</span>
                 </span>
                 <ChevronRight className={styles.memberDetailsArrow} size={16} aria-hidden="true" />
@@ -513,6 +533,7 @@ const TeamPage = () => {
               <h3>{activeMember.full_name || "Unnamed member"}</h3>
             </div>
           </div>
+          {memberAccessLabel(activeMember) && <p className={styles.memberInvitationStatus}><span className={styles.invitationBadge}>{memberAccessLabel(activeMember)}</span></p>}
           <dl className={styles.memberDetailsFields}>
             <div>
               <dt>Role</dt>

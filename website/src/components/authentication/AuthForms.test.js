@@ -92,6 +92,7 @@ const supabaseEmailCallback={hasCallback:false};
 const resolveEmailCallback=client=>client.auth.getSession();
 const leavePortal=async(_client,redirect)=>redirect();
 const getSupabaseAuthRedirectPath=()=>null;
+const EmailLinkConfirmation=({onContinue})=>React.createElement('button',{'data-action':'confirm-email',onClick:onContinue},'Accept invite');
 const AppShell=({isLoggedIn})=>React.createElement('div',{'data-authenticated':String(isLoggedIn)});
 ${sessionSource}
 export default AppSession;`;
@@ -565,7 +566,7 @@ const fillSignup=async()=>{
 
 test('invited signup offers optional MFA without enrolling when skipped',async()=>{
  await mount(CreateAccount);await fillSignup();
- assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Set up authenticator (optional)'));
+ assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Set up two-step verification (optional)'));
  await submit();assert.equal(fixture.calls.some(call=>call.action==='enroll'),false);
  assert.deepEqual(fixture.navigations,['/login']);
 });
@@ -573,27 +574,27 @@ test('invited signup offers optional MFA without enrolling when skipped',async()
 test('signup verifies optional MFA without losing credentials or skipping password login',async()=>{
  await mount(CreateAccount);await fillSignup();
  const password=document.querySelector('input[autocomplete$=" new-password"]');
- await clickButton('Set up authenticator (optional)');
+ await clickButton('Set up two-step verification (optional)');
  assert.ok(document.querySelector('.mfaQr'));assert.equal(document.querySelector('[type="submit"]').disabled,true);
  fixture.mfaFailure=new Error('Invalid code.');await enter('#signup-authenticator-code','123456');await clickButton('Verify');
  assert.match(document.querySelector('[role="alert"]').textContent,/Invalid code/);assert.equal(fixture.calls.some(call=>call.action==='password'),false);
  fixture.mfaFailure=null;await enter('#signup-authenticator-code','123456');await clickButton('Verify');
  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
- assert.match(document.body.textContent,/Authenticator enabled/);
+ assert.match(document.body.textContent,/Two-step verification enabled/);
  assert.equal(document.querySelector('input[autocomplete$=" new-password"]'),password);assert.equal(password.value,'valid-password-123');
  assert.equal(document.querySelector('.mfaQr'),null);assert.equal(fixture.logins.length,0);
  await submit();assert.deepEqual(fixture.navigations,['/login']);assert.equal(fixture.logins.length,0);
 });
 
 test('canceling unfinished signup MFA removes only the unverified factor and allows signup',async()=>{
- await mount(CreateAccount);await fillSignup();await clickButton('Set up authenticator (optional)');await clickButton('Cancel');
+ await mount(CreateAccount);await fillSignup();await clickButton('Set up two-step verification (optional)');await clickButton('Cancel');
  assert.equal(fixture.signupMfaFactors.length,0);assert.ok(fixture.calls.some(call=>call.action==='unenroll'));
  assert.equal(document.querySelector('.mfaQr'),null);await submit();assert.deepEqual(fixture.navigations,['/login']);
 });
 
 test('expired invitations cannot begin authenticator enrollment',async()=>{
  await mount(CreateAccount);fixture.setupStatus={eligible:false,user_id:account.id,reason:'expired'};
- await clickButton('Set up authenticator (optional)');
+ await clickButton('Set up two-step verification (optional)');
  assert.equal(fixture.calls.some(call=>call.action==='enroll'),false);assert.ok(document.querySelector('[role="alert"]'));
 });
 
@@ -615,7 +616,7 @@ test('signup preserves password-manager values through rerenders and submits the
  }
  const username=document.querySelector('input[autocomplete$=" username"]');
  assert.equal(username.readOnly,true);assert.equal(username.disabled,false);assert.equal(username.form.getAttribute('autocomplete'),'on');
- await clickButton('Set up authenticator (optional)');await clickButton('Cancel');
+ await clickButton('Set up two-step verification (optional)');await clickButton('Cancel');
  await submit();assert.equal(fixture.calls.find(call=>call.action==='password').input.password,'manager-generated-password');
 });
 
@@ -639,7 +640,7 @@ test('an email input rerender never erases a password-manager filled password',a
 
 
 test('leaving signup clears QR secrets and permits canceling unfinished setup after returning',async()=>{
- await mount(CreateAccount);await fillSignup();await clickButton('Set up authenticator (optional)');
+ await mount(CreateAccount);await fillSignup();await clickButton('Set up two-step verification (optional)');
  assert.ok(document.body.textContent.includes('SYNTHETICSEED'));
  await act(async()=>window.dispatchEvent(new window.PageTransitionEvent('pagehide',{persisted:true})));
  assert.equal(document.querySelector('.mfaQr'),null);assert.equal(document.body.textContent.includes('SYNTHETICSEED'),false);
