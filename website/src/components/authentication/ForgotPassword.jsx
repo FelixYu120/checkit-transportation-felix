@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import supabase from '../helper/SupabaseClients';
-import styles from './Login.module.css';
+import styles from './LoginPage.module.css';
 
 function ForgotPassword() {
-    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -12,13 +11,15 @@ function ForgotPassword() {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        if (loading) return;
+        const resetEmail = String(event.currentTarget.elements.namedItem('checkit-transportation-reset-email')?.value ?? email).trim();
+        setEmail(resetEmail);
         setErrorMessage('');
         setSuccessMessage('');
-        if (loading) return;
         setLoading(true);
         try {
             if (!supabase) throw new Error('Password reset is not available. Please try again later.');
-            const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
                 redirectTo: `${window.location.origin}/reset-password`
             });
             if (error) throw error;
@@ -31,51 +32,43 @@ function ForgotPassword() {
     };
 
     return (
-        <div className={styles.authcontainer}>
+        <main className={styles.page} aria-labelledby="reset-password-title">
             <div className={styles.card}>
-                <div className={styles.brandBlock}>
-                    <a href="https://checkit.dev" aria-label="Go to CheckIt landing page" className={styles.logoLink}>
-                        <img src="/checkit-logo.png" alt="CheckIt logo" className={styles.icon} />
+                <div className={styles.brandRow}>
+                    <a href="https://checkit.dev" aria-label="CheckIt home" className={styles.logoLink}>
+                        <img src="/checkit-logo.png" alt="CheckIt" className={styles.logo} />
                     </a>
+                    <span className={styles.productName}>Transportation</span>
                 </div>
+                <h1 id="reset-password-title" className={styles.title}>Reset password</h1>
 
-                <div className={styles.fadein}>
-                    <div className={styles.headerBlock}>
-                        <h1 className={styles.logintitle}>Reset password</h1>
-                        <p className={styles.helperText}>
-                            Enter your email and we will send a secure link to set your password.
-                        </p>
+                {errorMessage && <div className={styles.errorMessage} role="alert">{errorMessage}</div>}
+                {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
+
+                <form className={styles.form} onSubmit={handleSubmit} aria-label="Reset Transportation password" aria-busy={loading}>
+                    <div className={styles.fieldGroup}>
+                        <label htmlFor="transportation-reset-email">Email address</label>
+                        <input
+                            id="transportation-reset-email"
+                            name="checkit-transportation-reset-email"
+                            className={styles.input}
+                            type="email"
+                            value={email}
+                            placeholder="name@organization.com"
+                            autoComplete="section-checkit-transportation username"
+                            autoCapitalize="none"
+                            spellCheck={false}
+                            required
+                            onChange={event => setEmail(event.target.value)}
+                        />
                     </div>
-
-                    {errorMessage && <div className={styles.errorMessage} role="alert">{errorMessage}</div>}
-                    {successMessage && <div className={styles.successMessage}>{successMessage}</div>}
-
-                    <form className={styles.formlayout} onSubmit={handleSubmit}>
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-reset-email">Email address</label>
-                            <input
-                                id="transportation-reset-email"
-                                name="checkit-transportation-reset-email"
-                                className={styles.loginemail}
-                                type="email"
-                                value={email}
-                                placeholder="name@organization.com"
-                                autoComplete="section-checkit-transportation username"
-                                required
-                                onChange={(event) => setEmail(event.target.value)}
-                            />
-                        </div>
-
-                        <div className={styles.navrow} style={{ marginTop: '24px' }}>
-                            <button type="button" className={styles.backbutton} onClick={() => navigate('/login')}>Back</button>
-                            <button type="submit" className={styles.continuebutton} disabled={loading}>
-                                {loading ? 'Sending…' : 'Send link'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    <button type="submit" className={styles.submitButton} disabled={loading}>
+                        {loading ? 'Sending…' : 'Send link'}
+                    </button>
+                </form>
+                <Link className={styles.backLink} to="/login">Back to sign in</Link>
             </div>
-        </div>
+        </main>
     );
 }
 

@@ -472,3 +472,92 @@ test('a new removal replaces a closing notice without being cleared by its old e
     assert.equal(document.querySelectorAll('.memberCard').length, 1);
   } finally { timers.restore(); }
 });
+
+
+test('resend is available for unfinished signup and uses the member’s existing email and role once', async () => {
+  fixture.members[1].invitation_pending = true;
+  fixture.members[1].role = 'field_operator';
+  let release;
+  fixture.inviteGate = new Promise(resolve => { release = resolve; });
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.resendInviteButton').textContent, 'Resend invite');
+  try {
+    await click('.resendInviteButton');
+    await click('.resendInviteButton');
+    assert.equal(document.querySelector('.resendInviteButton').disabled, true);
+    assert.equal(document.querySelector('.removeFromProfileButton').disabled, true);
+    assert.deepEqual(fixture.inviteCalls, [{ email: 'emily@example.test', role: 'field_operator' }]);
+    await act(async () => release());
+    await until(() => !document.querySelector('.resendInviteButton').disabled);
+    assert.equal(document.querySelector('.memberDetailsDialog [role="status"]').textContent, 'Invited');
+    assert.equal(document.querySelector('.memberDetailsDialog [role="alert"]'), null);
+    assert.equal(fixture.loads, 2);
+    await click('[aria-label="Close member details"]');
+    await click('[aria-label="View details for Emily Thompson"]');
+    assert.equal(document.querySelector('.memberDetailsDialog [role="status"]'), null);
+  } finally { release(); }
+});
+
+test('resend failure remains retryable and does not show success', async () => {
+  fixture.members[1].invitation_pending = true;
+  fixture.inviteError = new Error('Please wait before sending another invite.');
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await click('.resendInviteButton');
+  assert.match(document.querySelector('.memberDetailsDialog [role="alert"]').textContent, /Please wait/);
+  assert.equal(document.querySelector('.memberDetailsDialog [role="status"]'), null);
+  assert.equal(document.querySelector('.resendInviteButton').disabled, false);
+  fixture.inviteError = null;
+  await click('.resendInviteButton');
+  assert.equal(document.querySelector('.memberDetailsDialog [role="status"]').textContent, 'Invited');
+  assert.equal(document.querySelector('.memberDetailsDialog [role="alert"]'), null);
+});
+
+test('a refresh failure preserves confirmed resend success', async () => {
+  fixture.members[1].invitation_pending = true;
+  fixture.failRefresh = true;
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await click('.resendInviteButton');
+  assert.equal(document.querySelector('.memberDetailsDialog [role="status"]').textContent, 'Invited');
+  assert.equal(document.querySelector('.memberDetailsDialog [role="alert"]'), null);
+});
+
+test('a directory refresh removes resend when signup has completed', async () => {
+  fixture.members[1].invitation_pending = true;
+  let release;
+  fixture.inviteGate = new Promise(resolve => { release = resolve; });
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await click('.resendInviteButton');
+  fixture.members[1].invitation_pending = false;
+  await act(async () => release());
+  await until(() => !document.querySelector('.resendInviteButton'));
+  assert.ok(document.querySelector('.memberDetailsDialog[open]'));
+});
+
+for (const kind of ['completed', 'viewer', 'protected', 'removing']) test(`resend is hidden for ${kind} accounts`, async () => {
+  fixture.members[1].invitation_pending = kind !== 'completed';
+  if (kind === 'viewer') fixture.currentUserRole = 'viewer';
+  if (kind === 'protected') fixture.members[1].role = 'checkit_admin';
+  if (kind === 'removing') fixture.members[1].removal_pending = true;
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.resendInviteButton'), null);
+  assert.equal(fixture.inviteCalls.length, 0);
+});
+
+test('closing a pending resend cannot show its result on a different profile', async () => {
+  fixture.members[1].invitation_pending = true;
+  let release;
+  fixture.inviteGate = new Promise(resolve => { release = resolve; });
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await click('.resendInviteButton');
+  await click('[aria-label="Close member details"]');
+  await click('[aria-label="View details for Another Admin"]');
+  await act(async () => release());
+  assert.equal(document.querySelector('.memberDetailsDialog [role="status"]'), null);
+  assert.equal(document.querySelector('.memberDetailsDialog [role="alert"]'), null);
+});

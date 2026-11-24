@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
-import styles from './Login.module.css';
+import styles from './LoginPage.module.css';
 import { finishPasswordSetup, leavePortal } from './portalExit.js';
 
 function SetPassword() {
-    const navigate = useNavigate();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -125,93 +124,84 @@ function SetPassword() {
     };
 
     return (
-        <div className={styles.authcontainer}>
+        <main className={styles.page} aria-labelledby="set-password-title">
             <div className={styles.card}>
-                <div className={styles.brandBlock}>
-                    <a href="https://checkit.dev" aria-label="Go to CheckIt landing page" className={styles.logoLink}>
-                        <img src="/checkit-logo.png" alt="CheckIt logo" className={styles.icon} />
+                <div className={styles.brandRow}>
+                    <a href="https://checkit.dev" aria-label="CheckIt home" className={styles.logoLink}>
+                        <img src="/checkit-logo.png" alt="CheckIt" className={styles.logo} />
                     </a>
+                    <span className={styles.productName}>Transportation</span>
                 </div>
+                <h1 id="set-password-title" className={styles.title}>Set password</h1>
 
                 {errorMessage && <div className={styles.errorMessage} role="alert">{errorMessage}</div>}
-                {message && <div className={styles.successMessage}>{message}</div>}
+                {message && <div className={styles.successMessage} role="status">{message}</div>}
 
-                <div className={styles.fadein}>
-                    <div className={styles.headerBlock}>
-                        <h1 className={styles.logintitle}>Set password</h1>
-                        <p className={styles.supportText}>
-                            Choose your new password.
-                        </p>
-                    </div>
-
-                    {!hasSession && (
-                        <div className={styles.noticeMessage}>
-                            Open the reset link from your email.
-                        </div>
-                    )}
-
-                    {hasSession && <form className={styles.formlayout} onSubmit={handleSubmit}>
+                {hasSession ? (
+                    <form className={styles.form} onSubmit={handleSubmit} aria-label="Set Transportation password" aria-busy={loading}>
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-new-password">New password</label>
+                            <label htmlFor="transportation-new-password">New password</label>
                             <div className={styles.passwordField}>
                                 <input
                                     id="transportation-new-password"
                                     name="checkit-transportation-set-password"
-                                    className={`${styles.loginemail} ${styles.passwordInput}`}
+                                    className={`${styles.input} ${styles.passwordInput}`}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     placeholder="Use at least 8 characters"
                                     autoComplete="section-checkit-transportation new-password"
                                     required
-                                    onChange={(event) => setPassword(event.target.value)}
+                                    onChange={event => setPassword(event.target.value)}
                                 />
                                 <button
                                     type="button"
                                     className={styles.passwordToggle}
-                                    onClick={() => setShowPassword((current) => !current)}
+                                    onClick={() => setShowPassword(current => !current)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    aria-pressed={showPassword}
                                 >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                                 </button>
                             </div>
                         </div>
-
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel} htmlFor="transportation-confirm-password">Confirm password</label>
+                            <label htmlFor="transportation-confirm-password">Confirm password</label>
                             <div className={styles.passwordField}>
                                 <input
                                     id="transportation-confirm-password"
                                     name="checkit-transportation-set-confirm-password"
-                                    className={`${styles.loginemail} ${styles.passwordInput}`}
+                                    className={`${styles.input} ${styles.passwordInput}`}
                                     type={showConfirmPassword ? 'text' : 'password'}
                                     value={confirmPassword}
                                     placeholder="Re-enter your password"
                                     autoComplete="section-checkit-transportation new-password"
                                     required
-                                    onChange={(event) => setConfirmPassword(event.target.value)}
+                                    onChange={event => setConfirmPassword(event.target.value)}
                                 />
                                 <button
                                     type="button"
                                     className={styles.passwordToggle}
-                                    onClick={() => setShowConfirmPassword((current) => !current)}
-                                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                    onClick={() => setShowConfirmPassword(current => !current)}
+                                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                                    aria-pressed={showConfirmPassword}
                                 >
-                                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    {showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                                 </button>
                             </div>
                         </div>
-
-                        <div className={styles.navrow} style={{ marginTop: '24px' }}>
-                            <button type="button" className={styles.backbutton} onClick={() => { void leavePortal(supabase); }}>Back</button>
-                            <button type="submit" className={styles.continuebutton} disabled={loading || !hasSession || Boolean(message)}>
-                                {loading ? 'Saving…' : 'Save password'}
-                            </button>
-                        </div>
-                    </form>}
-                    {!hasSession && <button type="button" className={styles.backbutton} onClick={() => navigate('/forgot-password')}>Request a new link</button>}
-                </div>
+                        <button type="submit" className={styles.submitButton} disabled={loading || Boolean(message)}>
+                            {loading ? 'Saving…' : 'Save password'}
+                        </button>
+                    </form>
+                ) : (
+                    <>
+                        {!errorMessage && <p className={styles.intro}>Open the reset link from your email.</p>}
+                        <Link className={styles.backLink} to="/forgot-password">Request a new link</Link>
+                    </>
+                )}
+                {hasSession && <Link className={styles.backLink} to="/login" onClick={event => { event.preventDefault(); void leavePortal(supabase); }}>Back to sign in</Link>}
             </div>
-        </div>
+        </main>
     );
 }
 

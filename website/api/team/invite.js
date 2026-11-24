@@ -208,7 +208,7 @@ export default async function handler(req, res) {
     });
     const existingProfile = await getProfileByEmail(email);
     if (existingProfile?.id) {
-      if (!assignedInstitute || (existingProfile.assigned_institute && existingProfile.assigned_institute !== assignedInstitute)) {
+      if (!isCheckItAdmin && (!assignedInstitute || (existingProfile.assigned_institute && existingProfile.assigned_institute !== assignedInstitute))) {
         return res.status(409).json({ error: "A user with that email already exists in the platform." });
       }
 

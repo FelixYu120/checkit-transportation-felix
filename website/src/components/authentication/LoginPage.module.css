@@ -127,8 +127,20 @@
     border-radius: 6px;
     background: var(--checkit-panel, #fbfcfa);
     color: var(--checkit-ink, #15201f);
-    font: inherit;
+    font-family: var(--checkit-font);
     font-size: .875rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: normal;
+}
+
+/* Keep the browser's autofill preview in the same type as typed input. */
+.input:-webkit-autofill::first-line {
+    font-family: var(--checkit-font);
+    font-size: .875rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: normal;
 }
 
 .input:disabled {

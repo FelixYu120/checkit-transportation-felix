@@ -24,6 +24,14 @@ function Login({ setIsLoggedIn }) {
     const [loading, setLoading] = useState(false);
     const locallySignedOut = new URLSearchParams(window.location.search).get('signedOut') === 'local';
 
+    const togglePasswordVisibility = (event) => {
+        // Preserve values filled by a password manager without React input events.
+        const fields = event.currentTarget.form?.elements;
+        setEmail(parseAutofillUsername(fields?.namedItem('checkit-transportation-username')?.value ?? email));
+        setPassword(fields?.namedItem('checkit-transportation-password')?.value ?? password);
+        setShowPassword(current => !current);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (loading) return;
@@ -133,7 +141,7 @@ function Login({ setIsLoggedIn }) {
                             <button
                                 type="button"
                                 className={styles.passwordToggle}
-                                onClick={() => setShowPassword((current) => !current)}
+                                onClick={togglePasswordVisibility}
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 aria-pressed={showPassword}
                             >

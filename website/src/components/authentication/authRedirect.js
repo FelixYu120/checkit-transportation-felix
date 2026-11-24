@@ -2,6 +2,10 @@ const callbacks = new WeakMap();
 const setupPaths = new Set(['/signup', '/create-account']);
 const resetPaths = new Set(['/reset-password', '/set-password', '/forgot-password']);
 
+const authenticationPaths = new Set([...setupPaths, ...resetPaths, '/login', '/verify']);
+
+export const isAuthenticationPath = pathname => authenticationPaths.has(String(pathname || '').replace(/\/+$/, '').toLowerCase());
+
 export const EMAIL_LINK_MESSAGES = {
   invite_expired: 'Invite expired. Ask for a new invite.',
   invite_invalid: 'Invite link is invalid. Ask for a new invite.',

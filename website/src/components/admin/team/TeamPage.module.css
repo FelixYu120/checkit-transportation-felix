@@ -858,6 +858,51 @@
   background: #fff1f2;
 }
 
+.resendInviteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--checkit-border, #d0dad2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--checkit-green, #34534f);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.resendInviteButton:hover:enabled {
+  background: #e8eeea;
+}
+
+.resendInviteButton:focus-visible {
+  outline: 2px solid var(--checkit-green, #34534f);
+  outline-offset: 2px;
+}
+
+.resendInviteButton:disabled,
+.removeFromProfileButton:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.resendFeedback {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--checkit-green, #34534f);
+  font-size: .8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.resendFeedback[role="alert"] {
+  color: #b91c1c;
+}
+
 .removalNotice {
   display: grid;
   grid-template-rows: 1fr;

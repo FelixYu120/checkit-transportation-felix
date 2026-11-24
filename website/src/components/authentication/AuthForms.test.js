@@ -10,7 +10,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.te
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
 const fixture = globalThis.__authFormTest = {};
 const account = { id: 'signed-in-user', email: 'user@example.test' };
-const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
+const reset = () => Object.assign(fixture, { failure: null, profileError: null, profileResult: null, setupStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, resetStatus: {eligible:true,user_id:account.id,remaining_seconds:900}, gate: null, sessionError: null, logoutError: null, calls: [], sessionCallback: null, navigations: [], logins: [], initialSession: { user: account }, inviteProfile: { role: 'viewer', assigned_institute: 'fixture-institution' }, loginSession: { access_token: 'fixture-access-token', user: account } });
 reset();
 fixture.client = {
   rpc: async name => { assert.ok(['invitation_setup_status','password_reset_status'].includes(name)); return {data:name==='password_reset_status'?fixture.resetStatus:fixture.setupStatus,error:null}; },
@@ -22,7 +22,7 @@ fixture.client = {
     },
     getUser: async () => ({ data: { user: account }, error: null }),
     onAuthStateChange: callback => { fixture.sessionCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
-    async signOut() { fixture.calls.push({action:'logout'}); fixture.initialSession=null; return {error:null}; },
+    async signOut() { fixture.calls.push({action:'logout'}); fixture.initialSession=null; return {error:fixture.logoutError}; },
     async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
     async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
     async resetPasswordForEmail(email, options) { fixture.calls.push({ action: 'reset', email, options }); if (fixture.failure) throw fixture.failure; return { error: null }; },
@@ -55,6 +55,10 @@ async function loadComponent(name) {
       export const leavePortal=(client,redirect)=>leave(client,redirect||(()=>globalThis.__authFormTest.navigations.push('/login')));`);
     else if (specifier === './authRedirect.js') target = new URL('./authRedirect.js', import.meta.url).href;
     else if (specifier === './signOut.js') target = new URL('./signOut.js', import.meta.url).href;
+    else if (specifier === './ProfileModal' || specifier === './ProfileAvatar') target = asModule('export default function ProfileFixture(){ return null; }');
+    else if (specifier === './ProfileData.js') target = asModule('export const fetchCurrentProfile=async()=>({profile:{id:"signed-in-user",full_name:"Example User"}});');
+    else if (specifier === './ProfilePhoto.js') target = asModule('export const PROFILE_UPDATED_EVENT="profile-fixture-updated";');
+    else if (specifier.endsWith('/authentication/signOut.js')) target = new URL('./signOut.js', import.meta.url).href;
     else if (specifier.includes('SupabaseClients')) target = asModule('export default globalThis.__authFormTest.client;');
     else if (specifier === 'react-router-dom') target = asModule(`import React from ${JSON.stringify(reactUrl)}; const navigate=path=>globalThis.__authFormTest.navigations.push(path); export const useNavigate=()=>navigate; export const Link=props=>React.createElement('a',props);`);
     else if (specifier === 'lucide-react') target = asModule(`import React from ${JSON.stringify(reactUrl)};` + clause.match(/\{([\s\S]*?)\}/)[1].split(',').map(name => `export const ${name.trim()}=()=>React.createElement('span',{'aria-hidden':true});`).join('\n'));
@@ -67,6 +71,7 @@ const Login = await loadComponent('Login');
 const ForgotPassword = await loadComponent('ForgotPassword');
 const SetPassword = await loadComponent('SetPassword');
 const CreateAccount = await loadComponent('CreateAccount');
+const ProfileDropdown = await loadComponent('../Header/ProfileDropdown');
 const appSource = await readFile(new URL('../../App.jsx', import.meta.url), 'utf8');
 const sessionSource = appSource.slice(appSource.indexOf('function AppSession()'), appSource.indexOf('const appRouter ='));
 const sessionCode = `import React, {useState,useEffect} from ${JSON.stringify(reactUrl)};
@@ -412,10 +417,66 @@ test('expired invite errors remain visible on login', async () => {
 });
 
 
-test('leaving signup returns to login without keeping its email session or saving a password', async () => {
+test('signup offers no back-to-sign-in link before account setup is completed', async () => {
   await mount(CreateAccount);
-  await act(async()=>document.querySelector('.backLink').click());
-  assert.equal(fixture.initialSession,null);
-  assert.deepEqual(fixture.navigations,['/login']);
+  assert.ok(document.querySelector('form'));
+  assert.equal(document.querySelector('.backLink'),null);
+  assert.equal([...document.querySelectorAll('a')].some(link=>link.getAttribute('to')==='/login'||link.getAttribute('href')==='/login'),false);
+  assert.deepEqual(fixture.navigations,[]);
   assert.equal(fixture.calls.some(call=>call.action==='password'||call.action==='profile'),false);
+});
+
+
+test('revealing a password preserves a username and password filled without input events', async () => {
+  await mount(Login);
+  const username = document.querySelector('input[type="email"]');
+  const password = document.querySelector('input[type="password"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  setValue.call(username, 'saved@example.test');
+  setValue.call(password, 'saved-password-fixture');
+  await act(async () => document.querySelector('[aria-label="Show password"]').click());
+  assert.equal(username.value, 'saved@example.test');
+  assert.equal(password.type, 'text');
+  assert.equal(password.value, 'saved-password-fixture');
+  await act(async () => document.querySelector('[aria-label="Hide password"]').click());
+  assert.equal(username.value, 'saved@example.test');
+  assert.equal(password.type, 'password');
+  assert.equal(password.value, 'saved-password-fixture');
+  await submit();
+  assert.deepEqual(fixture.calls.find(call => call.action === 'login').input, {email:'saved@example.test',password:'saved-password-fixture'});
+});
+
+for (const remoteError of [null, new Error('Auth service unavailable')]) test(`sign out returns directly to login after confirmed device cleanup, remote error: ${Boolean(remoteError)}`, async () => {
+  fixture.logoutError = remoteError;
+  await mount(ProfileDropdown);
+  await act(async () => document.querySelector('[aria-label="Profile menu"]').click());
+  await act(async () => [...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Sign out').click());
+  assert.deepEqual(fixture.navigations, [remoteError ? '/login?signedOut=local' : '/login']);
+  assert.equal(fixture.initialSession, null);
+  assert.equal(fixture.calls.filter(call=>call.action==='logout').length, 1);
+  await act(async () => root.unmount());
+  root = null;
+  await mount(Login);
+  assert.equal(document.querySelector('input[type="email"]').value, '');
+  assert.equal(document.querySelector('input[type="password"]').value, '');
+});
+
+test('unconfirmed device sign-out stays retryable and never claims the session is gone', async () => {
+  fixture.sessionError = new Error('Device storage unavailable');
+  await mount(ProfileDropdown);
+  await act(async () => document.querySelector('[aria-label="Profile menu"]').click());
+  await act(async () => [...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Sign out').click());
+  assert.deepEqual(fixture.navigations, []);
+  assert.match(document.querySelector('[role="alert"]').textContent, /couldn’t confirm sign-out/);
+  assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent.trim()==='Sign out'&&!button.disabled));
+});
+
+
+test('reset request reads an email filled by a password manager without input events', async () => {
+  await mount(ForgotPassword);
+  const email = document.querySelector('input[type="email"]');
+  Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(email, 'saved@example.test');
+  await submit();
+  assert.equal(fixture.calls.find(call=>call.action==='reset').email, 'saved@example.test');
+  assert.match(document.querySelector('[role="status"]').textContent, /Check your email/);
 });

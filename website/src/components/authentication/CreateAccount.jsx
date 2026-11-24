@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import supabase from '../helper/SupabaseClients';
 import styles from './LoginPage.module.css';
@@ -295,7 +294,6 @@ function CreateAccount() {
                         {!authReady ? 'Checking invite…' : loading ? 'Saving…' : 'Save password'}
                     </button>
                 </form>}
-                <Link className={styles.backLink} to="/login" onClick={event => { event.preventDefault(); void leavePortal(supabase); }}>Back to sign in</Link>
             </div>
         </main>
     );

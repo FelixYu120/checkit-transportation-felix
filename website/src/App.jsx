@@ -12,7 +12,7 @@ import Login from "./components/authentication/Login.jsx";
 import CreateAccount from "./components/authentication/CreateAccount.jsx";
 import ForgotPassword from "./components/authentication/ForgotPassword.jsx";
 import SetPassword from "./components/authentication/SetPassword.jsx";
-import { readEmailCallback, resolveEmailCallback } from "./components/authentication/authRedirect.js";
+import { isAuthenticationPath, readEmailCallback, resolveEmailCallback } from "./components/authentication/authRedirect.js";
 
 // --- Admin Dashboard Component (Protected Area) ---
 import AdminLayout from './components/admin/layout/AdminLayout.jsx';
@@ -123,7 +123,7 @@ function AppShell({ isLoggedIn, setIsLoggedIn }) {
     const shell = (
         <div className={styles.appLayout} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
             
-            {!['/login', '/create-account'].includes(location.pathname) && (isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />)}
+            {!isAuthenticationPath(location.pathname) && (isLoggedIn && isAdminRoute ? <AdminHeader /> : <Header />)}
             
             <div className={styles.mainContent} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                 <Routes>

@@ -70,6 +70,12 @@ const canManageMember = (currentUserRole, currentUserId, member) => {
   );
 };
 
+const canResendInvitation = (currentUserRole, currentUserId, member) => Boolean(
+  member?.invitation_pending && member.email && !member.removal_pending &&
+  MEMBER_ROLES.some(option => option.value === normalizeRole(member.role)) &&
+  canManageMember(currentUserRole, currentUserId, member)
+);
+
 const TeamSkeleton = () => (
   <div className={styles.memberGrid} aria-label="Loading team members">
     {Array.from({ length: 6 }).map((_, index) => (
@@ -97,6 +103,9 @@ const TeamPage = () => {
   const [copiedEmail, setCopiedEmail] = useState("");
   const [activeMember, setActiveMember] = useState(null);
   const memberDialogRef = useRef(null);
+  const resendRequestRef = useRef(null);
+  const [resendingMemberId, setResendingMemberId] = useState("");
+  const [resendFeedback, setResendFeedback] = useState(null);
   const backdropPointerRef = useRef(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const removalDialogRef = useRef(null);
@@ -216,6 +225,7 @@ const TeamPage = () => {
   const closeMemberDetails = () => {
     memberDialogRef.current?.close();
     setActiveMember(null);
+    setResendFeedback(null);
   };
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -287,6 +297,28 @@ const TeamPage = () => {
     setInstitutionId(result.institutionId);
     setCurrentUserId(result.currentUserId || "");
     setCurrentUserRole(result.currentUserRole || "viewer");
+    setActiveMember(current => current ? result.members.find(member => member.id === current.id) || null : null);
+  };
+
+  const resendInvite = async (member) => {
+    if (resendRequestRef.current || !canResendInvitation(currentUserRole, currentUserId, member)) return;
+    resendRequestRef.current = member.id;
+    setResendingMemberId(member.id);
+    setResendFeedback(null);
+    try {
+      await inviteTeamMember(supabase, { email: member.email, role: normalizeRole(member.role) });
+      setResendFeedback({ memberId: member.id, message: "Invited" });
+      try {
+        await refreshMembers();
+      } catch (refreshError) {
+        console.warn("Team list refresh failed after invitation:", refreshError);
+      }
+    } catch (err) {
+      setResendFeedback({ memberId: member.id, error: err.message || "Invite could not be sent." });
+    } finally {
+      resendRequestRef.current = null;
+      setResendingMemberId("");
+    }
   };
 
   const removeMember = async (event) => {
@@ -426,7 +458,7 @@ const TeamPage = () => {
               <button
                 className={styles.memberDetailsButton}
                 type="button"
-                onClick={() => setActiveMember(member)}
+                onClick={() => { setResendFeedback(null); setActiveMember(member); }}
                 aria-label={`View details for ${member.full_name || member.email || "member"}`}
                 aria-haspopup="dialog"
               >
@@ -507,10 +539,21 @@ const TeamPage = () => {
           </dl>
           {canManageMember(currentUserRole, currentUserId, activeMember) ? (
             <div className={styles.memberDetailsFooter}>
-              <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)}>
+              {resendFeedback?.memberId === activeMember.id ? (
+                <p className={styles.resendFeedback} role={resendFeedback.error ? "alert" : "status"}>
+                  {resendFeedback.error || resendFeedback.message}
+                </p>
+              ) : null}
+              <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)} disabled={resendingMemberId === activeMember.id}>
                 <X size={16} aria-hidden="true" />
                 Remove
               </button>
+              {canResendInvitation(currentUserRole, currentUserId, activeMember) ? (
+                <button className={styles.resendInviteButton} type="button" onClick={() => resendInvite(activeMember)} disabled={Boolean(resendingMemberId)}>
+                  <Send size={16} aria-hidden="true" />
+                  {resendingMemberId === activeMember.id ? "Sending..." : "Resend invite"}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </dialog>

@@ -16,7 +16,7 @@ after(()=>{dom.window.close();globalThis.BroadcastChannel=previousChannel;});
 const subject='00000000-0000-0000-0000-000000000001';
 const user={id:subject,email:'member@example.test',aud:'authenticated',role:'authenticated'};
 let fixtureId=0;
-function fixture({implicit=false,reject=false,storedSession=null}={}) {
+function fixture({implicit=true,reject=false,storedSession=null}={}) {
   const payload={sub:subject,aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600};
   const access=[Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url'),Buffer.from(JSON.stringify(payload)).toString('base64url'),'fixture'].join('.');
   const session={access_token:access,refresh_token:'fixture-refresh',expires_in:3600,expires_at:payload.exp,token_type:'bearer',user};

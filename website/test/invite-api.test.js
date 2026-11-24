@@ -125,3 +125,24 @@ for(const [method,status] of [['OPTIONS',204],['GET',405],['HEAD',405]])test(`${
   await rawHandler({method,headers:{},body:{}},res);
   assert.equal(res.statusCode,status);assert.equal(state.requests.length,0);
 });
+
+
+test('system administrators can resend unfinished invitations across institutions without changing membership',async()=>{
+  setup({role:'checkit_admin',confirmed:true,target:{id:'pending-other',email:'new@example.test',role:'field_operator',assigned_institute:'other'}});
+  const res=await invoke({email:'new@example.test',role:'viewer'});
+  assert.equal(res.statusCode,200);assert.equal(res.payload.role,'field_operator');
+  assert.equal(emails()[0].path,'/auth/v1/otp');
+  assert.equal(state.requests.some(r=>r.path==='/rest/v1/profile'&&r.options.method==='POST'),false);
+});
+
+test('delivery authorization failures stop resend before any email',async()=>{
+  setup({target:{id:'no-longer-pending',email:'new@example.test',role:'viewer',assigned_institute:'ucsd'}});
+  const baseFetch=global.fetch;
+  global.fetch=async(input,options)=>{
+    if(new URL(input).pathname==='/rest/v1/rpc/authorize_invitation_delivery'&&JSON.parse(options.body).target_profile_id) {
+      return json({message:'User already has an account.'},409);
+    }
+    return baseFetch(input,options);
+  };
+  const res=await invoke();assert.equal(res.statusCode,409);assert.equal(emails().length,0);assert.equal(writes().length,0);
+});

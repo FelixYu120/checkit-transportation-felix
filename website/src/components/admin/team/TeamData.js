@@ -52,7 +52,7 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   const membersResponse = await readProfilesWithFallback(
     supabase,
     (query) => {
-      // Removed members keep their profile but lose their institute, so exclude them.
+      // Only active institution assignments belong in the directory.
       const scopedQuery = isCheckItAdmin
         ? query.not("assigned_institute", "is", null)
         : query.eq("assigned_institute", institutionId);
@@ -61,18 +61,35 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
   );
 
   if (membersResponse.error) throw membersResponse.error;
-  const pending = await supabase.rpc("pending_team_account_removals");
+  const [pending, invitations] = await Promise.all([
+    supabase.rpc("pending_team_account_removals"),
+    ["admin", "checkit_admin"].includes(currentRole)
+      ? supabase.rpc("pending_team_invitations")
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   if (pending.error) throw pending.error;
+  if (invitations.error) throw invitations.error;
   const members = [...(membersResponse.data || [])];
   for (const member of pending.data || []) {
     if (!members.some(existing => existing.id === member.id)) members.push({ ...member, removal_pending: true });
   }
 
+  const pendingInvitations = new Map((invitations.data || []).map(invitation => [invitation.id, invitation]));
+  const directory = members.map(member => {
+    const invitation = pendingInvitations.get(member.id);
+    return {
+      ...member,
+      invitation_pending: Boolean(invitation && !member.removal_pending),
+      invitation_sent_at: invitation?.invitation_sent_at || null,
+      invitation_expires_at: invitation?.invitation_expires_at || null,
+    };
+  });
+
   return {
     institutionId: isCheckItAdmin ? "all" : institutionId,
     currentUserId: user.id,
     currentUserRole: currentRole,
-    members: await withProfilePhotos(supabase, members)
+    members: await withProfilePhotos(supabase, directory)
   };
 };
 

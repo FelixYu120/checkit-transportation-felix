@@ -69,7 +69,7 @@ The final database transaction transfers reports to another administrator in the
 
 Saved report versions remain immutable during normal work; only the owner-executed removal transaction may redact attribution. Company narrative content is preserved. The release does not promise to remove arbitrary mentions embedded in free text, third-party mailboxes, browser password vaults, managed audit records, or retained backups. Existing access JWTs can remain cryptographically valid until expiry; missing membership denies private application access. The website exits the portal on its existing focus/authentication/30-second recheck.
 
-A reinvitation after successful deletion creates a fresh Auth identity. A server-owned readiness check verifies that the account has a password before protected portal pages render. Opening an email invitation authenticates email ownership, but a fresh invited account must still complete password setup. Existing accounts with passwords remain ready. Public signup remains disabled. This does not configure the still-pending production SMTP provider.
+A reinvitation after successful deletion creates a fresh Auth identity. A server-owned readiness check verifies that the account has a password and has finished any pending invitation setup before protected portal pages render. Opening an email invitation authenticates email ownership, but a fresh invited account must still complete password setup. Existing accounts with passwords remain ready. Public signup remains disabled. This does not configure the still-pending production SMTP provider.
 
 ### Deployment and verification
 
@@ -143,3 +143,25 @@ Signup still requires an active, unused, unexpired server invitation and a fresh
 - Request password reset, open the newest email, save a new password, and sign in. The old password and used reset link must not work.
 
 Local verification combines the real browser Auth SDK with stubbed Auth HTTP responses, real React route/form tests, and isolated PostgreSQL account/removal fixtures. It sends no email and changes no real member account. Real email delivery and browser acceptance checks still require the published release.
+
+
+## Provider invitation acceptance and Resend invite
+
+GoTrue accepts a new invitation by creating an unknown temporary password before confirming the email and issuing its first OTP session (`supabase/auth/internal/api/verify.go`, `signupVerify`). The previous database trigger required that session before allowing any first password write. A local fixture now reproduces that rejection using the real provider order, and passes with `20261123050000_fix_provider_invite_acceptance.sql`.
+
+The repair allows that trusted, unconfirmed provider step within an active invitation window, without consuming signup. The invitation remains unfinished until the person chooses a password with a fresh invitation session. A seeded password alone cannot unlock the portal, turn a pending invite into a completed account, or enable password reset. Recovery accepts GoTrue’s actual OTP session method and still requires a separate, valid reset ticket. Installing this migration changes functions and grants only; it does not alter any existing member or credential.
+
+In **Teams → Member details**, an authorized administrator sees **Resend invite** for unfinished accounts, including someone who opened the email but has not finished signup. It sends a fresh link using the existing role and institution, and shows **Invited** after server confirmation. Completed and revoked accounts have no resend action. The server rechecks eligibility before sending; institution administrators remain scoped to their own viewers and field operators. Pending invitation metadata is exposed through a separate administrator-only RPC, without Auth credentials or tokens.
+
+Migration `20261123050000` was applied and recorded on both matching hosted Supabase projects on November 23, 2026; it does not need to be run again. Felix needs to pull the commits and publish the website and invitation API. Occupancy has separate website and API projects; Transportation publishes them together. No new environment variables or email-template changes are required for this repair. Send a fresh link after publication; old emails keep their existing expiration time. Links and signup windows remain 15 minutes and single use.
+
+Validation covers the provider seed → confirmation → OTP session → human password sequence, expired and replaced invitations, scoped metadata, resend concurrency and delivery failures, completed-account protection, and OTP recovery. To reproduce the previous rejection in the isolated local test database, use `run_invitation_setup.py --without-provider-repair`; the normal runner applies the repair and must pass. SDK and React tests use synthetic users and mocked HTTP. They send no real email. The final delivery check is to resend to an unfinished test member, open the newest email within 15 minutes, finish signup, and sign in using the chosen password. Also check Resend invite disappears after signup and the old link cannot reopen it.
+
+
+## Authentication screen consistency
+
+Explicit Sign out replaces the current page with the same platform’s `/login`, with the local-only notice retained if remote revocation cannot be confirmed. A fresh login form starts with empty application state; CheckIt does not persist login form contents in browser storage. Browser-managed credential saving and autofill remain available with separate platform sections and field names. Password visibility changes preserve autofilled values even when the password manager omitted input events, and typed/autofilled controls share explicit typography.
+
+Request-reset and set-password screens now use the same card, colors, typography, fields, buttons and platform branding as login and invitation signup. Authentication routes, including signup/reset aliases, have no portal navigation. Signup has no back-to-sign-in link; successful signup and password reset still clear the email session and redirect to login for a fresh password sign-in.
+
+After Felix publishes, check Sign out on each platform lands on `/login`, both reset screens match login, signup has no back link, and showing/hiding an autofilled password preserves the email and font. Browser-managed autofill may fill a saved account on the fresh login page; that is separate from CheckIt retaining the form contents.

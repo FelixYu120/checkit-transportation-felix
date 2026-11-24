@@ -60,7 +60,7 @@ const ProfileDropdown = () => {
       setSignOutError('');
       try {
         const { remoteSignedOut } = await signOutAccount(supabase);
-        window.location.replace(remoteSignedOut ? '/' : '/login?signedOut=local');
+        window.location.replace(remoteSignedOut ? '/login' : '/login?signedOut=local');
       } catch {
         setSignOutError('We couldn’t confirm sign-out on this device. Please try again.');
         setIsOpen(true);
