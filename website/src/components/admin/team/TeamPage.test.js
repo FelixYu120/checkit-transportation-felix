@@ -38,6 +38,13 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
   } else if (specifier.endsWith(".css")) target = asModule("export default new Proxy({}, {get: (_, key)=>String(key)});");
   else if (specifier.includes("SupabaseClients")) target = asModule("export default {};");
   else if (specifier === "../../Header/ProfileAvatar") target = avatarModule;
+  else if (specifier === "../../Header/ProfileModal") target = asModule(`
+    import React from ${JSON.stringify(reactUrl)};
+    export default function ProfileModal({ mode, onClose }) {
+      return React.createElement('section', { role: 'dialog', 'data-profile-editor': mode },
+        React.createElement('button', { onClick: onClose, 'aria-label': 'Close profile editor' }, 'Close'));
+    }
+  `);
   else if (specifier === "../../Header/ProfilePhoto.js") target = import.meta.resolve("../../Header/ProfilePhoto.js");
   else if (specifier === "./TeamData") target = asModule(`
     const fixture=globalThis.__checkitTeamTest;
@@ -365,6 +372,29 @@ test('a profile keeps its avatar color when its details are opened', async () =>
   await click('[aria-label="View details for Emily Thompson"]');
   assert.equal(document.querySelector('.memberDetailsProfile .avatar').getAttribute('data-member-tone'), tone);
   assert.equal(document.querySelector('.memberDetailsFields .roleBadge').getAttribute('data-role'), 'viewer');
+});
+
+test('members can open their own photo editor from team details without stacked dialogs', async () => {
+  fixture.currentUserRole = 'viewer';
+  fixture.members[0].role = 'viewer';
+  await mount();
+  await click('[aria-label="View details for Team Owner"]');
+  assert.ok(document.querySelector('.editProfileButton'));
+  assert.equal(document.querySelector('.removeFromProfileButton'), null);
+  await click('.editProfileButton');
+  assert.equal(document.querySelector('.memberDetailsDialog'), null);
+  assert.ok(document.querySelector('[data-profile-editor="edit"]'));
+  await click('[aria-label="Close profile editor"]');
+  assert.equal(document.querySelector('[data-profile-editor]'), null);
+});
+
+test('opening another member does not offer an editor for their photo', async () => {
+  fixture.currentUserRole = 'checkit_admin';
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.editProfileButton'), null);
+  assert.ok(document.querySelector('.removeFromProfileButton'));
+  assert.equal(document.querySelector('[data-profile-editor]'), null);
 });
 
 const backdropGesture = async (selector, { down = [20, 20], up = down } = {}) => act(async () => {

@@ -1,7 +1,8 @@
 import ProfileAvatar from "../../Header/ProfileAvatar";
+import ProfileModal from "../../Header/ProfileModal";
 import { PROFILE_UPDATED_EVENT, withProfilePhotos } from "../../Header/ProfilePhoto.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Mail, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, Copy, Mail, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
 import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember } from "./TeamData";
 import styles from "./TeamPage.module.css";
@@ -109,6 +110,7 @@ const TeamPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedEmail, setCopiedEmail] = useState("");
   const [activeMember, setActiveMember] = useState(null);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const memberDialogRef = useRef(null);
   const resendRequestRef = useRef(null);
   const [resendingMemberId, setResendingMemberId] = useState("");
@@ -471,7 +473,7 @@ const TeamPage = () => {
       {!loading && !error && filteredMembers.length > 0 && (
         <section className={styles.memberGrid} aria-label="Team members">
           {filteredMembers.map((member) => (
-            <article className={styles.memberCard} key={member.id || member.email} data-member-tone={getMemberTone(member)}>
+            <article className={styles.memberCard} key={member.id || member.email} data-member-tone={getMemberTone(member)} data-invitation-pending={Boolean(member.invitation_pending || member.access_status === "pending_invite")}>
               <button
                 className={styles.memberDetailsButton}
                 type="button"
@@ -531,9 +533,13 @@ const TeamPage = () => {
             <div>
               <p className={styles.memberDetailsEyebrow}>Team member</p>
               <h3>{activeMember.full_name || "Unnamed member"}</h3>
+              {memberAccessLabel(activeMember) && (
+                <p className={styles.memberInvitationStatus}>
+                  <span className={styles.invitationBadge}>{memberAccessLabel(activeMember)}</span>
+                </p>
+              )}
             </div>
           </div>
-          {memberAccessLabel(activeMember) && <p className={styles.memberInvitationStatus}><span className={styles.invitationBadge}>{memberAccessLabel(activeMember)}</span></p>}
           <dl className={styles.memberDetailsFields}>
             <div>
               <dt>Role</dt>
@@ -558,7 +564,17 @@ const TeamPage = () => {
               </dd>
             </div>
           </dl>
-          {canManageMember(currentUserRole, currentUserId, activeMember) ? (
+          {activeMember.id === currentUserId ? (
+            <div className={styles.memberDetailsFooter}>
+              <button className={styles.editProfileButton} type="button" onClick={() => {
+                closeMemberDetails();
+                setProfileEditorOpen(true);
+              }}>
+                <Camera size={16} aria-hidden="true" />
+                Edit profile
+              </button>
+            </div>
+          ) : canManageMember(currentUserRole, currentUserId, activeMember) ? (
             <div className={styles.memberDetailsFooter}>
               {resendFeedback?.memberId === activeMember.id ? (
                 <p className={styles.resendFeedback} role={resendFeedback.error ? "alert" : "status"}>
@@ -579,6 +595,10 @@ const TeamPage = () => {
           ) : null}
         </dialog>
       ) : null}
+
+      {profileEditorOpen && (
+        <ProfileModal isOpen mode="edit" onClose={() => setProfileEditorOpen(false)} />
+      )}
 
       {selectedMember ? (
         <dialog

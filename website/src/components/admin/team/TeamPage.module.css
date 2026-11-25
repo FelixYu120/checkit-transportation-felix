@@ -167,13 +167,25 @@
   align-items: center;
   gap: 8px;
   padding: 16px;
+  box-shadow: 0 2px 6px rgba(35, 55, 45, .035);
   transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.memberCard[data-invitation-pending="true"] {
+  border-color: #dac59d;
+  box-shadow: inset 3px 0 #c89b4a, 0 2px 6px rgba(35, 55, 45, .035);
 }
 
 .memberCard:hover,
 .memberCard:focus-within {
   border-color: #a8bdb2;
   box-shadow: 0 3px 10px rgba(35, 55, 45, .06);
+}
+
+.memberCard[data-invitation-pending="true"]:hover,
+.memberCard[data-invitation-pending="true"]:focus-within {
+  border-color: #c89b4a;
+  box-shadow: inset 3px 0 #c89b4a, 0 3px 10px rgba(35, 55, 45, .06);
 }
 
 .memberDetailsButton {
@@ -299,6 +311,48 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.memberBadges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.memberBadges > .roleBadge {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invitationBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  box-sizing: border-box;
+  padding: 2px 7px;
+  border: 1px solid #dfbb70;
+  border-radius: 5px;
+  background: #f9e8c2;
+  color: #69450d;
+  font-size: .6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.invitationBadge::before {
+  content: "";
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .memberEmail {
@@ -724,6 +778,7 @@
 .memberDetailsDialog {
   width: min(480px, calc(100% - 32px));
   padding: 0;
+  font: inherit;
 }
 
 .memberDetailsHeader {
@@ -758,22 +813,32 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 28px 24px;
+  margin-bottom: 20px;
+  padding: 24px;
+  border-bottom: 1px solid #e0e8e2;
+  background: linear-gradient(110deg, #edf3ef, #fbfcfa);
 }
 
 .memberDetailsProfile > div:last-child {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
   min-width: 0;
 }
 
 .memberDetailsProfile .avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  font-size: 1.0625rem;
+  width: 64px;
+  height: 64px;
+  border: 3px solid #fff;
+  border-radius: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(35, 55, 45, .08);
+  font-size: 1.125rem;
 }
 
 .memberDetailsEyebrow {
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--checkit-muted, #63756b);
   font-size: .75rem;
   font-weight: 500;
@@ -789,22 +854,38 @@
   overflow-wrap: anywhere;
 }
 
+.memberInvitationStatus {
+  margin: 2px 0 0;
+  line-height: 1;
+}
+
+.memberInvitationStatus .invitationBadge {
+  padding: 4px 9px;
+  font-size: .75rem;
+}
+
 .memberDetailsFields {
   display: grid;
-  gap: 12px;
+  gap: 0;
   margin: 0;
-  padding: 0 24px 28px;
+  padding: 0 24px 20px;
 }
 
 .memberDetailsFields > div {
-  padding: 16px;
-  border: 1px solid var(--checkit-border, #d0dad2);
-  border-radius: 8px;
-  background: #f8faf8;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 0;
+}
+
+.memberDetailsFields > div + div {
+  border-top: 1px solid #e7ece8;
 }
 
 .memberDetailsFields dt {
-  margin-bottom: 8px;
+  margin: 0;
   color: var(--checkit-muted, #63756b);
   font-size: .75rem;
   font-weight: 500;
@@ -812,6 +893,7 @@
 }
 
 .memberDetailsFields dd {
+  min-width: 0;
   margin: 0;
   font-size: .9375rem;
   line-height: 1.5;
@@ -824,6 +906,12 @@
   padding: 0;
   border-radius: 4px;
   font-size: .9375rem;
+}
+
+.memberDetailsFields .roleBadge {
+  display: inline-block;
+  padding: 4px 9px;
+  font-size: .75rem;
 }
 
 .memberDetailsFooter {
@@ -858,28 +946,31 @@
   background: #fff1f2;
 }
 
-.resendInviteButton {
+.resendInviteButton,
+.editProfileButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-height: 36px;
   padding: 0 12px;
-  border: 1px solid var(--checkit-border, #d0dad2);
+  border: 1px solid var(--checkit-green, #34524d);
   border-radius: 6px;
-  background: #fff;
-  color: var(--checkit-green, #34534f);
+  background: var(--checkit-green, #34524d);
+  color: #fff;
   font: inherit;
   font-size: .8125rem;
   font-weight: 500;
   cursor: pointer;
 }
 
-.resendInviteButton:hover:enabled {
-  background: #e8eeea;
+.resendInviteButton:hover:enabled,
+.editProfileButton:hover:enabled {
+  background: var(--checkit-green-dark, #28423e);
 }
 
-.resendInviteButton:focus-visible {
+.resendInviteButton:focus-visible,
+.editProfileButton:focus-visible {
   outline: 2px solid var(--checkit-green, #34534f);
   outline-offset: 2px;
 }
@@ -1172,7 +1263,47 @@
   outline-offset: 2px;
 }
 
-.memberBadges { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
-.memberBadges > .roleBadge { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.invitationBadge { flex-shrink: 0; padding: 2px 6px; border: 1px solid #d8cfb7; border-radius: 5px; background: #f3efe4; color: #75603b; font-size: .625rem; font-weight: 500; line-height: 1.4; white-space: nowrap; }
-.memberInvitationStatus { margin: 0 0 16px; }
+@media (max-width: 420px) {
+  .memberCard {
+    grid-template-columns: minmax(0, 1fr) 28px;
+    gap: 4px;
+    padding: 12px;
+  }
+
+  .memberDetailsButton {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .memberDetailsButton > .avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .memberDetailsArrow {
+    display: none;
+  }
+
+  .removeMemberButton {
+    width: 28px;
+  }
+
+  .memberDetailsHeader,
+  .memberDetailsProfile {
+    padding: 20px;
+  }
+
+  .memberDetailsFields {
+    padding-inline: 20px;
+  }
+
+  .memberDetailsFields > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-block: 12px;
+  }
+
+  .memberDetailsFooter {
+    padding: 16px 20px;
+  }
+}

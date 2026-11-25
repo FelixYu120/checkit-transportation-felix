@@ -3,11 +3,17 @@
 do $$ begin
   if current_database() <> 'checkit_profile_photos_test' then raise exception 'Use the isolated checkit_profile_photos_test database.'; end if;
 end $$;
-create role authenticated nologin;
-create role anon nologin;
+do $$ begin
+  if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if;
+  if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin; end if;
+end $$;
 create schema auth;
 create schema storage;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid; $$;
+-- Model a blocked invitation/revoked session or an outstanding MFA challenge.
+create function public.portal_account_ready() returns boolean language sql stable as $$
+  select auth.uid() is not null and coalesce(nullif(current_setting('checkit.test.portal_ready',true),''),'true')::boolean;
+$$;
 grant usage on schema auth, storage to authenticated, anon;
 create table public.profile(id uuid primary key, role text, assigned_institute varchar);
 create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
@@ -52,9 +58,18 @@ with changed as (update storage.objects set name=name where bucket_id='profile-p
 select public.set_my_profile_photo(null);
 select public.photo_test_assert((select avatar_path is null and role='viewer' and assigned_institute='institute-a' from public.profile where id=auth.uid()), 'Removal changes only the photo');
 reset role;
-update public.profile set assigned_institute=null where id='00000000-0000-0000-0000-000000000001';
 set role authenticated;
-select public.photo_test_assert((select count(*)=5 from storage.objects), 'All signed-in accounts can see current profile photos regardless of institution assignment');
+select set_config('checkit.test.portal_ready','false',false);
+select public.photo_test_assert((select count(*)=0 from storage.objects), 'Invited, revoked, or MFA-blocked sessions cannot read profile photos');
+do $$ begin
+  begin perform public.set_my_profile_photo(null); raise exception 'Blocked profile change unexpectedly allowed';
+  exception when insufficient_privilege then null; end;
+  begin insert into storage.objects(bucket_id,name,owner_id) values ('profile-photos','00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000013.webp',auth.uid()::text); raise exception 'Blocked upload unexpectedly allowed';
+  exception when insufficient_privilege then null; end;
+end $$;
+with deleted as (delete from storage.objects where owner_id = auth.uid()::text returning *) select public.photo_test_assert(count(*)=0,'Blocked accounts cannot delete photos') from deleted;
+select set_config('checkit.test.portal_ready','true',false);
+select public.photo_test_assert((select count(*)=5 from storage.objects), 'Active signed-in members can see current photos across institutions plus their own objects');
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000003',false);
 select public.photo_test_assert((select count(*)=3 from storage.objects), 'Other-institute viewers can see all current photos but not old or removed pictures');
 select public.photo_test_assert(not exists(select 1 from storage.objects where owner_id='00000000-0000-0000-0000-000000000001'), 'Another user cannot access an owner''s unselected old uploads');
