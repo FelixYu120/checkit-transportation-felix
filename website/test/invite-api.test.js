@@ -29,6 +29,7 @@ function setup(options={}) {
     if(path==='/auth/v1/invite'||path==='/auth/v1/otp') {
       assert.equal(options.headers.Authorization,'Bearer test-service-role-key');
       if(state.mailError)return json({message:'Email delivery failed.'},502);
+      if(state.mailFailure)return json({code:state.mailFailure.code,message:'Provider rejected delivery.'},state.mailFailure.status);
       if(state.duplicate)return json({message:'A user with this email address has already been registered'},422);
       return json(state.missingIdentity?{}:{id:state.target?.id||'fresh-account',email:body.email});
     }
@@ -108,6 +109,21 @@ test('invalid email and unsupported roles do not send mail',async()=>{
   setup();assert.equal((await invoke({email:'invalid',role:'viewer'})).statusCode,400);assert.equal(emails().length,0);
   setup();assert.equal((await invoke({email:'new@example.test',role:'owner'})).statusCode,403);assert.equal(emails().length,0);
 });
+
+for (const pending of [false, true]) {
+  for (const failure of [
+    { code: 'over_email_send_rate_limit', status: 429, responseStatus: 429, message: 'Invite email limit reached. Try again later.' },
+    { code: 'email_address_not_authorized', status: 400, responseStatus: 503, message: 'Invite email sending is not configured.' },
+  ]) test(`${pending ? 'resending' : 'sending'} an invite exposes a concise ${failure.code} error without recording success`, async () => {
+    setup({ mailFailure: failure, ...(pending ? { confirmed: true, target: { id: 'pending-user', email: 'new@example.test', role: 'viewer', assigned_institute: 'ucsd' } } : {}) });
+    const result = await invoke();
+    assert.equal(result.statusCode, failure.responseStatus);
+    assert.equal(result.payload.error, failure.message);
+    assert.notEqual(result.payload.ok, true);
+    assert.equal(emails().length, 1);
+    assert.equal(state.requests.some(request => request.path === '/rest/v1/rpc/record_invitation_delivery'), false);
+  });
+}
 
 for(const publicUrl of ['https://custom.example', ' https://custom.example/old/login/ '])test(`invitation callback uses the public origin even with an old configured path: ${publicUrl}`,async()=>{
   const previous=process.env.APP_PUBLIC_URL;

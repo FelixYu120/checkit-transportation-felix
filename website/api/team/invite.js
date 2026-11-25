@@ -73,6 +73,7 @@ export async function callSupabase(path, { method = "GET", token = SUPABASE_SERV
     const message = payload?.msg || payload?.message || payload?.error_description || payload?.error || "Supabase request failed.";
     const error = new Error(message);
     error.status = response.status;
+    error.code = payload?.code;
     throw error;
   }
 
@@ -253,8 +254,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ok: true, email, role: requestedRole, redirectTo});
   } catch (err) {
     console.error("Transportation Invite Error:", err);
-    return res.status(err.status || 500).json({
-      error: err.message || "Invite could not be sent.",
+    const emailLimit = err.code === 'over_email_send_rate_limit';
+    const senderMissing = err.code === 'email_address_not_authorized';
+    return res.status(senderMissing ? 503 : err.status || 500).json({
+      error: emailLimit ? 'Invite email limit reached. Try again later.'
+        : senderMissing ? 'Invite email sending is not configured.'
+        : err.message || "Invite could not be sent.",
     });
   }
 }

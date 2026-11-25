@@ -251,12 +251,17 @@ function AppSession() {
             setAuthReady(true);
         });
 
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
             if (!active) return;
             // Keep the shell hidden until the callback has been persisted and routed.
             if (resolvingCallback || callbackNeedsRedirect) return;
             authEventReceived = true;
-            setSessionIdentity(session?.user?.id || null);
+            // Preserve the setup screen during its final local sign-out. A new
+            // account identity still remounts it; private routes still reset.
+            const passwordSetupRoute = ['/signup', '/create-account', '/set-password', '/reset-password']
+                .includes(window.location.pathname.replace(/\/+$/, ''));
+            setSessionIdentity(current => event === 'SIGNED_OUT' && passwordSetupRoute
+                ? current : session?.user?.id || null);
             setIsLoggedIn(Boolean(session));
             setAuthReady(true);
         });

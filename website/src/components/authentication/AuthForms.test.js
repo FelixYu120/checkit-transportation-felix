@@ -24,7 +24,7 @@ fixture.client = {
     onAuthStateChange: callback => { fixture.sessionCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; },
     async signOut() { fixture.calls.push({action:'logout'}); fixture.initialSession=null; return {error:fixture.logoutError}; },
     async signInWithPassword(input) { fixture.calls.push({ action: 'login', input }); if (fixture.failure) throw fixture.failure; return { data: { session: fixture.loginSession }, error: null }; },
-    async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; return { data: { user: account }, error: null }; },
+    async updateUser(input) { fixture.calls.push({ action: 'password', input }); if (fixture.failure) throw fixture.failure; if (fixture.onPasswordUpdate) await fixture.onPasswordUpdate(); return { data: { user: account }, error: null }; },
     async resetPasswordForEmail(email, options) { fixture.calls.push({ action: 'reset', email, options }); if (fixture.failure) throw fixture.failure; return { error: null }; },
     mfa:{listFactors:async()=>({data:{totp:[...fixture.resetMfaFactors,...fixture.signupMfaFactors],all:[...fixture.resetMfaFactors,...fixture.signupMfaFactors]}}),
       enroll:async()=>{fixture.calls.push({action:'enroll'});if(fixture.signupEnrollGate)await fixture.signupEnrollGate;if(fixture.signupEnrollError)return {error:fixture.signupEnrollError};const factor={id:'signup-factor',status:'unverified',factor_type:'totp'};fixture.signupMfaFactors.push(factor);return {data:{...factor,totp:{qr_code:'<svg xmlns="http://www.w3.org/2000/svg"></svg>',secret:'SYNTHETICSEED'}}};},
@@ -87,13 +87,17 @@ const sessionSource = appSource.slice(appSource.indexOf('function AppSession()')
 const sessionCode = `import React, {useState,useEffect} from ${JSON.stringify(reactUrl)};
 const supabase=globalThis.__authFormTest.client;
 const styles={appLayout:'auth-loading'};
+const clearPromiStorage=()=>{};
 const supabaseAuthRedirectPath=null;
 const supabaseEmailCallback={hasCallback:false};
 const resolveEmailCallback=client=>client.auth.getSession();
 const leavePortal=async(_client,redirect)=>redirect();
 const getSupabaseAuthRedirectPath=()=>null;
 const EmailLinkConfirmation=({onContinue})=>React.createElement('button',{'data-action':'confirm-email',onClick:onContinue},'Accept invite');
-const AppShell=({isLoggedIn})=>React.createElement('div',{'data-authenticated':String(isLoggedIn)});
+const AppShell=({isLoggedIn})=>{
+  const [instance]=useState(()=>globalThis.__authFormTest.shellInstances=(globalThis.__authFormTest.shellInstances||0)+1);
+  return React.createElement('div',{'data-authenticated':String(isLoggedIn),'data-shell-instance':instance});
+};
 ${sessionSource}
 export default AppSession;`;
 const sessionTransform = await transformWithEsbuild(sessionCode, 'AppSession.jsx', { loader:'jsx', jsx:'transform' });
@@ -315,6 +319,52 @@ test('invitation completion updates only the authenticated profile name before s
   assert.deepEqual(fixture.logins, []);
   assert.deepEqual(fixture.navigations, ['/login']);
   assert.equal(fixture.calls.at(-1).action, 'logout');
+});
+
+test('successful password setup ignores the consumed-invitation auth event and opens login cleanly', async () => {
+  await mount(CreateAccount);
+  await enter('#signup-first-name', 'Example');
+  await enter('#signup-last-name', 'User');
+  for (const input of document.querySelectorAll('input[type="password"]')) await enter(`#${input.id}`, 'valid-password-123');
+  fixture.onPasswordUpdate = async () => {
+    fixture.setupStatus = { eligible: false, reason: 'completed', user_id: account.id };
+    fixture.sessionCallback('USER_UPDATED', { user: account });
+    await new Promise(resolve => setTimeout(resolve, 10));
+  };
+  try {
+    await submit();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    assert.deepEqual(fixture.navigations, ['/login']);
+    assert.equal(document.querySelector('[role="alert"]'), null);
+    assert.doesNotMatch(document.body.textContent, /Invitation required|invite.*invalid|Access is by invitation only/i);
+    assert.match(document.body.textContent, /Opening sign in/);
+  } finally { fixture.onPasswordUpdate = null; }
+});
+
+for (const path of ['/signup', '/create-account', '/set-password', '/reset-password']) {
+  test(`setup sign-out preserves the transition screen on ${path} and resets for another identity`, async () => {
+    window.history.replaceState(null, '', path);
+    try {
+      await mount(AppSession);
+      const instance = document.querySelector('[data-shell-instance]').dataset.shellInstance;
+      await act(async () => fixture.sessionCallback('SIGNED_OUT', null));
+      assert.equal(document.querySelector('[data-authenticated]').dataset.authenticated, 'false');
+      assert.equal(document.querySelector('[data-shell-instance]').dataset.shellInstance, instance);
+      await act(async () => fixture.sessionCallback('SIGNED_IN', { user: { id: 'another-account' } }));
+      assert.notEqual(document.querySelector('[data-shell-instance]').dataset.shellInstance, instance);
+    } finally { window.history.replaceState(null, '', '/'); }
+  });
+}
+
+test('portal sign-out still unmounts account-specific page state', async () => {
+  window.history.replaceState(null, '', '/admin');
+  try {
+    await mount(AppSession);
+    const instance = document.querySelector('[data-shell-instance]').dataset.shellInstance;
+    await act(async () => fixture.sessionCallback('SIGNED_OUT', null));
+    assert.equal(document.querySelector('[data-authenticated]').dataset.authenticated, 'false');
+    assert.notEqual(document.querySelector('[data-shell-instance]').dataset.shellInstance, instance);
+  } finally { window.history.replaceState(null, '', '/'); }
 });
 
 for (const profileResult of [{id:'wrong-user',full_name:'Example User'},{id:account.id,full_name:'Old Name'}]) {

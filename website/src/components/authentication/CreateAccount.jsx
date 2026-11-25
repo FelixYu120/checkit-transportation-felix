@@ -16,6 +16,7 @@ function CreateAccount() {
     const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const setupFinishedRef = useRef(false);
+    const savingPasswordRef = useRef(false);
     const [hasInviteSession, setHasInviteSession] = useState(false);
     const [inviteUserId, setInviteUserId] = useState('');
     const [mfaStatus, setMfaStatus] = useState({ busy: true, pending: true, verified: false });
@@ -28,7 +29,7 @@ function CreateAccount() {
         let deadlineTimer;
         const queued = new Set();
         const closeSetup = (reason) => {
-            if (exiting || setupFinishedRef.current) return;
+            if (exiting || setupFinishedRef.current || savingPasswordRef.current) return;
             exiting = true;
             setHasInviteSession(false);
             setAuthReady(true);
@@ -39,7 +40,7 @@ function CreateAccount() {
             });
         };
         const verify = async (session, request) => {
-            if (!active || exiting || setupFinishedRef.current || request !== version) return;
+            if (!active || exiting || setupFinishedRef.current || savingPasswordRef.current || request !== version) return;
             if (!session?.user?.id) { closeSetup('invitation_required'); return; }
             setAuthReady(false);
             try {
@@ -48,7 +49,7 @@ function CreateAccount() {
                 if (identity.data?.user?.id !== session.user.id) throw new Error('Account changed.');
                 const result = await supabase.rpc('invitation_setup_status');
                 if (result.error) throw result.error;
-                if (!active || request !== version || exiting || setupFinishedRef.current) return;
+                if (!active || request !== version || exiting || setupFinishedRef.current || savingPasswordRef.current) return;
                 if (result.data?.eligible !== true || result.data.user_id !== session.user.id) {
                     closeSetup(result.data?.reason);
                     return;
@@ -66,7 +67,7 @@ function CreateAccount() {
             }
         };
         const refresh = () => {
-            if (!active || exiting || setupFinishedRef.current) return;
+            if (!active || exiting || setupFinishedRef.current || savingPasswordRef.current) return;
             const request = ++version;
             setAuthReady(false);
             if (!supabase) { closeSetup('invitation_required'); return; }
@@ -166,6 +167,9 @@ function CreateAccount() {
             if (savedProfile?.id !== user.id || savedProfile.full_name !== fullName) {
                 throw new Error('Your profile update could not be confirmed. Reopen your invitation to retry.');
             }
+            // USER_UPDATED fires before updateUser resolves. Keep the successful
+            // password write from being rechecked as an already-used invitation.
+            savingPasswordRef.current = true;
             const { data, error } = await supabase.auth.updateUser({ password, data: metadata });
             if (error) throw error;
             if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
@@ -175,6 +179,7 @@ function CreateAccount() {
         } catch (error) {
             setErrorMessage(error.message || 'Your account could not be saved. Please try again.');
         } finally {
+            savingPasswordRef.current = false;
             setLoading(false);
         }
     };
@@ -188,9 +193,9 @@ function CreateAccount() {
                     </a>
                     <span className={styles.productName}>Transportation</span>
                 </div>
-                <h1 id="signup-title" className={styles.title}>{hasInviteSession ? 'Complete your account' : 'Invitation required'}</h1>
+                <h1 id="signup-title" className={styles.title}>{successMessage ? 'Account ready' : hasInviteSession ? 'Complete your account' : !authReady ? 'Checking invitation…' : 'Invitation required'}</h1>
                 <p id="signup-intro" className={styles.intro}>
-                    {!authReady ? 'Checking your invitation…' : hasInviteSession ? 'Add your name and choose a password.' : 'Access is by invitation only. Ask your institution administrator for an invitation.'}
+                    {successMessage ? 'Opening sign in…' : !authReady ? 'Checking your invitation…' : hasInviteSession ? 'Add your name and choose a password.' : 'Access is by invitation only. Ask your institution administrator for an invitation.'}
                 </p>
 
                 {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
