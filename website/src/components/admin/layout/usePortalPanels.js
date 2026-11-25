@@ -1,30 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 
-const DEFAULTS = { sidebarWidth: 240, sidebarCollapsed: false, dataShare: 0.63 };
+const DEFAULTS = { sidebarCollapsed: false, dataShare: 0.63 };
+const DIVIDER_WIDTH = 12;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const splitBounds = width => ({
-  min: Math.max(0.2, Math.min(0.5, 320 / Math.max(1, width - 8))),
-  max: Math.min(0.8, Math.max(0.5, 1 - 280 / Math.max(1, width - 8))),
-});
+const splitBounds = width => {
+  const available = Math.max(1, width - DIVIDER_WIDTH);
+  const min = Math.min(0.63, Math.max(0.5, 360 / available));
+  return { min, max: Math.max(min, Math.min(0.7, 1 - 300 / available)) };
+};
 
 function readPreferences(key) {
   try {
     const saved = JSON.parse(window.localStorage.getItem(key));
     return {
-      sidebarWidth: Number.isFinite(saved?.sidebarWidth) ? clamp(saved.sidebarWidth, 180, 360) : DEFAULTS.sidebarWidth,
       sidebarCollapsed: saved?.sidebarCollapsed === true,
-      dataShare: Number.isFinite(saved?.dataShare) ? clamp(saved.dataShare, 0.2, 0.8) : DEFAULTS.dataShare,
+      dataShare: Number.isFinite(saved?.dataShare) ? clamp(saved.dataShare, 0.5, 0.7) : DEFAULTS.dataShare,
     };
   } catch { return DEFAULTS; }
 }
 
 export default function usePortalPanels(storageKey) {
-  const containerRef = useRef(null);
   const workspaceRef = useRef(null);
   const drag = useRef(null);
   const [preferences, setPreferences] = useState(() => readPreferences(storageKey));
   const [resizing, setResizing] = useState(false);
-  const [bounds, setBounds] = useState({ min: 0.2, max: 0.8 });
+  const [bounds, setBounds] = useState({ min: 0.5, max: 0.7 });
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 961px)').matches);
 
   useEffect(() => {
     if (resizing) return;
@@ -34,9 +35,11 @@ export default function usePortalPanels(storageKey) {
 
   useEffect(() => {
     const measure = () => {
-      if (!window.matchMedia('(min-width: 961px)').matches) return;
+      const wide = window.matchMedia('(min-width: 961px)').matches;
+      setDesktop(wide);
+      if (!wide) return;
       const width = workspaceRef.current?.getBoundingClientRect().width;
-      if (!(width > 8)) return;
+      if (!(width > DIVIDER_WIDTH)) return;
       const next = splitBounds(width);
       setBounds(current => current.min === next.min && current.max === next.max ? current : next);
       setPreferences(current => {
@@ -45,20 +48,35 @@ export default function usePortalPanels(storageKey) {
       });
     };
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    const media = window.matchMedia('(min-width: 961px)');
     if (workspaceRef.current) observer?.observe(workspaceRef.current);
     const frame = window.requestAnimationFrame(measure);
     window.addEventListener('resize', measure);
+    media.addEventListener?.('change', measure);
     return () => {
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
       window.removeEventListener('resize', measure);
+      media.removeEventListener?.('change', measure);
     };
   }, []);
 
   useEffect(() => {
+    const applyMove = () => {
+      const current = drag.current;
+      if (!current || current.clientX == null) return;
+      current.frame = null;
+      const rect = workspaceRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= DIVIDER_WIDTH) return;
+      const { min, max } = splitBounds(rect.width);
+      const dataShare = clamp((current.clientX - rect.left - DIVIDER_WIDTH / 2) / (rect.width - DIVIDER_WIDTH), min, max);
+      setPreferences(value => value.dataShare === dataShare ? value : { ...value, dataShare });
+    };
     const end = (cancel = false) => {
       const current = drag.current;
       if (!current) return;
+      if (current.frame != null) window.cancelAnimationFrame(current.frame);
+      if (!cancel) applyMove();
       drag.current = null;
       document.body.style.cursor = current.cursor;
       document.body.style.userSelect = current.userSelect;
@@ -70,15 +88,8 @@ export default function usePortalPanels(storageKey) {
       const current = drag.current;
       if (!current || event.pointerId !== current.pointerId) return;
       if (!window.matchMedia('(min-width: 961px)').matches) { end(); return; }
-      if (current.kind === 'sidebar') {
-        const left = containerRef.current?.getBoundingClientRect().left || 0;
-        setPreferences(value => ({ ...value, sidebarWidth: clamp(event.clientX - left, 180, 360) }));
-      } else {
-        const rect = workspaceRef.current?.getBoundingClientRect();
-        if (!rect || rect.width <= 8) return;
-        const { min, max } = splitBounds(rect.width);
-        setPreferences(value => ({ ...value, dataShare: clamp((event.clientX - rect.left - 4) / (rect.width - 8), min, max) }));
-      }
+      current.clientX = event.clientX;
+      if (current.frame == null) current.frame = window.requestAnimationFrame(applyMove);
     };
     const release = event => { if (event.pointerId === drag.current?.pointerId) end(event.type === 'pointercancel'); };
     const blur = () => end();
@@ -93,6 +104,7 @@ export default function usePortalPanels(storageKey) {
     return () => {
       const current = drag.current;
       if (current) {
+        if (current.frame != null) window.cancelAnimationFrame(current.frame);
         document.body.style.cursor = current.cursor;
         document.body.style.userSelect = current.userSelect;
       }
@@ -104,11 +116,11 @@ export default function usePortalPanels(storageKey) {
     };
   }, []);
 
-  const startResize = (kind, event) => {
+  const startResize = event => {
     if (event.button !== 0 || drag.current || !window.matchMedia('(min-width: 961px)').matches) return;
     event.preventDefault();
     event.currentTarget.focus();
-    drag.current = { kind, pointerId: event.pointerId, initial: preferences,
+    drag.current = { pointerId: event.pointerId, initial: preferences, frame: null, clientX: null,
       cursor: document.body.style.cursor, userSelect: document.body.style.userSelect };
     event.currentTarget.setPointerCapture?.(event.pointerId);
     document.body.style.cursor = 'col-resize';
@@ -116,25 +128,21 @@ export default function usePortalPanels(storageKey) {
     setResizing(true);
   };
 
-  const resizeWithKeyboard = (kind, event) => {
+  const resizeWithKeyboard = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     const direction = event.key === 'ArrowLeft' ? -1 : 1;
     setPreferences(current => {
-      const sidebar = kind === 'sidebar';
-      const min = sidebar ? 180 : bounds.min;
-      const max = sidebar ? 360 : bounds.max;
-      const key = sidebar ? 'sidebarWidth' : 'dataShare';
-      const step = (sidebar ? 10 : 0.02) * (event.shiftKey ? 5 : 1);
-      const next = event.key === 'Home' ? min : event.key === 'End' ? max : current[key] + direction * step;
-      return { ...current, [key]: clamp(next, min, max) };
+      const step = 0.02 * (event.shiftKey ? 5 : 1);
+      const next = event.key === 'Home' ? bounds.min : event.key === 'End' ? bounds.max : current.dataShare + direction * step;
+      return { ...current, dataShare: clamp(next, bounds.min, bounds.max) };
     });
   };
 
-  const resetPanel = kind => setPreferences(current => ({ ...current,
-    ...(kind === 'sidebar' ? { sidebarWidth: DEFAULTS.sidebarWidth } : { dataShare: clamp(DEFAULTS.dataShare, bounds.min, bounds.max) }),
+  const resetPanel = () => setPreferences(current => ({ ...current,
+    dataShare: clamp(DEFAULTS.dataShare, bounds.min, bounds.max),
   }));
   const toggleSidebar = () => setPreferences(current => ({ ...current, sidebarCollapsed: !current.sidebarCollapsed }));
 
-  return { ...preferences, bounds, resizing, containerRef, workspaceRef, startResize, resizeWithKeyboard, resetPanel, toggleSidebar };
+  return { ...preferences, bounds, desktop, resizing, workspaceRef, startResize, resizeWithKeyboard, resetPanel, toggleSidebar };
 }

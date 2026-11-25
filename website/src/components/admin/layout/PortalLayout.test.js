@@ -23,7 +23,9 @@ const cssUrl = moduleUrl('export default new Proxy({}, {get:(_,key)=>String(key)
 const hookCode = (await readFile(new URL('./usePortalPanels.js', import.meta.url), 'utf8')).replace("from 'react'", `from ${JSON.stringify(reactUrl)}`);
 const hookUrl = moduleUrl(hookCode);
 const divider = await transformWithEsbuild(await readFile(new URL('./PanelDivider.jsx', import.meta.url), 'utf8'), 'PanelDivider.jsx', { loader: 'jsx', jsx: 'transform' });
-const dividerUrl = moduleUrl(divider.code.replace(/from "react"/g, `from ${JSON.stringify(reactUrl)}`).replace(/from "\.\/AdminLayout.module.css"/g, `from ${JSON.stringify(cssUrl)}`));
+const dividerUrl = moduleUrl(divider.code.replace(/from "react"/g, `from ${JSON.stringify(reactUrl)}`)
+  .replace(/from "lucide-react"/g, `from ${JSON.stringify(import.meta.resolve('lucide-react'))}`)
+  .replace(/from "\.\/AdminLayout.module.css"/g, `from ${JSON.stringify(cssUrl)}`));
 const source = await readFile(new URL('./AdminLayout.jsx', import.meta.url), 'utf8');
 const storageKey = source.match(/usePortalPanels\('([^']+)'\)/)[1];
 const transformed = await transformWithEsbuild(source, 'AdminLayout.jsx', { loader: 'jsx', jsx: 'transform' });
@@ -69,6 +71,7 @@ const pointer = async (target, type, clientX, pointerId = 1) => act(async () => 
   const event = new window.MouseEvent(type, { bubbles: true, clientX, button: 0 });
   Object.defineProperty(event, 'pointerId', { value: pointerId });
   target.dispatchEvent(event);
+  if (type === 'pointermove') await new Promise(resolve => window.requestAnimationFrame(resolve));
 });
 const key = async (target, value, shiftKey = false) => act(async () => target.dispatchEvent(new window.KeyboardEvent('keydown', { key: value, shiftKey, bubbles: true, cancelable: true })));
 const saved = () => JSON.parse(window.localStorage.getItem(storageKey));
@@ -82,10 +85,13 @@ test('collapsing and reopening navigation preserves tree selection and the mount
   assert.equal(document.querySelector('.sidebar-rail').dataset.collapsed, 'true');
   assert.equal(find('Expand tree menu').getAttribute('aria-expanded'), 'false');
   assert.equal(find('Resize navigation'), null);
+  assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), true);
   assert.equal(saved().sidebarCollapsed, true);
   await act(async () => find('Expand tree menu').click());
   assert.equal(document.querySelector('[data-tree-choice]'), tree);
   assert.equal(tree.textContent, 'Selected building');
+  assert.equal(find('Resize navigation'), null);
+  assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), false);
   assert.equal(document.querySelector('[data-map]'), map);
   assert.equal(fixture.mapMounts, 1);
 });
@@ -95,14 +101,14 @@ test('dragging the data/map divider uses workspace coordinates, saves the width,
   const divider = find('Resize data and map');
   const map = document.querySelector('[data-map]');
   await pointer(divider, 'pointerdown', 800);
-  const clientX = fixture.workspaceLeft + 4 + (fixture.workspaceWidth - 8) * 0.4;
+  const clientX = fixture.workspaceLeft + 6 + (fixture.workspaceWidth - 12) * 0.55;
   await pointer(window, 'pointermove', clientX, 2);
   assert.equal(divider.getAttribute('aria-valuenow'), '63');
   await pointer(window, 'pointermove', clientX);
-  assert.equal(divider.getAttribute('aria-valuenow'), '40');
+  assert.equal(divider.getAttribute('aria-valuenow'), '55');
   assert.equal(document.body.style.cursor, 'col-resize');
   await pointer(window, 'pointerup', clientX);
-  assert.ok(Math.abs(saved().dataShare - 0.4) < 0.001);
+  assert.ok(Math.abs(saved().dataShare - 0.55) < 0.001);
   assert.equal(document.body.style.cursor, '');
   assert.equal(document.querySelector('[data-map]'), map);
   assert.equal(fixture.mapMounts, 1);
@@ -123,21 +129,21 @@ test('keyboard resizing respects usable pane widths and double-click restores th
   assert.equal(divider.getAttribute('aria-valuenow'), '63');
 });
 
-test('navigation dragging clamps its width and Escape restores the previous layout and pointer styles', async () => {
+test('dragging cannot shrink either panel excessively and Escape restores the split and pointer styles', async () => {
   await mount();
-  const divider = find('Resize navigation');
+  const divider = find('Resize data and map');
   document.body.style.userSelect = 'text';
   await pointer(divider, 'pointerdown', 264);
   await pointer(window, 'pointermove', 1500);
-  assert.equal(divider.getAttribute('aria-valuenow'), '360');
+  assert.equal(divider.getAttribute('aria-valuenow'), divider.getAttribute('aria-valuemax'));
   await key(window, 'Escape');
-  assert.equal(divider.getAttribute('aria-valuenow'), '240');
+  assert.equal(divider.getAttribute('aria-valuenow'), '63');
   assert.equal(document.body.style.userSelect, 'text');
   document.body.style.userSelect = '';
   await key(divider, 'Home');
-  assert.equal(saved().sidebarWidth, 180);
+  assert.ok(saved().dataShare >= 0.5);
   await key(divider, 'End');
-  assert.equal(saved().sidebarWidth, 360);
+  assert.ok(saved().dataShare <= 0.7);
 });
 
 test('saved preferences restore on reopen and malformed values fall back safely', async () => {
@@ -149,7 +155,46 @@ test('saved preferences restore on reopen and malformed values fall back safely'
   window.localStorage.setItem(storageKey, '{invalid');
   await mount();
   assert.ok(find('Collapse tree menu'));
-  assert.equal(find('Resize navigation').getAttribute('aria-valuenow'), '240');
+  assert.equal(find('Resize navigation'), null);
+  assert.equal(Object.hasOwn(saved(), 'sidebarWidth'), false);
+});
+
+test('legacy split preferences and extreme drags stay within the moderate resize range', async () => {
+  fixture.workspaceWidth = 1600;
+  window.localStorage.setItem(storageKey, JSON.stringify({ sidebarWidth: 360, dataShare: 0.95 }));
+  await mount();
+  const divider = find('Resize data and map');
+  assert.equal(divider.getAttribute('aria-valuenow'), '70');
+  await pointer(divider, 'pointerdown', 1000);
+  await pointer(window, 'pointermove', -10000);
+  assert.equal(divider.getAttribute('aria-valuenow'), '50');
+  await pointer(window, 'pointermove', 10000);
+  assert.equal(divider.getAttribute('aria-valuenow'), '70');
+  await pointer(window, 'pointerup', 10000);
+});
+
+test('the final drag position is saved even if pointer-up happens before the next animation frame', async () => {
+  await mount();
+  const divider = find('Resize data and map');
+  await pointer(divider, 'pointerdown', 800);
+  await act(async () => {
+    for (const [type, share] of [['pointermove', 0.6], ['pointermove', 0.55], ['pointerup', 0.55]]) {
+      const event = new window.MouseEvent(type, { bubbles: true, clientX: fixture.workspaceLeft + 6 + (fixture.workspaceWidth - 12) * share });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      window.dispatchEvent(event);
+    }
+  });
+  assert.ok(Math.abs(saved().dataShare - 0.55) < 0.001);
+  assert.equal(document.body.style.cursor, '');
+});
+
+test('a collapsed desktop tree does not disable the navigation drawer on narrow screens', async () => {
+  window.localStorage.setItem(storageKey, JSON.stringify({ sidebarCollapsed: true, dataShare: 0.63 }));
+  await mount();
+  assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), true);
+  fixture.desktop = false;
+  await act(async () => window.dispatchEvent(new window.Event('resize')));
+  assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), false);
 });
 
 test('narrow screens ignore horizontal dragging and an interrupted drag releases global pointer styles', async () => {

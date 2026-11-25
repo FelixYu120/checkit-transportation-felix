@@ -72,6 +72,13 @@
   border-radius: 12px;
   padding: 9px 11px;
   margin-bottom: 14px;
+  margin-right: 32px;
+}
+
+@media (max-width: 960px) {
+  .searchContainer {
+    margin-right: 0;
+  }
 }
 
 .searchIcon { color: #7b8794; margin-right: 8px; }

@@ -6,9 +6,9 @@ Felix publishes both websites and the Occupancy cloud backend after pulling thes
 
 ## Portal layout
 
-On screens wider than 960 px, the Navigation button collapses/reopens the tree without clearing its selection. Drag the navigation divider to change the tree width, or the data/map divider to change their relative widths. The map stays mounted, including Transportation's selected-sensor focus.
+On screens wider than 960 px, the icon beside search collapses/reopens the tree without clearing its selection. The tree has a fixed width and no resize divider or heading. Collapse fades and slides the content while the rail contracts. The data/map divider has a rounded grip and changes only those panels' relative widths. The map stays mounted, including Transportation's selected-sensor focus.
 
-Both dividers support Left/Right arrows, Shift for larger steps, Home/End for the limits, Escape to cancel an active drag, and double-click to reset. Minimum pane widths prevent dragging a panel closed. Preferences are stored separately for Occupancy and Transportation in that browser; blocked browser storage does not prevent resizing. Narrow screens retain the navigation drawer and stacked data/map layout.
+The data/map divider supports Left/Right arrows, Shift for larger steps, Home/End for the limits, Escape to cancel an active drag, and double-click to reset. Data takes 50–70% of the available workspace, with tighter limits where needed to preserve usable panel widths. Pointer updates are coalesced to animation frames, and pointer-up saves the final position. Keyboard changes animate; dragging tracks the pointer directly. Reduced-motion preferences disable transitions. Preferences are stored separately for Occupancy and Transportation in that browser; old tree-width preferences are ignored. Blocked browser storage does not prevent resizing. Narrow screens retain the navigation drawer and stacked data/map layout, even if the desktop tree was collapsed.
 
 ## Signup transition
 
@@ -24,6 +24,8 @@ The API now returns a short email-limit or sender-configuration error when the p
 
 ## Required sender setup
 
+The latest setup request is for Occupancy. No provider account or verified sending domain is available yet, and no SMTP settings have been changed. Supabase continues to generate and validate invitation and recovery messages; an SMTP provider only delivers those messages. Do not enable SMTP using placeholder credentials.
+
 1. Choose a transactional email service that supports SMTP and verify a sender domain you control. Complete its domain/DNS checks with the domain owner. No AWS migration is needed.
 2. Configure that service in **each Supabase project's Auth SMTP settings**: SMTP host, port, user, password, sender address, and sender name. Store credentials directly in Supabase, not in GitHub or chat.
 3. Keep the existing branded invite, magic-link, and recovery templates, token-hash links, public app origins, invitation-only signup setting, and 900-second expiry. Do not restore consuming confirmation URLs in the email templates.
@@ -34,7 +36,7 @@ Supabase documents the built-in sender as a limited testing service with recipie
 
 ## Manual checks after publication
 
-- Collapse/reopen the tree, drag both dividers, reload, and confirm the chosen widths return. Resize the window to a phone width and confirm the drawer and stacked map remain usable.
+- Collapse/reopen the tree, drag the data/map divider to both limits, reload, and confirm the split returns. Confirm there is no tree resize handle or visible heading. Resize the window to a phone width and confirm the drawer and stacked map remain usable.
 - Finish an invitation and confirm a clean transition to login, then sign in with the new password. The signup URL must still reject visitors without an invitation.
 - After SMTP is configured, send one new or resent invitation and one password-reset email on each platform. Confirm receipt and that each link opens the matching platform. Test links only for accounts you control.
 
