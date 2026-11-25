@@ -260,7 +260,7 @@ function AppSession() {
             // account identity still remounts it; private routes still reset.
             const passwordSetupRoute = ['/signup', '/create-account', '/set-password', '/reset-password']
                 .includes(window.location.pathname.replace(/\/+$/, ''));
-            setSessionIdentity(current => event === 'SIGNED_OUT' && passwordSetupRoute
+            setSessionIdentity(current => !session?.user?.id && passwordSetupRoute
                 ? current : session?.user?.id || null);
             setIsLoggedIn(Boolean(session));
             setAuthReady(true);

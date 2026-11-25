@@ -48,7 +48,8 @@
 .photoHint { margin: 8px 0 0; color: #63756b; font-size: 10px; line-height: 1.5; }
 .photoStatus { margin: 0 0 6px; color: #34524d; font-size: 13px; }
 .photoEditor { display: grid; justify-items: center; gap: 10px; padding: 16px; border: 1px solid #d0ddd3; border-radius: 10px; background: #f6f9f6; }
-.cropPreview { position: relative; width: min(100%, 192px); aspect-ratio: 1; overflow: hidden; box-sizing: border-box; border-radius: 12px; background: #e2eae4; cursor: grab; touch-action: none; user-select: none; }
+.cropPreview { position: relative; width: min(100%, 208px); aspect-ratio: 1; overflow: hidden; box-sizing: border-box; border-radius: 50%; background: #e2eae4; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 2px #cfddd3; }
+.cropPreview::after { content: ""; position: absolute; inset: 0; z-index: 1; border: 2px solid rgba(255,255,255,.7); border-radius: inherit; pointer-events: none; }
 .cropPreview:active { cursor: grabbing; }
 .cropPreview img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
 .cropPreview:focus-visible { outline: 2px solid #34524d; outline-offset: 3px; }

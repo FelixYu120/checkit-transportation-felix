@@ -128,19 +128,18 @@
   width: 32px;
   height: 38px;
   padding: 0;
-  border: 1px solid #b7cbc0;
+  border: 1px solid transparent;
   border-radius: 9px;
-  background: #f6faf7;
-  color: var(--checkit-green, #34524d);
-  box-shadow: 0 1px 3px rgba(35, 55, 45, .06);
+  background: transparent;
+  color: var(--checkit-muted, #63756b);
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .sidebar-toggle:hover {
-  border-color: #91ad9c;
-  background: #e7f0e9;
-  box-shadow: 0 2px 6px rgba(35, 55, 45, .09);
+  border-color: rgba(52, 82, 77, .08);
+  background: rgba(52, 82, 77, .07);
+  color: var(--checkit-green, #34524d);
 }
 
 .sidebar-toggle:focus-visible {

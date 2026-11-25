@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import SignupAuthenticator from './SignupAuthenticator.jsx';
 import supabase from '../helper/SupabaseClients';
@@ -7,6 +8,7 @@ import { hasPortalAccess } from '../../lib/portalAccess.js';
 import { leavePortal, finishPasswordSetup } from './portalExit.js';
 
 function CreateAccount() {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -14,6 +16,7 @@ function CreateAccount() {
         supabase ? '' : 'Account creation is not configured. Please contact an administrator.'
     ));
     const [successMessage, setSuccessMessage] = useState('');
+    const [redirecting, setRedirecting] = useState(false);
     const [loading, setLoading] = useState(false);
     const setupFinishedRef = useRef(false);
     const savingPasswordRef = useRef(false);
@@ -21,6 +24,8 @@ function CreateAccount() {
     const [inviteUserId, setInviteUserId] = useState('');
     const [mfaStatus, setMfaStatus] = useState({ busy: true, pending: true, verified: false });
     const [authReady, setAuthReady] = useState(() => !supabase);
+
+    useEffect(() => { void import('./Login.jsx').catch(() => {}); }, []);
 
     useEffect(() => {
         let active = true;
@@ -31,12 +36,13 @@ function CreateAccount() {
         const closeSetup = (reason) => {
             if (exiting || setupFinishedRef.current || savingPasswordRef.current) return;
             exiting = true;
+            setRedirecting(true);
             setHasInviteSession(false);
             setAuthReady(true);
             void leavePortal(supabase, () => {
                 const notice = reason === 'expired' ? '?notice=invite_expired'
                     : ['completed', 'login_required', 'invitation_required'].includes(reason) ? '' : '?notice=invite_invalid';
-                window.location.replace(`/login${notice}`);
+                navigate(`/login${notice}`, { replace: true });
             });
         };
         const verify = async (session, request) => {
@@ -94,7 +100,7 @@ function CreateAccount() {
             window.removeEventListener('focus', focus);
             document.removeEventListener('visibilitychange', focus);
         };
-    }, []);
+    }, [navigate]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -148,8 +154,9 @@ function CreateAccount() {
             const invitation = await supabase.rpc('invitation_setup_status');
             if (invitation.error) throw invitation.error;
             if (invitation.data?.eligible !== true || invitation.data.user_id !== user.id) {
+                setRedirecting(true);
                 setHasInviteSession(false);
-                await leavePortal(supabase);
+                await leavePortal(supabase, () => navigate('/login', { replace: true }));
                 return;
             }
             const { data: membership, error: membershipError } = await supabase.from('profile')
@@ -175,13 +182,21 @@ function CreateAccount() {
             if (data?.user?.id !== user.id) throw new Error('Your account update could not be confirmed. Please try again.');
             setupFinishedRef.current = true;
             setSuccessMessage('Account ready.');
-            await finishPasswordSetup(supabase);
+            await finishPasswordSetup(supabase, () => navigate('/login', { replace: true }));
         } catch (error) {
             setErrorMessage(error.message || 'Your account could not be saved. Please try again.');
         } finally {
             savingPasswordRef.current = false;
             setLoading(false);
         }
+    };
+
+    const retrySignIn = async () => {
+        if (loading) return;
+        setErrorMessage(''); setLoading(true);
+        try { await finishPasswordSetup(supabase, () => navigate('/login', { replace: true })); }
+        catch (error) { setErrorMessage(error.message || 'Sign out could not be completed. Try again.'); }
+        finally { setLoading(false); }
     };
 
     return (
@@ -193,15 +208,16 @@ function CreateAccount() {
                     </a>
                     <span className={styles.productName}>Transportation</span>
                 </div>
-                <h1 id="signup-title" className={styles.title}>{successMessage ? 'Account ready' : hasInviteSession ? 'Complete your account' : !authReady ? 'Checking invitation…' : 'Invitation required'}</h1>
+                <h1 id="signup-title" className={styles.title}>{successMessage ? 'Account ready' : redirecting ? 'Opening sign in…' : hasInviteSession ? 'Complete your account' : 'Checking invitation…'}</h1>
                 <p id="signup-intro" className={styles.intro}>
-                    {successMessage ? 'Opening sign in…' : !authReady ? 'Checking your invitation…' : hasInviteSession ? 'Add your name and choose a password.' : 'Access is by invitation only. Ask your institution administrator for an invitation.'}
+                    {successMessage ? 'Opening sign in…' : redirecting ? null : !authReady ? 'Checking your invitation…' : hasInviteSession ? 'Add your name and choose a password.' : 'Checking your invitation…'}
                 </p>
 
                 {errorMessage && <div id="signup-error" className={styles.errorMessage} role="alert">{errorMessage}</div>}
                 {successMessage && <div className={styles.successMessage} role="status">{successMessage}</div>}
+                {successMessage && errorMessage && <button className={styles.submitButton} type="button" onClick={() => void retrySignIn()} disabled={loading}>Try again</button>}
 
-                {hasInviteSession && <form id="checkit-transportation-signup-form" name="checkit-transportation-signup-form" method="post" className={styles.form} onSubmit={handleSubmit} autoComplete="on" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
+                {hasInviteSession && <form id="checkit-transportation-signup-form" name="checkit-transportation-signup-form" method="post" className={styles.form} hidden={Boolean(successMessage) || redirecting} onSubmit={handleSubmit} autoComplete="on" aria-busy={loading} aria-describedby={errorMessage ? 'signup-error' : 'signup-intro'}>
                     <div className={styles.nameRow}>
                         <div className={styles.fieldGroup}>
                             <label htmlFor="signup-first-name">First name<span className={styles.requiredMark} aria-hidden="true"> *</span></label>

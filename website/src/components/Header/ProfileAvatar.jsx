@@ -8,7 +8,7 @@ export default function ProfileAvatar({ profile = {}, className, tone, fallback 
     : String(profile.email || '?').slice(0, 2).toUpperCase();
   const src = profile.avatar_url;
   return (
-    <span className={className} data-member-tone={tone} aria-hidden="true">
+    <span className={className} data-member-tone={tone} aria-hidden="true" style={{ borderRadius: '50%' }}>
       {src && src !== failedUrl ? (
         <img src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailedUrl(src)}
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />

@@ -9,6 +9,7 @@ export default function ProfilePhotoEditor({ file, busy, onSave, onCancel }) {
   const [error, setError] = useState('');
   const [crop, setCrop] = useState({ zoom: 1, offsetX: 0.5, offsetY: 0.5 });
   const drag = useRef(null);
+  const pointers = useRef(new Map());
 
   useEffect(() => {
     let active = true;
@@ -28,27 +29,59 @@ export default function ProfilePhotoEditor({ file, busy, onSave, onCancel }) {
     return () => { active = false; if (url) URL.revokeObjectURL(url); };
   }, [file]);
 
+  const beginGesture = (element, selection) => {
+    const active = [...pointers.current.values()];
+    const rect = element.getBoundingClientRect();
+    if (active.length === 2) {
+      drag.current = { kind: 'pinch', crop: selection, size: rect.width, left: rect.left || 0, top: rect.top || 0,
+        x: (active[0].x + active[1].x) / 2, y: (active[0].y + active[1].y) / 2,
+        distance: Math.max(1, Math.hypot(active[1].x - active[0].x, active[1].y - active[0].y)) };
+    } else {
+      drag.current = active.length ? { kind: 'pan', crop: selection, size: rect.width, ...active[0] } : null;
+    }
+  };
   const startDrag = event => {
     if (busy || !image || event.button !== 0) return;
+    if (!pointers.current.has(event.pointerId) && pointers.current.size >= 2) return;
     event.preventDefault();
     event.currentTarget.focus();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY,
-      crop, size: event.currentTarget.getBoundingClientRect().width };
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    beginGesture(event.currentTarget, crop);
   };
   const moveDrag = event => {
     const start = drag.current;
-    if (!start || busy || !image || start.pointerId !== event.pointerId || !start.size) return;
+    if (!start || busy || !image || !pointers.current.has(event.pointerId) || !start.size) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const source = getProfilePhotoCrop(image.width, image.height, start.crop);
+    if (start.kind === 'pinch') {
+      const [first, second] = [...pointers.current.values()];
+      if (!first || !second) return;
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      const zoom = Math.min(3, Math.max(1, start.crop.zoom * distance / start.distance));
+      const size = getProfilePhotoCrop(image.width, image.height, { zoom }).size;
+      const anchorX = source.x + (start.x - start.left) / start.size * source.size;
+      const anchorY = source.y + (start.y - start.top) / start.size * source.size;
+      setCrop({ zoom,
+        offsetX: image.width > size ? clamp((anchorX - ((first.x + second.x) / 2 - start.left) / start.size * size) / (image.width - size)) : 0.5,
+        offsetY: image.height > size ? clamp((anchorY - ((first.y + second.y) / 2 - start.top) / start.size * size) / (image.height - size)) : 0.5,
+      });
+      return;
+    }
     setCrop({ ...start.crop,
       offsetX: image.width > source.size ? clamp(start.crop.offsetX - (event.clientX - start.x) * source.size / start.size / (image.width - source.size)) : 0.5,
       offsetY: image.height > source.size ? clamp(start.crop.offsetY - (event.clientY - start.y) * source.size / start.size / (image.height - source.size)) : 0.5,
     });
   };
   const endDrag = event => {
-    if (drag.current?.pointerId !== event.pointerId) return;
-    if (event.type === 'pointercancel') setCrop(drag.current.crop);
-    drag.current = null;
+    if (!pointers.current.has(event.pointerId)) return;
+    if (event.type === 'pointercancel') {
+      if (drag.current) setCrop(drag.current.crop);
+      pointers.current.clear(); drag.current = null;
+      return;
+    }
+    pointers.current.delete(event.pointerId);
+    beginGesture(event.currentTarget, crop);
   };
   const moveWithKeys = event => {
     if (busy || !image || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
@@ -63,7 +96,7 @@ export default function ProfilePhotoEditor({ file, busy, onSave, onCancel }) {
 
   return <section className={styles.photoEditor} aria-label="Adjust profile photo" aria-busy={busy}>
     {error ? <p className={styles.errorMessage} role="alert">{error}</p> : image ? <>
-      <div className={styles.cropPreview} role="img" aria-label="Photo crop preview" tabIndex={busy ? -1 : 0}
+      <div className={styles.cropPreview} role="img" aria-label="Circular photo crop preview" tabIndex={busy ? -1 : 0}
         onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
         onLostPointerCapture={endDrag} onKeyDown={moveWithKeys}>
         <img src={image.url} alt="" draggable={false} style={{
@@ -74,7 +107,7 @@ export default function ProfilePhotoEditor({ file, busy, onSave, onCancel }) {
       <p className={styles.photoHint}>Drag to reposition.</p>
       <label className={styles.zoomControl}>Zoom
         <input aria-label="Photo zoom" type="range" min="1" max="3" step="0.05" value={crop.zoom} disabled={busy}
-          onChange={event => { drag.current = null; setCrop(value => ({ ...value, zoom: Number(event.target.value) })); }} />
+          onChange={event => { pointers.current.clear(); drag.current = null; setCrop(value => ({ ...value, zoom: Number(event.target.value) })); }} />
       </label>
     </> : <p className={styles.photoHint} role="status">Loading photo…</p>}
     <div className={styles.cropActions}>

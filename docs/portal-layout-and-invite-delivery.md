@@ -12,7 +12,9 @@ The data/map divider supports Left/Right arrows, Shift for larger steps, Home/En
 
 ## Signup transition
 
-Saving the password emits USER_UPDATED before the Auth request resolves. Signup pauses its invitation recheck during that write, then finishes local sign-out without remounting the setup form. This prevents a consumed invitation from flashing an invalid/required screen before login. Changing to another user identity still resets the form, and sign-out from portal routes still unmounts account-specific state. Invitation validation and the 15-minute deadline remain enforced by the server.
+Saving the password emits USER_UPDATED before the Auth request resolves. Signup pauses its invitation recheck during that write, then keeps its success view through sign-out and any late empty-session events. Once local session cleanup is confirmed, it replaces the route with login without a full page reload; the login module is prefetched during signup. The form is hidden after success, and retrying failed session cleanup does not repeat signup. Invalid, expired, and completed invitations redirect to login with the appropriate notice instead of painting an invitation-required page. Changing to another user identity still resets the form, and sign-out from portal routes still unmounts account-specific state. Invitation validation and the 15-minute deadline remain enforced by the server.
+
+A public-asset check on November 25, 2026 found Occupancy still serving an older signup bundle without the earlier transition handling. Felix must publish the website project after pulling the current commits; publishing only its backend does not update the browser code. These circular-avatar and transition refinements require website publication on both platforms and no database migration.
 
 ## Email findings — November 24, 2026
 

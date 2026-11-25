@@ -28,6 +28,7 @@
 }
 
 .card {
+    animation: authCardEnter 160ms ease-out;
     box-sizing: border-box;
     width: min(100%, 416px);
     padding: 36px;
@@ -35,6 +36,15 @@
     border-radius: 10px;
     background: var(--checkit-bg, #e9eeeb);
     box-shadow: 0 8px 24px rgba(35, 55, 45, .06);
+}
+
+.form[hidden] { display: none; }
+@keyframes authCardEnter {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
 }
 
 .brandRow {

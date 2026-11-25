@@ -39,11 +39,11 @@ const setZoom = async value => act(async () => {
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   input.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 });
-const pointer = async (type, x, y) => act(async () => {
+const pointer = async (type, x, y, pointerId = 1) => act(async () => {
   const preview = document.querySelector('.cropPreview');
   preview.getBoundingClientRect = () => ({ width: 200, height: 200 });
   const event = new dom.window.MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
-  Object.defineProperty(event, 'pointerId', { value: 1 });
+  Object.defineProperty(event, 'pointerId', { value: pointerId });
   preview.dispatchEvent(event);
 });
 afterEach(async () => {
@@ -77,6 +77,23 @@ test('dragging repositions the image, stays inside its bounds, and saves that cr
   await act(async () => button('Save photo').click());
   assert.equal(fixture.saved[1].offsetX, 0);
   assert.equal(fixture.saved[1].offsetY, 0);
+});
+
+test('two fingers zoom the circular crop and continue panning when one finger lifts', async () => {
+  await mount();
+  assert.ok(document.querySelector('[aria-label="Circular photo crop preview"]'));
+  await pointer('pointerdown',50,100,1);
+  await pointer('pointerdown',150,100,2);
+  await pointer('pointermove',200,100,2);
+  assert.equal(document.querySelector('[aria-label="Photo zoom"]').value,'1.5');
+  await pointer('pointermove',0,100,1);
+  assert.equal(document.querySelector('[aria-label="Photo zoom"]').value,'2');
+  await pointer('pointerup',200,100,2);
+  await pointer('pointermove',20,100,1);
+  await pointer('pointerup',20,100,1);
+  await act(async()=>button('Save photo').click());
+  assert.equal(fixture.saved[0].zoom,2);
+  assert.ok(Math.abs(fixture.saved[0].offsetX-0.45)<0.0001);
 });
 
 test('keyboard positioning works and a canceled pointer gesture restores its starting position', async () => {
