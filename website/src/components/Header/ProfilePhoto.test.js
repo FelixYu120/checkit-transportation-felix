@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateProfilePhoto, withProfilePhotos, uploadProfilePhoto, removeProfilePhoto, prepareProfilePhoto } from './ProfilePhoto.js';
+import { validateProfilePhoto, withProfilePhotos, uploadProfilePhoto, removeProfilePhoto, prepareProfilePhoto, getProfilePhotoCrop } from './ProfilePhoto.js';
 
 const id = '00000000-0000-0000-0000-000000000001';
 const otherId = '00000000-0000-0000-0000-000000000002';
@@ -118,11 +118,29 @@ test('browser preprocessing crops to a square WebP and releases its temporary UR
     assert.equal(canvas.height, 512);
     assert.deepEqual(draws[0].slice(1), [100, 0, 600, 600, 0, 0, 512, 512]);
     assert.deepEqual(revoked, ['blob:temporary-photo']);
+    await prepareProfilePhoto(file, { zoom: 2, offsetX: 1, offsetY: 0 });
+    assert.deepEqual(draws[1].slice(1), [500, 0, 300, 300, 0, 0, 512, 512]);
     globalThis.Image = class { async decode() { throw new Error('Corrupt'); } };
     await assert.rejects(prepareProfilePhoto(file), /could not be opened/);
-    assert.equal(revoked.length, 2);
+    assert.equal(revoked.length, 3);
   } finally {
     globalThis.Image = original.Image; globalThis.document = original.document;
     URL.createObjectURL = original.create; URL.revokeObjectURL = original.revoke;
   }
+});
+
+test('crop geometry preserves a square and clamps zoom and position inside the source image', () => {
+  assert.deepEqual(getProfilePhotoCrop(1200, 800, {zoom:2,offsetX:0.25,offsetY:0.75}), {x:200,y:300,size:400});
+  const edge=getProfilePhotoCrop(600, 900, {zoom:50,offsetX:-1,offsetY:2});
+  assert.deepEqual(edge, {x:0,y:700,size:200});
+  assert.deepEqual(getProfilePhotoCrop(800,600,{zoom:NaN,offsetX:NaN,offsetY:NaN}), {x:100,y:0,size:600});
+});
+
+test('upload passes the selected crop to preprocessing before storing the picture', async () => {
+  const client=clientFixture();
+  const crop={zoom:2,offsetX:0.25,offsetY:0.75};
+  await uploadProfilePhoto(client,file,{crop,prepare:async(receivedFile,receivedCrop)=>{
+    assert.equal(receivedFile,file);assert.deepEqual(receivedCrop,crop);return blob;
+  }});
+  assert.ok(client.calls.some(call=>call.action==='upload'));
 });

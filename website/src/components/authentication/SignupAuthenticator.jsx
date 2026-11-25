@@ -91,9 +91,9 @@ export default function SignupAuthenticator({ onStatusChange, userId, disabled =
   return <section ref={section} className={styles.signupAuthenticator} aria-label="Optional authenticator" aria-busy={busy}>
     {error && <p className={styles.errorMessage} role="alert">{error}</p>}
     {!ready ? <button type="button" className={styles.textLink} onClick={() => void retry()} disabled={busy || disabled}>{busy ? 'Checking authenticator…' : 'Retry authenticator check'}</button> : verified ? <p className={styles.authenticatorStatus} role="status">Two-step verification enabled.</p> : <>
-      {!started && <button type="button" className={styles.authenticatorButton} disabled={busy || disabled} onClick={() => void enroll()}>{busy ? 'Setting up…' : 'Set up two-step verification (optional)'}</button>}
+      {!started && <><button type="button" className={styles.authenticatorButton} disabled={busy || disabled} onClick={() => void enroll()}>{busy ? 'Setting up…' : 'Set up two-step verification (optional)'}</button><p className={styles.authenticatorHint}>Use Google Authenticator or Microsoft Authenticator.</p></>}
       {setup && <div className={styles.mfaSetup}>
-        <p>Scan with your authenticator app.</p>
+        <p>Scan with Google Authenticator or Microsoft Authenticator.</p>
         <img src={setup.image} className={styles.mfaQr} alt="Authenticator setup QR code" />
         <details><summary>Can’t scan?</summary><code className={styles.mfaSecret} data-mfa-secret>{setup.secret}</code></details>
       </div>}

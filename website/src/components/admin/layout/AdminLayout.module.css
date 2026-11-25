@@ -187,7 +187,7 @@
   position: absolute;
   inset-block: 0;
   width: 1px;
-  background: #d1ddd5;
+  background: rgba(100, 116, 139, .1);
 }
 
 .divider-grip {
@@ -197,21 +197,18 @@
   place-items: center;
   flex-shrink: 0;
   box-sizing: border-box;
-  width: 20px;
+  width: 10px;
   height: 44px;
-  border: 1px solid #b7cbc0;
-  border-radius: 9px;
-  background: #f6faf7;
-  color: #607f6e;
-  box-shadow: 0 1px 4px rgba(35, 55, 45, .08);
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, .24);
+  background-clip: padding-box;
+  transition: background-color 140ms ease;
 }
 
 .panel-divider:hover .divider-grip,
 .panel-divider:focus-visible .divider-grip {
-  border-color: #91ad9c;
-  background: #e7f0e9;
-  color: var(--checkit-green, #34524d);
+  background-color: rgba(100, 116, 139, .4);
 }
 
 .panel-divider:focus-visible {

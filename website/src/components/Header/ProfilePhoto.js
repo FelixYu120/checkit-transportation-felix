@@ -16,20 +16,30 @@ export function validateProfilePhoto(file) {
   }
 }
 
-export async function prepareProfilePhoto(file) {
+export function getProfilePhotoCrop(width, height, { zoom = 1, offsetX = 0.5, offsetY = 0.5 } = {}) {
+  if (!(width > 0) || !(height > 0)) throw new Error('Empty image');
+  const normalized = (value, fallback, min, max) => Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+  const size = Math.min(width, height) / normalized(zoom, 1, 1, 3);
+  return {
+    x: (width - size) * normalized(offsetX, 0.5, 0, 1),
+    y: (height - size) * normalized(offsetY, 0.5, 0, 1),
+    size,
+  };
+}
+
+export async function prepareProfilePhoto(file, crop) {
   validateProfilePhoto(file);
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = url;
     await image.decode();
-    const size = Math.min(image.naturalWidth, image.naturalHeight);
-    if (!size) throw new Error('Empty image');
+    const { x, y, size } = getProfilePhotoCrop(image.naturalWidth, image.naturalHeight, crop);
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 512;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Image processing unavailable');
-    context.drawImage(image, (image.naturalWidth - size) / 2, (image.naturalHeight - size) / 2,
+    context.drawImage(image, x, y,
       size, size, 0, 0, 512, 512);
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.88));
     if (!blob || blob.type !== 'image/webp' || blob.size > PROFILE_PHOTO_MAX_BYTES) throw new Error('Image conversion failed');
@@ -68,10 +78,10 @@ async function clearUnusedPhoto(storage, path) {
   try { await storage.remove([path]); } catch { /* A failed cleanup does not undo a saved profile. */ }
 }
 
-export async function uploadProfilePhoto(client, file, { prepare = prepareProfilePhoto } = {}) {
+export async function uploadProfilePhoto(client, file, { prepare = prepareProfilePhoto, crop } = {}) {
   validateProfilePhoto(file);
   const user = await currentUser(client);
-  const blob = await prepare(file);
+  const blob = await prepare(file, crop);
   const storage = client.storage.from(PROFILE_PHOTO_BUCKET);
   const path = `${user.id}/${crypto.randomUUID()}.webp`;
   const { error: uploadError } = await storage.upload(path, blob, { contentType: 'image/webp', upsert: false, cacheControl: '3600' });

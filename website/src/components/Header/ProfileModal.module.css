@@ -47,6 +47,15 @@
 .photoButton:hover, .photoRemove:hover { background: #e0e9e2; }
 .photoHint { margin: 8px 0 0; color: #63756b; font-size: 10px; line-height: 1.5; }
 .photoStatus { margin: 0 0 6px; color: #34524d; font-size: 13px; }
+.photoEditor { display: grid; justify-items: center; gap: 10px; padding: 16px; border: 1px solid #d0ddd3; border-radius: 10px; background: #f6f9f6; }
+.cropPreview { position: relative; width: min(100%, 192px); aspect-ratio: 1; overflow: hidden; box-sizing: border-box; border-radius: 12px; background: #e2eae4; cursor: grab; touch-action: none; user-select: none; }
+.cropPreview:active { cursor: grabbing; }
+.cropPreview img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+.cropPreview:focus-visible { outline: 2px solid #34524d; outline-offset: 3px; }
+.photoEditor .photoHint { margin: 0; font-size: 11px; }
+.zoomControl { display: flex; align-items: center; gap: 12px; width: 100%; color: #546a5c; font-size: 12px; }
+.zoomControl input { flex: 1; min-width: 0; accent-color: #34524d; }
+.cropActions { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
 .closeBtn:focus-visible, .settingsNav button:focus-visible, .passwordToggle:focus-visible, .saveBtn:focus-visible, .photoButton:focus-visible, .photoRemove:focus-visible { outline: 2px solid #34524d; outline-offset: 2px; }
 .modalContent button:disabled { opacity: .55; cursor: not-allowed; }
 @media (max-width:480px) {

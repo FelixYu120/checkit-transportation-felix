@@ -6,7 +6,8 @@ import styles from './ProfileModal.module.css';
 import MfaPage from '../authentication/MfaPage.jsx';
 import { createProfileView, fetchCurrentProfile } from './ProfileData.js';
 import ProfileAvatar from './ProfileAvatar';
-import { PROFILE_PHOTO_ACCEPT, uploadProfilePhoto, removeProfilePhoto, notifyProfileUpdated } from './ProfilePhoto.js';
+import ProfilePhotoEditor from './ProfilePhotoEditor';
+import { PROFILE_PHOTO_ACCEPT, validateProfilePhoto, uploadProfilePhoto, removeProfilePhoto, notifyProfileUpdated } from './ProfilePhoto.js';
 
 const normalizeRole = (role) => {
   const normalized = String(role || 'viewer').trim().toLowerCase();
@@ -30,10 +31,13 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const originalName = useRef('');
   const photoInputRef = useRef(null);
   const [photoAction, setPhotoAction] = useState('');
   const [photoError, setPhotoError] = useState('');
   const [photoMessage, setPhotoMessage] = useState('');
+  const [photoDraft, setPhotoDraft] = useState(null);
   const photoSaving = Boolean(photoAction);
   const [passwordState, setPasswordState] = useState({
     message: '',
@@ -53,6 +57,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
         const result = await fetchCurrentProfile(supabase);
         if (!active) return;
         setProfile(result.profile);
+        originalName.current = result.profile.full_name || '';
         setProfileError(result.error ? 'Some profile details couldn’t load. Reopen to retry.' : '');
       } catch (err) {
         if (!active) return;
@@ -72,15 +77,16 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
     if (!saving && !photoSaving && !mfaBusy) onClose();
   };
 
-  const changePhoto = async (file) => {
+  const changePhoto = async (file, crop) => {
     if (saving || photoSaving || !profile.id || profileError) return;
     setPhotoAction(file ? 'upload' : 'remove');
     setPhotoError('');
     setPhotoMessage('');
     try {
-      const photo = file ? await uploadProfilePhoto(supabase, file) : await removeProfilePhoto(supabase);
+      const photo = file ? await uploadProfilePhoto(supabase, file, { crop }) : await removeProfilePhoto(supabase);
       setProfile(current => ({ ...current, ...photo }));
       notifyProfileUpdated(photo);
+      setPhotoDraft(null);
       setPhotoMessage(file ? (photo.avatar_url ? 'Photo updated.' : 'Photo saved. Reopen your profile to retry the preview.') : 'Photo removed.');
     } catch (error) {
       const unavailable = /bucket|set_my_profile_photo|schema cache/i.test(error.message || '');
@@ -91,29 +97,33 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   };
 
   const handleSave = async () => {
-    if (profileError || photoSaving || saving) return;
-    // STRICT GUARD: Prevent the empty UUID crash
+    if (profileError || photoSaving || saving || photoDraft) return;
+    setSaveError('');
     if (!profile.id) {
-      alert("Authentication error: User ID is missing. Please refresh and log in again.");
+      setSaveError('Sign in again to update your profile.');
       return;
     }
+    const fullName = profile.full_name.trim();
+    if (!fullName) { setSaveError('Enter your full name.'); return; }
+    if (fullName === originalName.current) { onClose(); return; }
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const identity = await supabase.auth.getUser();
+      if (identity.error || identity.data?.user?.id !== profile.id) throw new Error('Account changed.');
+      const { data, error } = await supabase
         .from('profile')
-        .upsert({ 
-            id: profile.id,
-            email: profile.email,
-            full_name: profile.full_name,
-            // Note: We don't update assignments here; an admin should do that elsewhere
-        });
+        .update({ full_name: fullName })
+        .eq('id', profile.id)
+        .select('id,full_name')
+        .single();
 
       if (error) throw error;
-      notifyProfileUpdated(profile);
+      if (data?.id !== profile.id || data.full_name !== fullName) throw new Error('Save not confirmed.');
+      notifyProfileUpdated({ ...profile, full_name: fullName });
       onClose(); 
-    } catch (err) {
-      alert("Failed to update profile: " + err.message);
+    } catch {
+      setSaveError('Couldn’t save changes. Try again.');
     } finally {
       setSaving(false);
     }
@@ -154,6 +164,8 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
   const changePanel = next => {
     if (saving || photoSaving || mfaBusy) return;
     setPanel(next);
+    setPhotoDraft(null);
+    setSaveError('');
     setPasswordState({ message: '', error: '' });
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -245,6 +257,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             ) : (
               <>
             {profileError && <div className={styles.errorMessage} role="status">{profileError}</div>}
+            {saveError && <div className={styles.errorMessage} role="alert">{saveError}</div>}
             
             <section className={styles.photoSection} aria-label="Profile photo">
               <ProfileAvatar profile={profile} className={styles.photoPreview} />
@@ -252,27 +265,32 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
                 <span className={styles.photoLabel}>Profile photo</span>
                 {mode === 'edit' && <>
                   <input ref={photoInputRef} type="file" accept={PROFILE_PHOTO_ACCEPT} hidden
-                    aria-label="Choose profile photo" disabled={saving || photoSaving || Boolean(profileError) || !profile.id}
+                    aria-label="Choose profile photo" disabled={saving || photoSaving || Boolean(photoDraft) || Boolean(profileError) || !profile.id}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       event.target.value = '';
-                      if (file) changePhoto(file);
+                      if (!file) return;
+                      setPhotoError(''); setPhotoMessage('');
+                      try { validateProfilePhoto(file); setPhotoDraft(file); }
+                      catch (error) { setPhotoError(error.message); }
                     }} />
                   <div className={styles.photoActions}>
                     <button className={styles.photoButton} type="button" onClick={() => photoInputRef.current?.click()}
-                      disabled={saving || photoSaving || Boolean(profileError) || !profile.id}>
+                      disabled={saving || photoSaving || Boolean(photoDraft) || Boolean(profileError) || !profile.id}>
                       <Camera size={15} aria-hidden="true" />
                       {photoAction === 'upload' ? 'Uploading…' : profile.avatar_path ? 'Change photo' : 'Upload photo'}
                     </button>
                     {profile.avatar_path && <button className={styles.photoRemove} type="button" onClick={() => changePhoto(null)}
-                      disabled={saving || photoSaving || Boolean(profileError)}>
+                      disabled={saving || photoSaving || Boolean(photoDraft) || Boolean(profileError)}>
                       {photoAction === 'remove' ? 'Removing…' : 'Remove'}
                     </button>}
                   </div>
-                  <p className={styles.photoHint}>JPG, PNG, or WebP · Up to 5 MB. Photos save immediately.</p>
+                  <p className={styles.photoHint}>JPG, PNG, or WebP · Up to 5 MB.</p>
                 </>}
               </div>
             </section>
+            {photoDraft && <ProfilePhotoEditor file={photoDraft} busy={photoSaving}
+              onSave={crop => changePhoto(photoDraft, crop)} onCancel={() => { setPhotoDraft(null); setPhotoError(''); }} />}
             {photoError && <div className={styles.errorMessage} role="alert">{photoError}</div>}
             {photoMessage && <p className={styles.photoStatus} role="status">{photoMessage}</p>}
 
@@ -303,7 +321,7 @@ const ProfileModal = ({ isOpen, onClose, mode }) => {
             </div>}
 
             {mode === 'edit' && (
-              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || photoSaving || Boolean(profileError) || !profile.id}>
+              <button className={styles.saveBtn} onClick={handleSave} disabled={saving || photoSaving || Boolean(photoDraft) || Boolean(profileError) || !profile.id}>
                 <Save size={16} /> {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}

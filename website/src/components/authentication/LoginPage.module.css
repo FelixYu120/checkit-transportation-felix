@@ -329,6 +329,7 @@ button.backLink { border:0; background:transparent; padding:0; font-family:inher
 .embeddedTitle { margin: 0 0 20px; color: var(--checkit-ink, #15201f); font-size: 15px; font-weight: 600; line-height: 1.5; }
 
 .signupAuthenticator { border-top: 1px solid #bfcdc4; padding-top: 16px; min-width: 0; }
+.authenticatorHint { margin: 8px 0 0; color: #63756b; font-size: .8125rem; line-height: 1.5; }
 .authenticatorButton { padding: 9px 12px; border: 1px solid #b6c6bc; border-radius: 6px; background: transparent; color: var(--checkit-green, #34524d); font: inherit; font-size: .8125rem; cursor: pointer; }
 .authenticatorButton:disabled { opacity: .6; cursor: not-allowed; }
 .authenticatorButton:focus-visible { outline: 2px solid #34524d; outline-offset: 2px; }
