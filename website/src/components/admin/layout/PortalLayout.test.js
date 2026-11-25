@@ -86,7 +86,7 @@ test('collapsing and reopening navigation preserves tree selection and the mount
   assert.equal(find('Expand tree menu').getAttribute('aria-expanded'), 'false');
   assert.equal(find('Resize navigation'), null);
   assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), true);
-  assert.equal(saved().sidebarCollapsed, true);
+  assert.equal(Object.hasOwn(saved(), 'sidebarCollapsed'), false);
   await act(async () => find('Expand tree menu').click());
   assert.equal(document.querySelector('[data-tree-choice]'), tree);
   assert.equal(tree.textContent, 'Selected building');
@@ -146,10 +146,17 @@ test('dragging cannot shrink either panel excessively and Escape restores the sp
   assert.ok(saved().dataShare <= 0.7);
 });
 
-test('saved preferences restore on reopen and malformed values fall back safely', async () => {
+test('the tree opens on each entry while the saved data/map split is restored', async () => {
   window.localStorage.setItem(storageKey, JSON.stringify({ sidebarCollapsed: true, sidebarWidth: 300, dataShare: 0.5 }));
   await mount();
+  assert.ok(find('Collapse tree menu'));
+  assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), false);
+  assert.equal(find('Resize data and map').getAttribute('aria-valuenow'), '50');
+  await act(async () => find('Collapse tree menu').click());
   assert.ok(find('Expand tree menu'));
+  await act(async () => root.unmount()); root = null;
+  await mount();
+  assert.ok(find('Collapse tree menu'));
   assert.equal(find('Resize data and map').getAttribute('aria-valuenow'), '50');
   await act(async () => root.unmount()); root = null;
   window.localStorage.setItem(storageKey, '{invalid');
@@ -191,6 +198,7 @@ test('the final drag position is saved even if pointer-up happens before the nex
 test('a collapsed desktop tree does not disable the navigation drawer on narrow screens', async () => {
   window.localStorage.setItem(storageKey, JSON.stringify({ sidebarCollapsed: true, dataShare: 0.63 }));
   await mount();
+  await act(async () => find('Collapse tree menu').click());
   assert.equal(document.querySelector('#portal-navigation').hasAttribute('inert'), true);
   fixture.desktop = false;
   await act(async () => window.dispatchEvent(new window.Event('resize')));

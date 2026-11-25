@@ -13,7 +13,7 @@ function readPreferences(key) {
   try {
     const saved = JSON.parse(window.localStorage.getItem(key));
     return {
-      sidebarCollapsed: saved?.sidebarCollapsed === true,
+      sidebarCollapsed: false,
       dataShare: Number.isFinite(saved?.dataShare) ? clamp(saved.dataShare, 0.5, 0.7) : DEFAULTS.dataShare,
     };
   } catch { return DEFAULTS; }
@@ -29,9 +29,9 @@ export default function usePortalPanels(storageKey) {
 
   useEffect(() => {
     if (resizing) return;
-    try { window.localStorage.setItem(storageKey, JSON.stringify(preferences)); }
+    try { window.localStorage.setItem(storageKey, JSON.stringify({ dataShare: preferences.dataShare })); }
     catch { /* Resizing remains available when browser storage is blocked. */ }
-  }, [preferences, resizing, storageKey]);
+  }, [preferences.dataShare, resizing, storageKey]);
 
   useEffect(() => {
     const measure = () => {
