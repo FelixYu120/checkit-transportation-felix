@@ -4,7 +4,7 @@ import { PROFILE_UPDATED_EVENT, withProfilePhotos } from "../../Header/ProfilePh
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, ChevronDown, ChevronRight, Copy, Mail, Search, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import supabase from "../../helper/SupabaseClients";
-import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember } from "./TeamData";
+import { fetchInstitutionTeamMembers, inviteTeamMember, removeTeamMember, updateTeamMemberRole } from "./TeamData";
 import styles from "./TeamPage.module.css";
 
 const matchesSearch = (member, query) => {
@@ -110,6 +110,10 @@ const TeamPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedEmail, setCopiedEmail] = useState("");
   const [activeMember, setActiveMember] = useState(null);
+  const [roleDraft, setRoleDraft] = useState("");
+  const [roleFeedback, setRoleFeedback] = useState(null);
+  const [savingRole, setSavingRole] = useState(false);
+  const roleRequestRef = useRef(null);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const memberDialogRef = useRef(null);
   const resendRequestRef = useRef(null);
@@ -240,9 +244,12 @@ const TeamPage = () => {
   });
 
   const closeMemberDetails = () => {
+    if (roleRequestRef.current) return;
     memberDialogRef.current?.close();
     setActiveMember(null);
     setResendFeedback(null);
+    setRoleDraft("");
+    setRoleFeedback(null);
   };
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -260,6 +267,35 @@ const TeamPage = () => {
     normalizeRole(currentUserRole) === "checkit_admin" ||
     (normalizeRole(currentUserRole) === "admin" && ["viewer", "field_operator"].includes(option.value))
   ));
+  const canEditActiveRole = Boolean(activeMember && !activeMember.removal_pending &&
+    canManageMember(currentUserRole, currentUserId, activeMember));
+  const selectedRole = roleDraft || normalizeRole(activeMember?.role);
+
+  const saveMemberRole = async (event) => {
+    event.preventDefault();
+    if (roleRequestRef.current || resendRequestRef.current || !canEditActiveRole ||
+      selectedRole === normalizeRole(activeMember.role)) return;
+    if (!inviteRoles.some(option => option.value === selectedRole)) return;
+    const memberId = activeMember.id;
+    roleRequestRef.current = memberId;
+    setSavingRole(true);
+    setRoleFeedback(null);
+    ++teamRequest.current;
+    try {
+      const saved = await updateTeamMemberRole(supabase, memberId, selectedRole);
+      // Discard directory reads started before the confirmed role change.
+      ++teamRequest.current;
+      setMembers(current => current.map(member => member.id === memberId ? { ...member, role: saved.role } : member));
+      setActiveMember(current => current?.id === memberId ? { ...current, role: saved.role } : current);
+      setRoleDraft("");
+      setRoleFeedback({ message: "Role updated" });
+    } catch (err) {
+      setRoleFeedback({ error: err.message || "Role could not be updated." });
+    } finally {
+      roleRequestRef.current = null;
+      setSavingRole(false);
+    }
+  };
 
   const copyEmail = async (email) => {
     if (!email) return;
@@ -273,6 +309,7 @@ const TeamPage = () => {
   };
 
   const openRemoveConfirmation = (member) => {
+    if (roleRequestRef.current) return;
     if (!canManageMember(currentUserRole, currentUserId, member)) return;
     closeMemberDetails();
     setRemovalMessage("");
@@ -320,7 +357,7 @@ const TeamPage = () => {
   };
 
   const resendInvite = async (member) => {
-    if (resendRequestRef.current || !canResendInvitation(currentUserRole, currentUserId, member)) return;
+    if (roleRequestRef.current || resendRequestRef.current || !canResendInvitation(currentUserRole, currentUserId, member)) return;
     resendRequestRef.current = member.id;
     setResendingMemberId(member.id);
     setResendFeedback(null);
@@ -477,7 +514,7 @@ const TeamPage = () => {
               <button
                 className={styles.memberDetailsButton}
                 type="button"
-                onClick={() => { setResendFeedback(null); setActiveMember(member); }}
+                onClick={() => { setResendFeedback(null); setRoleDraft(""); setRoleFeedback(null); setActiveMember(member); }}
                 aria-label={`View details for ${member.full_name || member.email || "member"}`}
                 aria-haspopup="dialog"
               >
@@ -524,7 +561,7 @@ const TeamPage = () => {
         >
           <div className={styles.memberDetailsHeader}>
             <h2 id="team-member-details-title">Member details</h2>
-            <button className={styles.iconButton} type="button" onClick={closeMemberDetails} aria-label="Close member details">
+            <button className={styles.iconButton} type="button" onClick={closeMemberDetails} aria-label="Close member details" disabled={savingRole}>
               <X size={20} aria-hidden="true" />
             </button>
           </div>
@@ -543,7 +580,22 @@ const TeamPage = () => {
           <dl className={styles.memberDetailsFields}>
             <div>
               <dt>Role</dt>
-              <dd><span className={styles.roleBadge} data-role={normalizeRole(activeMember.role)}>{getRoleLabel(activeMember.role)}</span></dd>
+              <dd>
+                {canEditActiveRole ? (
+                  <form className={styles.roleEditor} onSubmit={saveMemberRole} aria-busy={savingRole}>
+                    <select id="team-member-role" aria-label="Member role" className={styles.input}
+                      value={selectedRole} disabled={savingRole || Boolean(resendingMemberId)}
+                      onChange={event => { setRoleDraft(event.target.value); setRoleFeedback(null); }}>
+                      {inviteRoles.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <button className={styles.primaryButton} type="submit"
+                      disabled={savingRole || Boolean(resendingMemberId) || selectedRole === normalizeRole(activeMember.role)}>
+                      {savingRole ? "Saving…" : "Save role"}
+                    </button>
+                  </form>
+                ) : <span className={styles.roleBadge} data-role={normalizeRole(activeMember.role)}>{getRoleLabel(activeMember.role)}</span>}
+                {roleFeedback && <p className={styles.roleFeedback} role={roleFeedback.error ? "alert" : "status"}>{roleFeedback.error || roleFeedback.message}</p>}
+              </dd>
             </div>
             <div>
               <dt>Email</dt>
@@ -581,12 +633,12 @@ const TeamPage = () => {
                   {resendFeedback.error || resendFeedback.message}
                 </p>
               ) : null}
-              <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)} disabled={resendingMemberId === activeMember.id}>
+              <button className={styles.removeFromProfileButton} type="button" onClick={() => openRemoveConfirmation(activeMember)} disabled={savingRole || resendingMemberId === activeMember.id}>
                 <X size={16} aria-hidden="true" />
                 Remove
               </button>
               {canResendInvitation(currentUserRole, currentUserId, activeMember) ? (
-                <button className={styles.resendInviteButton} type="button" onClick={() => resendInvite(activeMember)} disabled={Boolean(resendingMemberId)}>
+                <button className={styles.resendInviteButton} type="button" onClick={() => resendInvite(activeMember)} disabled={savingRole || Boolean(resendingMemberId)}>
                   <Send size={16} aria-hidden="true" />
                   {resendingMemberId === activeMember.id ? "Sending..." : "Resend invite"}
                 </button>

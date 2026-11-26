@@ -101,12 +101,19 @@ export const fetchInstitutionTeamMembers = async (supabase) => {
 };
 
 export const updateTeamMemberRole = async (supabase, memberId, role) => {
+  if (!supabase || !memberId) throw new Error("Choose a member to update.");
+  if (!["viewer", "field_operator", "admin", "checkit_field_operator", "checkit_admin"].includes(role)) {
+    throw new Error("Choose a role you can assign.");
+  }
   const { data, error } = await supabase.rpc("update_team_member_role", {
     target_profile_id: memberId,
     new_role: role
   });
 
   if (error) throw error;
+  if (data?.id !== memberId || data.role !== role) {
+    throw new Error("Role change could not be confirmed. Refresh and try again.");
+  }
   return data;
 };
 

@@ -260,7 +260,6 @@ function CreateAccount() {
                             autoComplete="section-checkit-transportation username"
                             readOnly
                             required
-                            onChange={(event) => setEmail(event.target.value)}
                         />
                     </div>
 

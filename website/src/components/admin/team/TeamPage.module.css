@@ -914,6 +914,32 @@
   font-size: .75rem;
 }
 
+.roleEditor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.roleEditor .input {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.roleEditor .primaryButton {
+  white-space: nowrap;
+}
+
+.roleFeedback {
+  margin: 8px 0 0;
+  color: var(--checkit-muted, #63756b);
+  font-size: .8125rem;
+}
+
+.roleFeedback[role="alert"] {
+  color: #a52a2a;
+}
+
 .memberDetailsFooter {
   display: flex;
   justify-content: flex-end;

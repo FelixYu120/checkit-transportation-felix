@@ -735,6 +735,21 @@ test('signup preserves password-manager values through rerenders and submits the
  await submit();assert.equal(fixture.calls.find(call=>call.action==='password').input.password,'manager-generated-password');
 });
 
+test('signup fills the verified invitation email and keeps it fixed during edits', async () => {
+  await mount(CreateAccount);
+  await fillSignup();
+  const email = document.querySelector('input[autocomplete$=" username"]');
+  assert.equal(email.value, account.email);
+  assert.equal(email.readOnly, true);
+  await enter('input[autocomplete$=" username"]', 'other@example.test');
+  await act(async () => document.querySelector('[aria-label="Show password"]').click());
+  assert.equal(email.value, account.email);
+  await submit();
+  const update = fixture.calls.find(call => call.action === 'password').input;
+  assert.equal(Object.hasOwn(update, 'email'), false);
+  assert.deepEqual(fixture.navigations, ['/login']);
+});
+
 test('password reset accepts generated passwords without input events and exposes the account username',async()=>{
  await mount(SetPassword);
  const setValue=Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set;

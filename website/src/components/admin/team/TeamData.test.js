@@ -1,6 +1,27 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { fetchInstitutionTeamMembers, removeTeamMember, inviteTeamMember } from "./TeamData.js";
+import { fetchInstitutionTeamMembers, removeTeamMember, inviteTeamMember, updateTeamMemberRole } from "./TeamData.js";
+
+test('role updates use the authorized RPC and require the matching member and role', async () => {
+  const calls = [];
+  const client = {rpc: async (name, input) => {
+    calls.push({name, input});
+    return {data:{id:'member',role:'field_operator'},error:null};
+  }};
+  assert.equal((await updateTeamMemberRole(client,'member','field_operator')).role, 'field_operator');
+  assert.deepEqual(calls, [{name:'update_team_member_role', input:{target_profile_id:'member', new_role:'field_operator'}}]);
+});
+
+for (const data of [null, {}, {id:'other',role:'admin'}, {id:'member',role:'viewer'}]) test(`unconfirmed role updates fail: ${JSON.stringify(data)}`, async () => {
+  await assert.rejects(updateTeamMemberRole({rpc:async()=>({data,error:null})},'member','admin'), /could not be confirmed/);
+});
+
+test('role update permission errors remain visible and invalid requests never call the RPC', async () => {
+  await assert.rejects(updateTeamMemberRole({rpc:async()=>({error:new Error('Only admins can manage team roles.')})},'member','admin'), /Only admins/);
+  const client = {rpc:async()=>assert.fail('Must not send an invalid role update')};
+  await assert.rejects(updateTeamMemberRole(client,'member','owner'), /Choose a role/);
+  await assert.rejects(updateTeamMemberRole(client,'','viewer'), /Choose a member/);
+});
 
 const createTeam = ({ role = "checkit_admin", invitations = [], access = [] } = {}) => {
   const profiles = new Map([

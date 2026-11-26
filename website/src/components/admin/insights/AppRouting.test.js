@@ -289,8 +289,12 @@ test('account setup verification fails closed without rendering the portal', asy
 
 for (const [path,type,target] of [['/signup','invite','/create-account'],['/signup','magiclink','/create-account'],['/reset-password','recovery','/set-password']])test(`${type} email callback verifies once and routes to ${target}`,async()=>{
   await mount(`${path}#token_hash=fixture-hash&type=${type}`,false);
-  assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[]);
-  await act(async()=>document.querySelector('[data-page="EmailLinkConfirmation"]').click());
+  if (type === 'recovery') {
+    assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[]);
+    await act(async()=>document.querySelector('[data-page="EmailLinkConfirmation"]').click());
+  } else {
+    assert.equal(document.querySelector('[data-page="EmailLinkConfirmation"]'), null);
+  }
   await until(()=>globalThis.__checkitRoutingFixture.redirects.includes(target));
   assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls,[{token_hash:'fixture-hash',type}]);
   assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
@@ -298,9 +302,25 @@ for (const [path,type,target] of [['/signup','invite','/create-account'],['/sign
 
 test('an expired invitation routes to login with an explicit error and no portal content',async()=>{
   await mount('/signup#token_hash=expired-fixture&type=invite',false,undefined,{verifyError:{code:'otp_expired'}});
-  await act(async()=>document.querySelector('[data-page="EmailLinkConfirmation"]').click());
   await until(()=>globalThis.__checkitRoutingFixture.redirects.includes('/login?notice=invite_expired'));
   assert.equal(document.querySelector('[data-page="AdminHeader"]'),null);
+  assert.equal(document.querySelector('[data-page="EmailLinkConfirmation"]'),null);
+});
+
+for (const type of ['invite', 'magiclink']) test(`${type} opens signup directly on the canonical URL`, async () => {
+  await mount(`/create-account#token_hash=fixture-hash&type=${type}`, false);
+  await until(() => document.querySelector('[data-page="CreateAccount"]'));
+  assert.deepEqual(globalThis.__checkitRoutingFixture.verifyCalls, [{token_hash:'fixture-hash',type}]);
+  assert.equal(window.location.hash, '', 'reload must not exchange the consumed email token again');
+  assert.equal(document.querySelector('[data-page="EmailLinkConfirmation"]'), null);
+  assert.equal(document.querySelector('[data-page="AdminHeader"]'), null);
+});
+
+test('an invalid or reused invite never opens signup', async () => {
+  await mount('/create-account#token_hash=used-fixture&type=invite', false, undefined, {verifyError:{code:'otp_disabled'}});
+  await until(() => globalThis.__checkitRoutingFixture.redirects.includes('/login?notice=invite_invalid'));
+  assert.equal(document.querySelector('[data-page="CreateAccount"]'), null);
+  assert.equal(document.querySelector('[data-page="EmailLinkConfirmation"]'), null);
 });
 
 

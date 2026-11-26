@@ -15,6 +15,7 @@ const fixture = globalThis.__checkitTeamTest = {};
 const reset = () => Object.assign(fixture, {
   currentUserId: "owner", currentUserRole: "admin", loads: 0, removeCalls: [], removalGate: null, removeError: null, failRefresh: false,
   inviteCalls: [], inviteResult: {ok:true}, inviteError: null, inviteGate: null,
+  roleCalls: [], roleError: null, roleGate: null, directoryGate: null,
   members: [
     { id: "owner", full_name: "Team Owner", email: "owner@example.test", role: "admin", assigned_institute: "institute-a" },
     { id: "member", full_name: "Emily Thompson", email: "emily@example.test", role: "viewer", assigned_institute: "institute-a" },
@@ -51,7 +52,9 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
     export const fetchInstitutionTeamMembers=async()=>{
       fixture.loads++;
       if(fixture.failRefresh && fixture.loads>1) throw new Error('Directory refresh unavailable');
-      return {...fixture, institutionId:'institute-a', members:fixture.members.filter(member=>member.assigned_institute)};
+      const result={...fixture, institutionId:'institute-a', members:fixture.members.filter(member=>member.assigned_institute).map(member=>({...member}))};
+      if(fixture.directoryGate) await fixture.directoryGate;
+      return result;
     };
     export const removeTeamMember=async(_client,id)=>{
       fixture.removeCalls.push(id);
@@ -64,6 +67,13 @@ const code = transformed.code.replace(/(^import\s+([\s\S]*?)\s+from\s*)(["'])([^
       if(fixture.inviteGate) await fixture.inviteGate;
       if(fixture.inviteError) throw fixture.inviteError;
       return fixture.inviteResult;
+    };
+    export const updateTeamMemberRole=async(_client,id,role)=>{
+      fixture.roleCalls.push({id,role});
+      if(fixture.roleGate) await fixture.roleGate;
+      if(fixture.roleError) throw fixture.roleError;
+      fixture.members=fixture.members.map(member=>member.id===id?{...member,role}:member);
+      return fixture.members.find(member=>member.id===id);
     };
   `);
   else throw new Error(`Unexpected import: ${specifier}`);
@@ -98,6 +108,96 @@ const enterName = async value => act(async () => {
   input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 });
 const submit = async () => act(async () => document.querySelector(".removalDialog form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
+
+const selectRole = async role => act(async () => {
+  const select = document.getElementById('team-member-role');
+  select.value = role;
+  select.dispatchEvent(new dom.window.Event('change', {bubbles:true}));
+});
+const submitRole = async () => act(async () => document.querySelector('.roleEditor').dispatchEvent(new dom.window.Event('submit', {bubbles:true,cancelable:true})));
+
+test('admins save a member role once and update the directory only after confirmation', async () => {
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.deepEqual([...document.querySelectorAll('#team-member-role option')].map(option=>option.value), ['viewer','field_operator']);
+  await selectRole('field_operator');
+  let release;
+  fixture.roleGate = new Promise(resolve => { release=resolve; });
+  try {
+    await submitRole();
+    await submitRole();
+    assert.deepEqual(fixture.roleCalls,[{id:'member',role:'field_operator'}]);
+    assert.equal(document.querySelector('#team-member-role').disabled,true);
+    assert.equal(document.querySelector('.removeFromProfileButton').disabled,true);
+    await click('[aria-label="Close member details"]');
+    assert.ok(document.querySelector('.memberDetailsDialog[open]'));
+    assert.equal(document.querySelector('[aria-label="View details for Emily Thompson"] .roleBadge').textContent,'Viewer');
+    await act(async()=>release());
+    assert.equal(document.querySelector('[aria-label="View details for Emily Thompson"] .roleBadge').textContent,'Field Operator');
+    assert.equal(document.querySelector('.roleFeedback').textContent,'Role updated');
+    assert.equal(document.querySelector('.roleEditor [type="submit"]').disabled,true);
+  } finally { release(); }
+});
+
+test('a rejected role save preserves the existing role and allows retry', async () => {
+  fixture.members[1].invitation_pending=true;
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  await selectRole('field_operator');
+  fixture.roleError=new Error('Only admins can manage team roles.');
+  await submitRole();
+  assert.equal(document.querySelector('[aria-label="View details for Emily Thompson"] .roleBadge').textContent,'Viewer');
+  assert.match(document.querySelector('.roleFeedback[role="alert"]').textContent,/Only admins/);
+  assert.equal(document.getElementById('team-member-role').value,'field_operator');
+  fixture.roleError=null;
+  await submitRole();
+  await click('.resendInviteButton');
+  assert.deepEqual(fixture.inviteCalls,[{email:'emily@example.test',role:'field_operator'}]);
+});
+
+test('late directory responses cannot undo a confirmed role change', async () => {
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  let release;
+  fixture.directoryGate=new Promise(resolve=>{release=resolve;});
+  try {
+    await act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
+    await selectRole('field_operator');
+    await submitRole();
+    await act(async()=>release());
+    assert.equal(document.querySelector('[aria-label="View details for Emily Thompson"] .roleBadge').textContent,'Field Operator');
+    assert.equal(document.getElementById('team-member-role').value,'field_operator');
+  } finally { release(); }
+});
+
+test('self, protected admins, and pending removals have no role editor for institution admins', async () => {
+  fixture.members[1].removal_pending=true;
+  await mount();
+  for (const name of ['Team Owner','Another Admin','Emily Thompson']) {
+    await click(`[aria-label="View details for ${name}"]`);
+    assert.equal(document.querySelector('.roleEditor'),null);
+    await click('[aria-label="Close member details"]');
+  }
+  assert.deepEqual(fixture.roleCalls,[]);
+});
+
+for (const role of ['viewer','field_operator','checkit_field_operator']) test(`${role} cannot edit member roles`, async () => {
+  fixture.currentUserRole=role;
+  await mount();
+  await click('[aria-label="View details for Emily Thompson"]');
+  assert.equal(document.querySelector('.roleEditor'),null);
+});
+
+test('CheckIt admins can assign every supported role to another elevated member', async () => {
+  fixture.currentUserRole='checkit_admin';
+  await mount();
+  await click('[aria-label="View details for Another Admin"]');
+  assert.deepEqual([...document.querySelectorAll('#team-member-role option')].map(option=>option.value), ['viewer','field_operator','admin','checkit_field_operator','checkit_admin']);
+  await selectRole('checkit_admin');
+  await submitRole();
+  assert.deepEqual(fixture.roleCalls,[{id:'protected',role:'checkit_admin'}]);
+  assert.equal(document.querySelector('[aria-label="View details for Another Admin"] .roleBadge').textContent,'CheckIt Admin');
+});
 
 const mockRemovalTimers = () => {
   const originalSetTimeout = window.setTimeout;
@@ -289,7 +389,7 @@ test('member roles appear in one directory and in member details, including lega
   assert.deepEqual([...document.querySelectorAll('.memberCard .roleBadge')].map(badge => badge.textContent).sort(), ['Admin', 'Field Operator', 'Viewer']);
   await click('[aria-label="View details for Emily Thompson"]');
   const role = [...document.querySelectorAll('.memberDetailsFields > div')].find(field => field.querySelector('dt').textContent === 'Role');
-  assert.equal(role.querySelector('dd').textContent, 'Viewer');
+  assert.equal(role.querySelector('select').selectedOptions[0].textContent, 'Viewer');
 });
 
 test('institution admins can select an operator role and invitations reset to Viewer after success', async () => {
@@ -371,7 +471,7 @@ test('a profile keeps its avatar color when its details are opened', async () =>
   assert.equal(button.querySelector('.avatar').getAttribute('data-member-tone'), tone);
   await click('[aria-label="View details for Emily Thompson"]');
   assert.equal(document.querySelector('.memberDetailsProfile .avatar').getAttribute('data-member-tone'), tone);
-  assert.equal(document.querySelector('.memberDetailsFields .roleBadge').getAttribute('data-role'), 'viewer');
+  assert.equal(document.getElementById('team-member-role').value, 'viewer');
 });
 
 test('members can open their own photo editor from team details without stacked dialogs', async () => {
@@ -454,7 +554,7 @@ test("uploaded photos appear on cards, member details, and removal confirmation 
     id: 'member', avatar_path: 'member/new.webp', avatar_url: 'https://photos.example/new.webp', role: 'checkit_admin',
   } })));
   assert.equal(document.querySelector('.memberDetailsDialog .avatar img').src, 'https://photos.example/new.webp');
-  assert.equal(document.querySelector('.memberDetailsFields .roleBadge').textContent, 'Viewer');
+  assert.equal(document.getElementById('team-member-role').value, 'viewer');
   await click('.removeFromProfileButton');
   assert.equal(document.querySelector('.removalDialog .avatar img').src, 'https://photos.example/new.webp');
 });

@@ -213,7 +213,7 @@ function AppSession() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authReady, setAuthReady] = useState(() => !supabase);
     const [sessionIdentity, setSessionIdentity] = useState(null);
-    const [callbackApproved, setCallbackApproved] = useState(() => !supabaseEmailCallback.tokenHash || supabaseEmailCallback.error);
+    const [callbackApproved, setCallbackApproved] = useState(() => !supabaseEmailCallback.tokenHash || supabaseEmailCallback.error || supabaseEmailCallback.redirectPath === '/create-account');
 
     useEffect(() => {
         if (!supabase) {
@@ -232,6 +232,9 @@ function AppSession() {
             if (callbackNeedsRedirect) {
                 window.location.replace(supabaseAuthRedirectPath);
                 return;
+            }
+            if (supabaseEmailCallback.hasCallback) {
+                window.history.replaceState(window.history.state, '', supabaseAuthRedirectPath);
             }
             resolvingCallback = false;
             if (authEventReceived) return;
